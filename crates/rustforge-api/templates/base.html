@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_title }}{% endblock %} — {{ site_tagline }}</title>
+    
+    <!-- SEO & GEO Optimization Schema.org JSON-LD -->
+    {% if schema_org %}
+    <script type="application/ld+json">
+        {{ schema_org | tojson }}
+    </script>
+    {% endif %}
+
+    <!-- Multilingue : Balises Hreflang pour le référencement international -->
+    {% for alt_lang in available_locales %}
+    <link rel="alternate" hreflang="{{ alt_lang.code }}" href="{{ alt_lang.url }}" />
+    {% endfor %}
+
+    <!-- Design Tokens dynamiques injectés en variables CSS -->
+    <style>
+        :root {
+            --tp-primary: {{ design_tokens.primary_color | default('#4f46e5') }};
+            --tp-accent: {{ design_tokens.accent_color | default('#06b6d4') }};
+            --tp-radius: {{ design_tokens.radius | default('12px') }};
+            --tp-font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            --tp-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            font-family: var(--tp-font-body);
+            background-color: #0b0f19;
+            color: #cbd5e1;
+            margin: 0;
+            line-height: 1.7;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--tp-font-heading);
+            color: #f8fafc;
+            font-weight: 700;
+            line-height: 1.25;
+        }
+
+        a { color: var(--tp-primary); text-decoration: none; transition: color 0.2s; }
+        a:hover { color: var(--tp-accent); }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+        .glass-nav {
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .btn-primary {
+            background: var(--tp-primary);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: var(--tp-radius);
+            font-weight: 600;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- En-tête Navigation -->
+    <header class="glass-nav">
+        <div class="container" style="display: flex; align-items: center; justify-content: space-between; height: 70px;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/{{ locale }}" style="font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">TrustPress</span>
+                </a>
+            </div>
+
+            <!-- Sélecteur de langue & Navigation -->
+            <nav style="display: flex; align-items: center; gap: 1.5rem;">
+                <a href="/{{ locale }}">Accueil</a>
+                <a href="/{{ locale }}/articles">Articles</a>
+
+                <!-- Switcher multilingue dynamique -->
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.05); padding: 0.3rem 0.6rem; border-radius: 8px; font-size: 0.85rem;">
+                    <span style="color: #64748b;">Lang:</span>
+                    <a href="/fr" style="font-weight: {{ 'bold' if locale == 'fr' else 'normal' }}; color: {{ 'white' if locale == 'fr' else '#94a3b8' }};">FR</a>
+                    <span style="color: #475569;">|</span>
+                    <a href="/en" style="font-weight: {{ 'bold' if locale == 'en' else 'normal' }}; color: {{ 'white' if locale == 'en' else '#94a3b8' }};">EN</a>
+                </div>
+
+                <a href="/admin" class="btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Studio Admin</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Contenu Principal -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Pied de page -->
+    <footer style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 5rem; padding: 3rem 0; text-align: center; color: #64748b; font-size: 0.9rem;">
+        <div class="container">
+            <p>{{ site_title }} — Propulsé par le moteur haute performance <strong>Rust & Axum</strong></p>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem;">Zéro cookie GDPR · Rendu SSR L1 Moka &lt; 1ms · Tool Calling IA</p>
+        </div>
+    </footer>
+</body>
+</html>

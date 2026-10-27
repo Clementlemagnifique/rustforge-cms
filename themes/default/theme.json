@@ -1,0 +1,15 @@
+{
+  "name": "TrustPress Sovereign",
+  "version": "1.0.0",
+  "author": "TrustPress Core Team",
+  "description": "Thème officiel TrustPress : minimaliste, ultra-rapide (< 1ms), SEO international et mode Zen intégré.",
+  "tokens": {
+    "primary_color": "#4f46e5",
+    "accent_color": "#06b6d4",
+    "radius": "12px",
+    "font_heading": "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    "font_body": "'Inter', system-ui, -apple-system, sans-serif",
+    "bg_color": "#0b0f19",
+    "text_color": "#cbd5e1"
+  }
+}

@@ -1,0 +1,37 @@
+# ==============================================================================
+# RustForge CMS — Configuration Serveur Principale
+# L'alter ego moderne et souverain de wp-config.php (en format TOML)
+# ==============================================================================
+# Renommez ce fichier en "config.toml" à la racine de votre installation serveur.
+# Les variables d'environnement ont priorité sur ce fichier si définies.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+# Clé secrète de signature des sessions JWT (à modifier impérativement en production)
+jwt_secret = "rustforge-super-secret-production-key-changez-moi-2026"
+
+[database]
+# Chaîne de connexion PostgreSQL
+url = "postgres://postgres:postgres@localhost:5432/trustpress"
+max_connections = 20
+min_connections = 2
+
+[storage]
+# Répertoire des médias téléversés (images WebP, SVG, fichiers)
+uploads_dir = "uploads"
+# Répertoire des extensions et micro-plugins WebAssembly (Wasmtime)
+plugins_dir = "plugins"
+# Répertoire des thèmes front-end
+themes_dir = "themes"
+# Répertoire de distribution du Studio d'administration web
+admin_dist = "admin/dist"
+
+[theme]
+active = "default"
+
+[ai]
+enabled = false
+provider = "ollama"
+endpoint = "http://localhost:11434"
+model = "llama3:latest"

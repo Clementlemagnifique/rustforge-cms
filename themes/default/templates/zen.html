@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ entry.title }} — Mode Lecture Zen</title>
+    <style>
+        :root {
+            --bg-color: #fcfbf9;
+            --text-color: #2c3038;
+            --accent-color: #4f46e5;
+            --font-family: 'Georgia', 'Merriweather', serif;
+        }
+
+        body.dark-mode {
+            --bg-color: #12151c;
+            --text-color: #e2e8f0;
+            --accent-color: #818cf8;
+        }
+
+        body.sepia-mode {
+            --bg-color: #f4ecd8;
+            --text-color: #433422;
+            --accent-color: #92400e;
+        }
+
+        body.sans-mode {
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            transition: background 0.3s, color 0.3s;
+            line-height: 1.85;
+            font-size: 1.25rem;
+        }
+
+        .zen-toolbar {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: rgba(120, 120, 120, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.85rem;
+            user-select: none;
+            z-index: 100;
+        }
+
+        .zen-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            color: inherit;
+        }
+
+        .zen-container {
+            max-width: 680px;
+            margin: 6rem auto 8rem auto;
+            padding: 0 1.5rem;
+        }
+
+        h1 { font-size: 2.6rem; line-height: 1.2; margin-bottom: 2rem; font-weight: 700; }
+        h2 { font-size: 1.8rem; margin-top: 3rem; margin-bottom: 1rem; }
+        h3 { font-size: 1.35rem; margin-top: 2rem; }
+        p { margin-bottom: 1.8rem; }
+        a { color: var(--accent-color); text-decoration: underline; }
+        .back-link { display: block; margin-top: 5rem; text-decoration: none; font-size: 1rem; font-family: sans-serif; color: var(--accent-color); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <!-- Barre d'outils de confort flottante -->
+    <div class="zen-toolbar">
+        <button class="zen-btn" onclick="toggleTheme('light')">☀️</button>
+        <button class="zen-btn" onclick="toggleTheme('sepia')">📜 Sépia</button>
+        <button class="zen-btn" onclick="toggleTheme('dark')">🌙 Nuit</button>
+        <button class="zen-btn" onclick="toggleFont()">🔤 Police</button>
+        <a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}" style="text-decoration: none; font-family: sans-serif; font-size: 0.8rem; color: inherit; border-left: 1px solid rgba(120,120,120,0.3); padding-left: 0.8rem;">Quitter ✕</a>
+    </div>
+
+    <!-- Conteneur de lecture épuré -->
+    <main class="zen-container">
+        <h1>{{ entry.title }}</h1>
+        <div style="font-size: 0.95rem; opacity: 0.7; margin-bottom: 3rem; font-family: sans-serif;">
+            {{ entry.author_name | default("TrustPress") }} &bull; Lecture estimée à 3 min
+        </div>
+        
+        <div>
+            {{ entry.body_html | safe }}
+        </div>
+
+        <a class="back-link" href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}">&larr; Quitter le mode Zen et revenir à la page</a>
+    </main>
+
+    <script>
+        function toggleTheme(theme) {
+            document.body.classList.remove('dark-mode', 'sepia-mode');
+            if (theme === 'dark') document.body.classList.add('dark-mode');
+            if (theme === 'sepia') document.body.classList.add('sepia-mode');
+        }
+        function toggleFont() {
+            document.body.classList.toggle('sans-mode');
+        }
+    </script>
+</body>
+</html>

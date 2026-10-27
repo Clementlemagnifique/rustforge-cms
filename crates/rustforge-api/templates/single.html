@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entry.title }}{% endblock %}
+
+{% block content %}
+<article class="container" style="max-width: 820px; padding-top: 3.5rem; padding-bottom: 5rem;">
+    <!-- En-tête de l'article -->
+    <header style="margin-bottom: 2.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span style="color: var(--tp-accent); font-weight: 700; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                {{ entry.content_type }}
+            </span>
+            <!-- Bouton Mode Zen Sans Distraction -->
+            <a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}/zen" style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 0.35rem 0.8rem; border-radius: 9999px; font-size: 0.8rem; color: #94a3b8; transition: all 0.2s;">
+                <span>📖 Mode Zen</span>
+            </a>
+        </div>
+
+        <h1 style="font-size: 2.75rem; margin-top: 0; margin-bottom: 1.2rem; letter-spacing: -0.02em;">
+            {{ entry.title }}
+        </h1>
+
+        {% if entry.excerpt %}
+        <p style="font-size: 1.25rem; color: #94a3b8; line-height: 1.6; margin-bottom: 1.5rem; font-style: italic;">
+            {{ entry.excerpt }}
+        </p>
+        {% endif %}
+
+        <div style="display: flex; align-items: center; gap: 1rem; color: #64748b; font-size: 0.9rem;">
+            <span>Par <strong>{{ entry.author_name | default("TrustPress") }}</strong></span>
+            <span>&bull;</span>
+            <span>Publié le {{ entry.published_at | default("Récemment") }}</span>
+        </div>
+    </header>
+
+    <!-- Corps de l'article (rendu HTML Ammonia assaini et filtré WASM) -->
+    <div class="entry-body" style="font-size: 1.125rem; line-height: 1.8; color: #cbd5e1;">
+        {{ entry.body_html | safe }}
+    </div>
+
+    <!-- Pied d'article -->
+    <footer style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+        <a href="/{{ locale }}" style="font-weight: 600;">&larr; Retour à l'accueil</a>
+        <a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}/zen" style="color: var(--tp-accent); font-weight: 600;">
+            Relire en mode sans distraction &rarr;
+        </a>
+    </footer>
+</article>
+
+<style>
+    .entry-body h2 { font-size: 1.9rem; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; }
+    .entry-body h3 { font-size: 1.4rem; margin-top: 2rem; margin-bottom: 0.8rem; }
+    .entry-body p { margin-bottom: 1.5rem; }
+    .entry-body ul, .entry-body ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+    .entry-body li { margin-bottom: 0.5rem; }
+    .entry-body code { background: rgba(255,255,255,0.08); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+    .entry-body pre { background: #07090e; padding: 1.2rem; border-radius: var(--tp-radius); overflow-x: auto; border: 1px solid rgba(255,255,255,0.05); }
+    .entry-body pre code { background: transparent; padding: 0; }
+</style>
+{% endblock %}

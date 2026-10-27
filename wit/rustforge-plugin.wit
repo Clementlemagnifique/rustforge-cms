@@ -1,0 +1,61 @@
+/// Contrat souverain entre RustForge (hôte) et ses extensions WebAssembly.
+///
+/// Un plugin est un composant WASM (cible `wasm32-wasip2`) qui exporte le monde
+/// `plugin`. Il s'exécute dans un bac à sable : pas de système de fichiers,
+/// pas de réseau, mémoire et CPU (fuel) limités. Les accès supplémentaires
+/// passent par des *capacités* déclarées dans le manifeste et accordées par
+/// l'administrateur.
+package rustforge:plugin@0.1.0;
+
+interface types {
+    /// Capacités qu'un plugin peut demander.
+    enum capability {
+        /// Stockage clé/valeur persistant propre au plugin (`host.kv-*`).
+        storage,
+        /// Requêtes HTTP sortantes (réservé, itération ultérieure).
+        http-outbound,
+        /// Déclaration de routes publiques (réservé, itération ultérieure).
+        public-routes,
+        /// Ajout de champs dans l'éditeur (réservé, itération ultérieure).
+        editor-fields,
+    }
+
+    record manifest {
+        /// Identifiant unique, en kebab-case (ex. `reading-time`).
+        id: string,
+        name: string,
+        version: string,
+        description: string,
+        /// Hooks auxquels le plugin s'abonne (ex. `content.render`).
+        hooks: list<string>,
+        capabilities: list<capability>,
+    }
+}
+
+interface host {
+    enum level { trace, debug, info, warn, error }
+
+    /// Écrit dans le journal du serveur, préfixé par l'identifiant du plugin.
+    log: func(level: level, message: string);
+
+    /// Lit une valeur du stockage du plugin (capacité `storage`).
+    kv-get: func(key: string) -> option<string>;
+
+    /// Écrit une valeur dans le stockage du plugin (capacité `storage`).
+    kv-set: func(key: string, value: string) -> result<_, string>;
+}
+
+world plugin {
+    use types.{manifest};
+    import host;
+
+    /// Décrit le plugin. Appelé au chargement.
+    export manifest: func() -> manifest;
+
+    /// Filtre : reçoit une charge utile (HTML ou JSON selon le hook) et renvoie
+    /// la version transformée. Une erreur laisse la charge inchangée.
+    export filter: func(hook: string, payload: string) -> result<string, string>;
+
+    /// Action : notification d'un événement (payload JSON).
+    export on-action: func(hook: string, payload: string);
+}

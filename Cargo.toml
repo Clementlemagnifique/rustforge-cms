@@ -1,0 +1,61 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/rustforge-core",
+    "crates/rustforge-plugins",
+    "crates/rustforge-api",
+    "crates/rustforge",
+]
+# Les plugins sont compilés séparément vers wasm32-wasip2.
+exclude = ["plugins"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+
+[workspace.dependencies]
+rustforge-core = { path = "crates/rustforge-core" }
+rustforge-plugins = { path = "crates/rustforge-plugins" }
+rustforge-api = { path = "crates/rustforge-api" }
+
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["multipart", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs", "compression-gzip", "limit", "set-header"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+anyhow = "1"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+jsonwebtoken = "9"
+argon2 = "0.5"
+sha2 = "0.10"
+hex = "0.4"
+cookie = "0.18"
+pulldown-cmark = "0.13"
+ammonia = "4"
+slug = "0.1"
+imagesize = "0.13"
+mime_guess = "2"
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+wasmtime = "50"
+wasmtime-wasi = "50"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+webp = "0.3"
+quick-xml = "0.37"
+minijinja = { version = "2.12", features = ["loader", "json"] }
+moka = { version = "0.12", features = ["future"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+
+[profile.dev.package."*"]
+# Compile les dépendances (wasmtime, cranelift…) optimisées même en dev.
+opt-level = 2

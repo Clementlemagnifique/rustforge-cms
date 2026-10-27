@@ -1,0 +1,50 @@
+# ==============================================================================
+# RustForge CMS — Fichiers Exclus du Versionnement Git
+# ==============================================================================
+
+# Rust & Cargo
+/target/
+plugins/**/target/
+**/*.rs.bk
+
+# Node.js & Admin Studio (Vite)
+admin/node_modules/
+admin/dist/
+.npm/
+
+# Environnement, Configuration locale & Secrets
+.env
+.env.*
+!.env.example
+config.toml
+
+# Base de données PostgreSQL locale & Médias
+.pgsql/
+uploads/*
+!uploads/.gitkeep
+protected_downloads/*
+!protected_downloads/.gitkeep
+
+# Archives générées, Releases & Scratch
+scratch/
+releases/
+*.rfcapsule
+*.wpress
+*.log
+*.zip
+*.tar.gz
+
+# Références historiques WordPress & Quarantaine
+/wordpress/
+/plugins-ref/
+/theme-ref/
+/_legacy_samples_archive/
+/ex-migration-test/
+
+# IDE & Outils locaux
+.kilo/
+.idea/
+.vscode/
+*.swp
+*.DS_Store
+Thumbs.db
