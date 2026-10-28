@@ -37,7 +37,28 @@ struct Block {
     rf_caption: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     rf_media_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    rf_style: String,
 }
+
+impl Block {
+    fn new(id: String, kind: Kind) -> Self {
+        Self {
+            rf_id: id,
+            rf_type: kind,
+            rf_text: String::new(),
+            rf_level: 2,
+            rf_ordered: false,
+            rf_items: Vec::new(),
+            rf_url: String::new(),
+            rf_alt: String::new(),
+            rf_caption: String::new(),
+            rf_media_id: None,
+            rf_style: String::new(),
+        }
+    }
+}
+
 fn heading_level() -> u8 {
     2
 }
@@ -53,6 +74,10 @@ enum Kind {
     Divider,
     Image,
     Button,
+    Callout,
+    Details,
+    Columns,
+    MediaText,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -106,6 +131,22 @@ fn literal(text: &str) -> String {
     output
 }
 
+fn safe_rich_text(text: &str) -> String {
+    // Échapper strictement HTML brut pour éviter les injections XSS,
+    // tout en préservant le formatage Markdown en ligne (gras, italique, code, liens).
+    let mut output = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '\r' => {}
+            _ => output.push(ch),
+        }
+    }
+    output
+}
+
 /// Les blocs hérités restent opaques. Seule une enveloppe native explicite est interprétée.
 pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
     let Some(schema) = blocks.get("rf_schema") else {
@@ -149,34 +190,52 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             || block.rf_url.len() > 2048
             || block.rf_alt.len() > 512
             || block.rf_caption.len() > 1024
+            || block.rf_style.len() > 128
         {
             return Err(CoreError::validation("Contenu de bloc trop volumineux"));
         }
         let text = literal(&block.rf_text);
-        if (!matches!(block.rf_type, Kind::List)
+        if (!matches!(block.rf_type, Kind::List | Kind::Columns)
             && (!block.rf_items.is_empty() || block.rf_ordered))
-            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image)
+            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
-            || (!matches!(block.rf_type, Kind::Image | Kind::Button) && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText)
+                && !block.rf_url.is_empty())
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText)
+                && !block.rf_style.is_empty())
         {
             return Err(CoreError::validation(
                 "Données incompatibles avec le type du bloc",
             ));
         }
+
+        if matches!(block.rf_type, Kind::Columns)
+            && (block.rf_items.is_empty() || block.rf_items.len() > 4)
+        {
+            return Err(CoreError::validation(
+                "Un bloc colonnes doit comporter entre 1 et 4 colonnes",
+            ));
+        }
+        if matches!(block.rf_type, Kind::MediaText) && block.rf_url.is_empty() {
+            return Err(CoreError::validation(
+                "L'URL du média est requise pour le bloc média & texte",
+            ));
+        }
+
         parts.push(match block.rf_type {
-            Kind::Paragraph => text,
+            Kind::Paragraph => safe_rich_text(&block.rf_text),
             Kind::Heading => {
                 if !(1..=6).contains(&block.rf_level) || text.contains('\n') {
                     return Err(CoreError::validation("Niveau ou texte du titre invalide"));
                 }
                 format!("{} {text}", "#".repeat(usize::from(block.rf_level)))
             }
-            Kind::Quote => text
+            Kind::Quote => safe_rich_text(&block.rf_text)
                 .lines()
                 .map(|line| format!("> {line}"))
                 .collect::<Vec<_>>()
@@ -192,7 +251,7 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                         "-".into()
                     };
                     let indent = format!("\n{}", " ".repeat(marker.len() + 1));
-                    format!("{marker} {}", literal(item).replace('\n', &indent))
+                    format!("{marker} {}", safe_rich_text(item).replace('\n', &indent))
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -229,6 +288,54 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                     ));
                 }
                 format!("[{}]({url})", literal(trimmed))
+            }
+            Kind::Callout => {
+                let style = match block.rf_style.as_str() {
+                    "warning" => "warning",
+                    "success" => "success",
+                    "tip" => "tip",
+                    _ => "info",
+                };
+                let badge = match style {
+                    "warning" => "Attention",
+                    "success" => "Succès",
+                    "tip" => "Astuce",
+                    _ => "Information",
+                };
+                let content = safe_rich_text(&block.rf_text);
+                format!("<div class=\"rf-callout rf-callout-{style}\"><div class=\"rf-callout-header\"><strong>{badge}</strong></div>\n\n{content}\n\n</div>")
+            }
+            Kind::Details => {
+                let summary = if block.rf_caption.trim().is_empty() {
+                    "Détails"
+                } else {
+                    block.rf_caption.trim()
+                };
+                let safe_summary = literal(summary);
+                let content = safe_rich_text(&block.rf_text);
+                format!("<details class=\"rf-details\"><summary><strong>{safe_summary}</strong></summary>\n\n<div class=\"rf-details-body\">\n\n{content}\n\n</div>\n\n</details>")
+            }
+            Kind::Columns => {
+                let cols: Vec<String> = block
+                    .rf_items
+                    .iter()
+                    .map(|item| {
+                        let safe = safe_rich_text(item);
+                        format!("<div class=\"rf-column\">\n\n{safe}\n\n</div>")
+                    })
+                    .collect();
+                format!("<div class=\"rf-columns\">\n{}\n</div>", cols.join("\n"))
+            }
+            Kind::MediaText => {
+                let url = validate_safe_url(&block.rf_url, true)?;
+                let alt = literal(block.rf_alt.trim()).replace('\n', " ");
+                let pos = if block.rf_style == "media-right" {
+                    "rf-media-right"
+                } else {
+                    "rf-media-left"
+                };
+                let content = safe_rich_text(&block.rf_text);
+                format!("<div class=\"rf-media-text {pos}\"><div class=\"rf-media-figure\"><img src=\"{url}\" alt=\"{alt}\" /></div><div class=\"rf-media-content\">\n\n{content}\n\n</div></div>")
             }
         });
     }
@@ -305,35 +412,15 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                 code_lines.push(lines[idx]);
                 idx += 1;
             }
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::Code,
-                rf_text: code_lines.join("\n"),
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: Vec::new(),
-                rf_url: String::new(),
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::Code);
+            b.rf_text = code_lines.join("\n");
+            blocks.push(b);
             continue;
         }
 
         // 2. Séparateur horizontal
         if matches!(trimmed, "---" | "***" | "___") {
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::Divider,
-                rf_text: String::new(),
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: Vec::new(),
-                rf_url: String::new(),
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            blocks.push(Block::new(next_id()?, Kind::Divider));
             idx += 1;
             continue;
         }
@@ -343,18 +430,10 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
         if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
             let heading_text = trimmed[hashes..].trim().to_string();
             if !heading_text.is_empty() {
-                blocks.push(Block {
-                    rf_id: next_id()?,
-                    rf_type: Kind::Heading,
-                    rf_text: heading_text,
-                    rf_level: hashes as u8,
-                    rf_ordered: false,
-                    rf_items: Vec::new(),
-                    rf_url: String::new(),
-                    rf_alt: String::new(),
-                    rf_caption: String::new(),
-                    rf_media_id: None,
-                });
+                let mut b = Block::new(next_id()?, Kind::Heading);
+                b.rf_text = heading_text;
+                b.rf_level = hashes as u8;
+                blocks.push(b);
                 idx += 1;
                 continue;
             }
@@ -372,18 +451,9 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                     break;
                 }
             }
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::Quote,
-                rf_text: quote_lines.join("\n"),
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: Vec::new(),
-                rf_url: String::new(),
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::Quote);
+            b.rf_text = quote_lines.join("\n");
+            blocks.push(b);
             continue;
         }
 
@@ -403,18 +473,9 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                     break;
                 }
             }
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::List,
-                rf_text: String::new(),
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: items,
-                rf_url: String::new(),
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::List);
+            b.rf_items = items;
+            blocks.push(b);
             continue;
         }
 
@@ -432,18 +493,10 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                     break;
                 }
             }
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::List,
-                rf_text: String::new(),
-                rf_level: 2,
-                rf_ordered: true,
-                rf_items: items,
-                rf_url: String::new(),
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::List);
+            b.rf_ordered = true;
+            b.rf_items = items;
+            blocks.push(b);
             continue;
         }
 
@@ -461,18 +514,11 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                     idx += 1;
                 }
             }
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::Image,
-                rf_text: String::new(),
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: Vec::new(),
-                rf_url: url,
-                rf_alt: alt,
-                rf_caption: caption,
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::Image);
+            b.rf_url = url;
+            b.rf_alt = alt;
+            b.rf_caption = caption;
+            blocks.push(b);
             idx += 1;
             continue;
         }
@@ -480,18 +526,10 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
         // 8. Bouton / lien autonome sur une ligne isolée [texte](url)
         let next_is_blank = idx + 1 >= lines.len() || lines[idx + 1].trim().is_empty();
         if next_is_blank && let Some((label, url)) = parse_markdown_button_line(trimmed) {
-            blocks.push(Block {
-                rf_id: next_id()?,
-                rf_type: Kind::Button,
-                rf_text: label,
-                rf_level: 2,
-                rf_ordered: false,
-                rf_items: Vec::new(),
-                rf_url: url,
-                rf_alt: String::new(),
-                rf_caption: String::new(),
-                rf_media_id: None,
-            });
+            let mut b = Block::new(next_id()?, Kind::Button);
+            b.rf_text = label;
+            b.rf_url = url;
+            blocks.push(b);
             idx += 1;
             continue;
         }
@@ -517,33 +555,13 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             para_lines.push(lines[idx]);
             idx += 1;
         }
-        blocks.push(Block {
-            rf_id: next_id()?,
-            rf_type: Kind::Paragraph,
-            rf_text: para_lines.join("\n"),
-            rf_level: 2,
-            rf_ordered: false,
-            rf_items: Vec::new(),
-            rf_url: String::new(),
-            rf_alt: String::new(),
-            rf_caption: String::new(),
-            rf_media_id: None,
-        });
+        let mut b = Block::new(next_id()?, Kind::Paragraph);
+        b.rf_text = para_lines.join("\n");
+        blocks.push(b);
     }
 
     if blocks.is_empty() {
-        blocks.push(Block {
-            rf_id: "b_1".into(),
-            rf_type: Kind::Paragraph,
-            rf_text: String::new(),
-            rf_level: 2,
-            rf_ordered: false,
-            rf_items: Vec::new(),
-            rf_url: String::new(),
-            rf_alt: String::new(),
-            rf_caption: String::new(),
-            rf_media_id: None,
-        });
+        blocks.push(Block::new("b_1".into(), Kind::Paragraph));
     }
 
     let doc = serde_json::to_value(Document {
@@ -581,22 +599,73 @@ mod tests {
     fn native_document_uses_the_existing_safe_renderer() {
         let doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
             {"rf_id":"title","rf_type":"heading","rf_text":"Un titre","rf_level":2},
-            {"rf_id":"text","rf_type":"paragraph","rf_text":"<img src=x onerror=alert(1)> **texte littéral**"},
+            {"rf_id":"text","rf_type":"paragraph","rf_text":"<img src=x onerror=alert(1)> **texte littéral** et [lien](https://rustforge.dev)"},
             {"rf_id":"list","rf_type":"list","rf_items":["premier","second"]},
             {"rf_id":"code","rf_type":"code","rf_text":"```\n<script>bad()</script>"}
         ]});
         let (body, html) = project("source périmée", &doc).unwrap();
         assert!(html.contains("<h2>Un titre</h2>"));
         assert!(html.contains("<ul>"));
-        assert!(!html.contains("<img"));
+        assert!(!html.contains("<img src=x"));
         assert!(!html.contains("<script>"));
-        assert!(!html.contains("<strong>texte"));
+        assert!(html.contains("<strong>texte littéral</strong>"));
+        assert!(html.contains("href=\"https://rustforge.dev\"") && html.contains(">lien</a>"));
         assert_eq!(html, markdown::render(&body));
         let saved = serde_json::to_string(&doc).unwrap();
         assert_eq!(
             project("", &serde_json::from_str::<Value>(&saved).unwrap()).unwrap(),
             (body, html)
         );
+    }
+
+    #[test]
+    fn rich_blocks_render_and_validate_correctly() {
+        // Callout
+        let callout_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"c1","rf_type":"callout","rf_text":"Information importante avec `code`","rf_style":"warning"}
+        ]});
+        let (_, html) = project("", &callout_doc).unwrap();
+        assert!(html.contains("rf-callout rf-callout-warning"));
+        assert!(html.contains("Attention"));
+        assert!(html.contains("<code>code</code>"));
+
+        // Details (accordéon)
+        let details_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"d1","rf_type":"details","rf_text":"Réponse détaillée **ici**","rf_caption":"Foire aux questions"}
+        ]});
+        let (_, html) = project("", &details_doc).unwrap();
+        assert!(html.contains("<details class=\"rf-details\"><summary><strong>Foire aux questions</strong></summary>"));
+        assert!(html.contains("<strong>ici</strong>"));
+
+        // Columns (colonnes WP-B016 / WP-B015)
+        let cols_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"col1","rf_type":"columns","rf_items":["Colonne 1 **forte**","Colonne 2 avec [lien](/contact)"]}
+        ]});
+        let (_, html) = project("", &cols_doc).unwrap();
+        assert!(html.contains("<div class=\"rf-columns\">"));
+        assert!(html.contains("<div class=\"rf-column\">"));
+        assert!(html.contains("<strong>forte</strong>"));
+        assert!(html.contains("href=\"/contact\"") && html.contains(">lien</a>"));
+
+        // MediaText (WP-B049)
+        let mt_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"mt1","rf_type":"media_text","rf_url":"/uploads/photo.webp","rf_alt":"Illustration","rf_text":"Présentation du produit","rf_style":"media-right"}
+        ]});
+        let (_, html) = project("", &mt_doc).unwrap();
+        assert!(html.contains("rf-media-text rf-media-right"));
+        assert!(html.contains("<img src=\"/uploads/photo.webp\" alt=\"Illustration\""));
+        assert!(html.contains("Présentation du produit"));
+
+        // Validations d'erreur sur blocs riches
+        let invalid_cols = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"col_err","rf_type":"columns","rf_items":[]}
+        ]});
+        assert!(project("", &invalid_cols).is_err());
+
+        let invalid_mt = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"mt_err","rf_type":"media_text","rf_url":"","rf_text":"Sans image"}
+        ]});
+        assert!(project("", &invalid_mt).is_err());
     }
     #[test]
     fn image_and_button_blocks_validate_urls_and_render_safely() {

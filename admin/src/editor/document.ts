@@ -1,16 +1,30 @@
 export const DOCUMENT_SCHEMA = 'rf.document/1' as const;
-export const BLOCK_TYPES = ['paragraph', 'heading', 'quote', 'code', 'list', 'divider', 'image', 'button'] as const;
+export const BLOCK_TYPES = [
+  'paragraph',
+  'heading',
+  'quote',
+  'code',
+  'list',
+  'divider',
+  'image',
+  'button',
+  'callout',
+  'details',
+  'columns',
+  'media_text',
+] as const;
 export type BlockKind = typeof BLOCK_TYPES[number];
 export interface NativeBlock {
   rf_id: string; rf_type: BlockKind; rf_text: string; rf_level: number;
   rf_ordered: boolean; rf_items: string[];
   rf_url?: string; rf_alt?: string; rf_caption?: string; rf_media_id?: string;
+  rf_style?: string;
 }
 export interface NativeDocument { rf_schema: typeof DOCUMENT_SCHEMA; rf_blocks: NativeBlock[] }
 
 const ALLOWED_BLOCK_KEYS = new Set([
   'rf_id', 'rf_type', 'rf_text', 'rf_level', 'rf_ordered', 'rf_items',
-  'rf_url', 'rf_alt', 'rf_caption', 'rf_media_id',
+  'rf_url', 'rf_alt', 'rf_caption', 'rf_media_id', 'rf_style',
 ]);
 
 export function newBlock(kind: BlockKind): NativeBlock {
@@ -21,6 +35,16 @@ export function newBlock(kind: BlockKind): NativeBlock {
     base.rf_caption = '';
   } else if (kind === 'button') {
     base.rf_url = '';
+  } else if (kind === 'callout') {
+    base.rf_style = 'info';
+  } else if (kind === 'details') {
+    base.rf_caption = 'Détails';
+  } else if (kind === 'columns') {
+    base.rf_items = ['Colonne 1', 'Colonne 2'];
+  } else if (kind === 'media_text') {
+    base.rf_url = '';
+    base.rf_alt = '';
+    base.rf_style = 'media-left';
   }
   return base;
 }
@@ -45,7 +69,8 @@ export function readDocument(value: unknown): NativeDocument | null {
       || (block.rf_url !== undefined && typeof block.rf_url !== 'string')
       || (block.rf_alt !== undefined && typeof block.rf_alt !== 'string')
       || (block.rf_caption !== undefined && typeof block.rf_caption !== 'string')
-      || (block.rf_media_id !== undefined && block.rf_media_id !== null && typeof block.rf_media_id !== 'string')) return null;
+      || (block.rf_media_id !== undefined && block.rf_media_id !== null && typeof block.rf_media_id !== 'string')
+      || (block.rf_style !== undefined && (typeof block.rf_style !== 'string' || block.rf_style.length > 128))) return null;
     ids.add(block.rf_id);
     const kind = block.rf_type as BlockKind;
     const parsed: NativeBlock = {
@@ -57,12 +82,19 @@ export function readDocument(value: unknown): NativeDocument | null {
       rf_items: (block.rf_items as string[]) ?? [],
     };
     if (typeof block.rf_url === 'string') parsed.rf_url = block.rf_url;
-    else if (kind === 'image' || kind === 'button') parsed.rf_url = '';
+    else if (kind === 'image' || kind === 'button' || kind === 'media_text') parsed.rf_url = '';
     if (typeof block.rf_alt === 'string') parsed.rf_alt = block.rf_alt;
-    else if (kind === 'image') parsed.rf_alt = '';
+    else if (kind === 'image' || kind === 'media_text') parsed.rf_alt = '';
     if (typeof block.rf_caption === 'string') parsed.rf_caption = block.rf_caption;
     else if (kind === 'image') parsed.rf_caption = '';
+    else if (kind === 'details') parsed.rf_caption = 'Détails';
     if (typeof block.rf_media_id === 'string' && block.rf_media_id) parsed.rf_media_id = block.rf_media_id;
+    if (typeof block.rf_style === 'string') parsed.rf_style = block.rf_style;
+    else if (kind === 'callout') parsed.rf_style = 'info';
+    else if (kind === 'media_text') parsed.rf_style = 'media-left';
+    if (kind === 'columns' && (!Array.isArray(block.rf_items) || block.rf_items.length === 0)) {
+      parsed.rf_items = ['Colonne 1', 'Colonne 2'];
+    }
     result.push(parsed);
   }
   return { rf_schema: DOCUMENT_SCHEMA, rf_blocks: result };

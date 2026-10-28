@@ -1,5 +1,55 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — Éditeur de contenu, blocs riches et motifs réutilisables (WP-34, WP-35, WP-B008, WP-B015, WP-B016, WP-B030, WP-B036, WP-B049, WP-B060)
+
+**Point de reprise le plus récent.** Réalisation et qualification complète du lot Éditeur de contenu, Blocs riches souverains et Motifs de composition (`WP-34`, `WP-35`, `WP-B008`, `WP-B015`, `WP-B016`, `WP-B030`, `WP-B036`, `WP-B049`, `WP-B060`) :
+- **Moteur Rust & Assainissement (`crates/rustforge-core/src/document.rs`, `markdown.rs`)** :
+  - Rich Text inline assaini (`WP-35`) : fonction `safe_rich_text` qui échappe strictement tout HTML brut (`<`, `>`, `&`) pour parer aux attaques XSS tout en préservant le formatage Markdown en ligne (`**gras**`, `*italique*`, code en ligne, liens hypertextes) dans les paragraphes, citations et encadrés.
+  - Ammonia sanitizer configuré avec les balises structurelles autorisées (`details`, `summary`, `div`, `span`, `figure`, `figcaption`) et attributs génériques (`id`, `class`, `style`, `open`).
+  - Blocs riches natifs ajoutés à l'énumération `Kind` et au schéma `rf.document/1` :
+    - `Callout` (`rf-callout` avec variantes de style `info`, `warning`, `success`, `tip`).
+    - `Details` (`<details class="rf-details">` avec `<summary>` et corps dépliable `.rf-details-body`).
+    - `Columns` (`core/columns` `WP-B016` et `core/column` `WP-B015`) : grille 1 à 4 colonnes réparties avec validation stricte du nombre de colonnes.
+    - `MediaText` (`core/media-text` `WP-B049`) : bloc média et texte avec validation de l'URL du média, texte alternatif et disposition configurable `rf-media-left` ou `rf-media-right`.
+  - Tests unitaires complets : 7 tests unitaires dans `document::tests`, incluant la validation des erreurs et la sécurité contre les injections.
+- **Templates SSR & Styles souverains (`crates/rustforge-api/templates/base.html`, `themes/default/templates/base.html`)** :
+  - Classes CSS natives pour `.rf-callout`, `.rf-details`, `.rf-columns`, `.rf-column`, `.rf-media-text` avec design responsive mobile automatique.
+- **Studio d'administration (`admin/src/editor/document.ts`, `patterns.ts`, `NativeBlockEditor.tsx`, `messages.fr.ts`)** :
+  - Schéma TypeScript étendu avec `rf_style`, support des types `callout`, `details`, `columns`, `media_text`.
+  - Module de Motifs de blocs (`patterns.ts` - `WP-34`, `WP-B008`, `WP-B060`) : catalogue de compositions préconçues souveraines (`hero_cta`, `columns_2_features`, `media_text_feature`, `faq_accordion`, `callout_tip`, `quote_testimonial`) instanciables en 1 clic avec génération d'UUIDs frais.
+  - Interface d'édition dédiée dans `NativeBlockEditor.tsx` pour chaque bloc riche, barre d'actions rapides inline, et tiroir modal d'insertion des motifs.
+- **Validations exécutées** :
+  - Tests unitaires : **66 tests réussis** dans le workspace.
+  - Clippy strict : 0 avertissement (`-D warnings`).
+  - Studio : `oxlint` 0 avertissement, 0 erreur, build Vite réussi.
+  - Pilotage : 434 tâches, 38 composants existants, 100% cohérents (`scripts/pilotage.py`, `scripts/verifier-documentation.py`).
+
+---
+
+### Instructions pour l'assistant IA (ChatGPT ou autre) reprenant le projet sur un nouvel ordinateur
+
+Copier-coller le prompt suivant à l'assistant sur le nouvel ordinateur :
+
+```text
+Tu es l'assistant de développement expert sur le projet RustForge CMS (dépôt cloné depuis https://github.com/Clementlemagnifique/rustforge-cms).
+Consulte impérativement docs/pilotage/08_JOURNAL_REPRISE.md, docs/PLAN_ACTION_GLOBAL.md et FEUILLE_DE_ROUTE.md.
+
+Principes cardinaux du projet :
+1. Architecture souveraine en 4 crates Rust (rustforge-core, rustforge-api, rustforge-plugins, rustforge) + Studio React/Vite (admin/).
+2. Zéro runtime PHP, zéro exécution arbitraire de code ou plugin tiers.
+3. Distinction claire :
+   - Menus Front (Site public, socle QuadMenu) : gérés dans le Studio pour les visiteurs, 3 niveaux d'arborescence, badges, sous-titres, CSS sans JS responsive et accessible clavier (Entrée/Échap).
+   - Menu Admin (Studio, socle WP Adminify) : barre latérale du back-office (admin_navigation.json, Sidebar.tsx).
+4. Tolérance zéro : 0 warning Clippy (-D warnings), 0 warning oxlint, 100% de tests passants, CSV docs/pilotage/ synchronisés.
+
+État actuel :
+Le lot "Éditeur de contenu & Blocs riches" (WP-34, WP-35, WP-B008, WP-B015, WP-B016, WP-B030, WP-B036, WP-B049, WP-B060) vient d'être validé et commité sur origin/main.
+Consulte le journal de reprise pour identifier le prochain lot à traiter (G3.4-D/E méga-menus et modules dynamiques, ou révision et flux).
+Commence par vérifier le projet avec cargo check et oxlint, puis présente-moi les options pour la suite.
+```
+
+---
+
 ## 28 octobre 2026 — Commentaires, modération, discussion et RGPD (WP-42 à WP-45, WP-82 à WP-87, EX-35)
 
 **Point de reprise le plus récent.** Réalisation et qualification complète du lot Commentaires, Modération et Réglages de discussion (`WP-42` à `WP-45`, `WP-82` à `WP-87`, `EX-35`) :

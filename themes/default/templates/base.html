@@ -321,6 +321,57 @@
 
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
 
+        /* Styles blocs riches souverains */
+        .rf-callout {
+            border-left: 4px solid var(--tp-primary);
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 0 var(--tp-radius) var(--tp-radius) 0;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+        }
+        .rf-callout-header { margin-bottom: 0.5rem; }
+        .rf-callout-info { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+        .rf-callout-warning { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+        .rf-callout-success { border-left-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+        .rf-callout-tip { border-left-color: #8b5cf6; background: rgba(139, 92, 246, 0.08); }
+        .rf-details {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--tp-radius);
+            background: rgba(255, 255, 255, 0.02);
+            margin: 1rem 0;
+            padding: 0.75rem 1rem;
+        }
+        .rf-details summary {
+            cursor: pointer;
+            user-select: none;
+            padding: 0.25rem 0;
+            color: #f8fafc;
+        }
+        .rf-details summary:focus-visible { outline: 2px solid var(--tp-accent); }
+        .rf-details-body { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+        .rf-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .rf-column { min-width: 0; }
+        .rf-media-text {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            align-items: center;
+            margin: 2rem 0;
+        }
+        .rf-media-text.rf-media-right .rf-media-figure { order: 2; }
+        .rf-media-text.rf-media-right .rf-media-content { order: 1; }
+        .rf-media-figure img { max-width: 100%; height: auto; border-radius: var(--tp-radius); display: block; }
+        @media (max-width: 768px) {
+            .rf-media-text { grid-template-columns: 1fr; gap: 1rem; }
+            .rf-media-text.rf-media-right .rf-media-figure { order: 1; }
+            .rf-media-text.rf-media-right .rf-media-content { order: 2; }
+        }
+
         {% if design_tokens.custom_css %}
 
         {{ design_tokens.custom_css }}

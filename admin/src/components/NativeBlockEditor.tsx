@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BLOCK_TYPES, newBlock, moveBlock, insertBlockAfter } from '../editor/document';
 import type { BlockKind, NativeBlock, NativeDocument } from '../editor/document';
+import { BLOCK_PATTERNS, insertPatternAfter } from '../editor/patterns';
 import { editorMessages as text } from '../editor/messages.fr';
 import type { Media } from '../types';
 
@@ -28,6 +29,8 @@ export function NativeBlockEditor({
   const [pickerBlockId, setPickerBlockId] = useState<string | null>(null);
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const [showOutline, setShowOutline] = useState(false);
+  const [showPatterns, setShowPatterns] = useState(false);
+  const [patternTargetId, setPatternTargetId] = useState<string | undefined>(undefined);
   const [inserterQuery, setInserterQuery] = useState('');
 
   const filteredBlockTypes = BLOCK_TYPES.filter(kind =>
@@ -76,6 +79,16 @@ export function NativeBlockEditor({
           >
             ☰ {text.outlineTitle} ({document.rf_blocks.length})
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPatternTargetId(undefined);
+              setShowPatterns(true);
+            }}
+            className="rounded-lg border border-purple-400/40 bg-purple-500/20 px-2.5 py-1 text-purple-200 hover:bg-purple-500/30"
+          >
+            ✦ {text.patterns}
+          </button>
           {(onUndo || onRedo) && (
             <>
               <button
@@ -99,6 +112,51 @@ export function NativeBlockEditor({
         </div>
       </div>
 
+      {/* Modal / Tiroir des Motifs de blocs (WP-34) */}
+      {showPatterns && (
+        <div className="rounded-xl border border-purple-500/30 bg-purple-950/40 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-purple-200 text-sm flex items-center gap-2">
+              <span>✦</span> {text.patterns}
+            </h4>
+            <button
+              type="button"
+              onClick={() => setShowPatterns(false)}
+              className="text-xs text-purple-300 hover:text-white"
+            >
+              ✕ Fermer
+            </button>
+          </div>
+          <p className="text-xs text-purple-300/80">
+            Insérez des compositions et agencements préconçus en 1 clic (WP-34).
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {BLOCK_PATTERNS.map(p => (
+              <div
+                key={p.id}
+                className="rounded-lg border border-white/10 bg-black/40 p-3 flex flex-col justify-between gap-2.5 hover:border-purple-400/50 transition-colors"
+              >
+                <div>
+                  <div className="font-medium text-slate-100 text-xs">{p.title}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">{p.description}</div>
+                </div>
+                <button
+                  type="button"
+                  disabled={document.rf_blocks.length + p.blocks.length > 256}
+                  onClick={() => {
+                    onChange(insertPatternAfter(document, patternTargetId, p));
+                    setShowPatterns(false);
+                  }}
+                  className="rounded bg-purple-600 hover:bg-purple-500 px-2.5 py-1 text-xs font-medium text-white self-start transition-colors disabled:opacity-40"
+                >
+                  + {text.insertPattern}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Vue liste / Plan des blocs (WP-31) */}
       {showOutline && (
         <div
@@ -118,6 +176,14 @@ export function NativeBlockEditor({
                     ? b.rf_alt || b.rf_url || 'Image'
                     : b.rf_type === 'divider'
                     ? '—'
+                    : b.rf_type === 'callout'
+                    ? `[${b.rf_style || 'info'}] ${b.rf_text}`
+                    : b.rf_type === 'details'
+                    ? `▶ ${b.rf_caption || 'Détails'}`
+                    : b.rf_type === 'columns'
+                    ? `${b.rf_items.length} colonnes`
+                    : b.rf_type === 'media_text'
+                    ? `📷 ${b.rf_alt || b.rf_url || 'Média'} + Texte`
                     : b.rf_text;
                 return (
                   <li
@@ -411,6 +477,212 @@ export function NativeBlockEditor({
                     onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
                     placeholder="/contact ou https://…"
                     className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-2 font-mono text-xs text-white"
+                  />
+                </label>
+              </div>
+            ) : block.rf_type === 'callout' ? (
+              <div className="space-y-2 text-xs">
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.calloutStyle}</span>
+                  <select
+                    value={block.rf_style || 'info'}
+                    onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                    className="rounded bg-slate-800 border border-white/10 p-2 text-xs text-white"
+                  >
+                    <option value="info">{text.calloutInfo}</option>
+                    <option value="warning">{text.calloutWarning}</option>
+                    <option value="success">{text.calloutSuccess}</option>
+                    <option value="tip">{text.calloutTip}</option>
+                  </select>
+                </label>
+                <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}**texte en gras**` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-bold text-slate-200 hover:bg-white/10"
+                    title="Insérer une emphase forte (Gras)"
+                  >
+                    B
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}*texte en italique*` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 italic text-slate-200 hover:bg-white/10"
+                    title="Insérer une emphase (Italique)"
+                  >
+                    I
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}\`code\`` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-slate-200 hover:bg-white/10"
+                    title="Insérer du code en ligne"
+                  >
+                    {'<>'}
+                  </button>
+                </div>
+                <textarea
+                  aria-label={name}
+                  maxLength={65536}
+                  value={block.rf_text}
+                  onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
+                />
+              </div>
+            ) : block.rf_type === 'details' ? (
+              <div className="space-y-3 text-xs">
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.detailsSummary}</span>
+                  <input
+                    type="text"
+                    maxLength={1024}
+                    value={block.rf_caption ?? ''}
+                    onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                    placeholder="Titre de l’accordéon (résumé cliquable)"
+                    className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs text-white"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-slate-400">Contenu développé</span>
+                  <textarea
+                    aria-label={name}
+                    maxLength={65536}
+                    value={block.rf_text}
+                    onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                    rows={4}
+                    className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
+                  />
+                </label>
+              </div>
+            ) : block.rf_type === 'columns' ? (
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">{text.columnsCount.replace('{count}', String(block.rf_items.length))}</span>
+                  <div className="flex gap-2">
+                    {block.rf_items.length < 4 && (
+                      <button
+                        type="button"
+                        onClick={() => edit(block.rf_id, { rf_items: [...block.rf_items, `Colonne ${block.rf_items.length + 1}`] })}
+                        className="rounded border border-indigo-400/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-500/20"
+                      >
+                        + {text.addColumn}
+                      </button>
+                    )}
+                    {block.rf_items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => edit(block.rf_id, { rf_items: block.rf_items.slice(0, -1) })}
+                        className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
+                      >
+                        - {text.removeColumn}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {block.rf_items.map((colContent, colIdx) => (
+                    <div key={colIdx} className="rounded-lg border border-white/10 bg-black/20 p-2.5 space-y-1">
+                      <span className="font-semibold text-slate-300">Colonne {colIdx + 1}</span>
+                      <textarea
+                        value={colContent}
+                        onChange={e => {
+                          const updated = [...block.rf_items];
+                          updated[colIdx] = e.target.value;
+                          edit(block.rf_id, { rf_items: updated });
+                        }}
+                        rows={4}
+                        className="w-full rounded bg-transparent p-1.5 text-xs text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : block.rf_type === 'media_text' ? (
+              <div className="space-y-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2">
+                    <span className="text-slate-400">{text.mediaPosition}</span>
+                    <select
+                      value={block.rf_style || 'media-left'}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="rounded bg-slate-800 border border-white/10 p-1.5 text-xs text-white"
+                    >
+                      <option value="media-left">{text.mediaLeft}</option>
+                      <option value="media-right">{text.mediaRight}</option>
+                    </select>
+                  </label>
+                  {mediaLibrary.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPickerBlockId(pickerBlockId === block.rf_id ? null : block.rf_id)}
+                      className="rounded border border-indigo-400/30 bg-indigo-500/10 px-2.5 py-1 text-indigo-200 hover:bg-indigo-500/20"
+                    >
+                      {text.pickMedia}
+                    </button>
+                  )}
+                </div>
+
+                {pickerBlockId === block.rf_id && mediaLibrary.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-lg border border-white/10 bg-black/30 p-2 max-h-48 overflow-y-auto">
+                    {mediaLibrary
+                      .filter(m => m.mime_type.startsWith('image/'))
+                      .map(m => {
+                        const mediaUrl = m.url || `/uploads/${m.path}`;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              edit(block.rf_id, {
+                                rf_url: mediaUrl,
+                                rf_alt: block.rf_alt || m.alt || m.original_name,
+                                rf_media_id: m.id,
+                              });
+                              setPickerBlockId(null);
+                            }}
+                            className="flex flex-col items-start gap-1 rounded border border-white/10 bg-white/5 p-2 text-left hover:border-indigo-400"
+                          >
+                            <span className="truncate w-full font-medium text-slate-200">{m.original_name}</span>
+                            <span className="truncate w-full text-[10px] text-slate-400 font-mono">{mediaUrl}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{text.imageUrl}</span>
+                    <input
+                      type="text"
+                      value={block.rf_url ?? ''}
+                      onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                      placeholder="/uploads/photo.webp"
+                      className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 font-mono text-xs text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{text.imageAlt}</span>
+                    <input
+                      type="text"
+                      maxLength={512}
+                      value={block.rf_alt ?? ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="Description de l’image"
+                      className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-white"
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-slate-400">Texte d’accompagnement</span>
+                  <textarea
+                    aria-label={name}
+                    maxLength={65536}
+                    value={block.rf_text}
+                    onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                    rows={4}
+                    className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
                   />
                 </label>
               </div>

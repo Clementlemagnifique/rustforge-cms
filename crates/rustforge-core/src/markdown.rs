@@ -17,9 +17,10 @@ pub fn render(markdown: &str) -> String {
     html::push_html(&mut raw, parser);
 
     ammonia::Builder::default()
-        .add_generic_attributes(["id", "class"])
-        .add_tags(["input"])
+        .add_generic_attributes(["id", "class", "style"])
+        .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
+        .add_tag_attributes("details", ["open"])
         .clean(&raw)
         .to_string()
 }
