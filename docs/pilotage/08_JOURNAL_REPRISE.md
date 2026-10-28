@@ -1,5 +1,20 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 ? G3.3-D : flux RSS 2.0 / Atom 1.0, taille distincte et texte complet/extrait effectifs
+
+**Point de reprise le plus r?cent.** R?alisation et qualification compl?te du lot G3.3-D (`WP-79`, `WP-80`, `WP-101`) :
+- R?glages du c?ur : validation stricte dans `crates/rustforge-core/src/settings.rs` de `reading.posts_per_rss` (entier born? de 1 ? 100, distinct de `reading.per_page`) et `reading.rss_use_excerpt` (bool?en texte complet vs extrait).
+- Interface Studio : int?gration dans l'onglet Lecture (`admin/src/components/SettingsView.tsx`, messages i18n dans `messages.fr.ts`) permettant de configurer la taille du flux et le mode d'affichage.
+- Moteur de flux d?di? (`crates/rustforge-api/src/routes/feeds.rs`) : g?n?ration native RSS 2.0 et Atom 1.0 avec ?chappement XML strict et scission des injections CDATA. Filtrage strict sur les articles publi?s et visibles (exclusion stricte des brouillons, publications futures et expir?es, synchronisation d'?ch?ance Moka).
+- D?couverte dans l'en-t?te HTML : ajout des balises `<link rel="alternate" ...>` dans `crates/rustforge-api/templates/base.html` et `themes/default/templates/base.html`.
+- Validations ex?cut?es :
+  - Tests unitaires : **52 tests r?ussis** (API 8, core 42, plugins 2).
+  - R?gression int?gr?e PostgreSQL / HTTP (`consolidation.rs`) : sc?nario r?ussi validant `/fr/feed`, `/feed`, `/fr/feed/atom`, l'exclusion des brouillons secrets, la mutation dynamique des r?glages et la conformit? du mode extrait/complet.
+  - Lint Studio (`oxlint` 0 avertissement, 0 erreur), build Vite r?ussi, tests Node (8/8 r?ussis), Clippy workspace strict r?ussi (0 avertissement).
+  - Contr?les documentaires : 434 t?ches, 38 composants et 114 menus coh?rents.
+
+**Prochain lot : G3.3-E**, indexation SEO structurelle (`robots.txt` dynamique respectant `reading.blog_public`, `sitemap.xml` XML valide et balises `<link rel="canonical">`), puis **G3.3-F** (permaliens et bases de cat?gories/?tiquettes).
+
 ## 28 octobre 2026 — Références Adminify Lite et QuadMenu, préparation des menus
 
 **Point de reprise le plus récent.** Ajout demandé d'Adminify Lite et de QuadMenu comme inspirations. Session documentaire ; aucun changement runtime, aucune activation ni installation de plugin.

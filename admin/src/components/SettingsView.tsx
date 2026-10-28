@@ -333,7 +333,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">
-                Nombre maximal d’articles par page publique (1 à 100)
+                Nombre maximal d?articles par page publique (1 ? 100)
               </label>
               <input
                 type="number"
@@ -349,19 +349,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">
-                Affichage des articles dans les flux
+                {settingsMessages.postsPerRss}
               </label>
-              <select
-                value={settings['reading.rss_use_excerpt'] ? 'excerpt' : 'full'}
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={settings['reading.posts_per_rss'] ?? 10}
                 onChange={(e) =>
-                  setSetting('reading.rss_use_excerpt', e.target.value === 'excerpt')
+                  setSetting('reading.posts_per_rss', Math.max(1, Math.min(100, Number(e.target.value) || 10)))
                 }
                 className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              >
-                <option value="full">Texte complet</option>
-                <option value="excerpt">Extrait uniquement</option>
-              </select>
+              />
             </div>
+          </div>
+
+          <div className="pt-2">
+            <label className="text-[11px] text-slate-400 block mb-1">
+              {settingsMessages.rssUseExcerpt}
+            </label>
+            <select
+              value={settings['reading.rss_use_excerpt'] ? 'excerpt' : 'full'}
+              onChange={(e) =>
+                setSetting('reading.rss_use_excerpt', e.target.value === 'excerpt')
+              }
+              className="w-full sm:w-1/2 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            >
+              <option value="full">{settingsMessages.rssFull}</option>
+              <option value="excerpt">{settingsMessages.rssExcerpt}</option>
+            </select>
           </div>
 
           <div className="pt-2 border-t border-white/5">

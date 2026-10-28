@@ -20,6 +20,10 @@
     <link rel="alternate" hreflang="{{ alt_lang.code }}" href="{{ alt_lang.url }}" />
     {% endfor %}
 
+    <!-- Flux de syndication RSS 2.0 & Atom (WP-101) -->
+    <link rel="alternate" type="application/rss+xml" title="{{ site_title }} &raquo; Flux RSS" href="/{{ locale }}/feed" />
+    <link rel="alternate" type="application/atom+xml" title="{{ site_title }} &raquo; Flux Atom" href="/{{ locale }}/feed/atom" />
+
     <!-- Design Tokens dynamiques injectés en variables CSS -->
     <style>
         :root {

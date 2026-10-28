@@ -260,6 +260,10 @@ export const settingsMessages = {
   postsPage: 'Page des articles (distincte de l’accueil)',
   noPostsPage: '— Aucune page des articles —',
   postsPageHint: 'Le contenu de cette page est remplacé par la liste paginée des articles.',
+  postsPerRss: 'Nombre maximal d’articles récents dans les flux de syndication (1 à 100)',
+  rssUseExcerpt: 'Affichage des articles dans les flux de syndication',
+  rssFull: 'Le texte complet',
+  rssExcerpt: 'L’extrait uniquement',
 
   title: 'Réglages du site (Général, Lecture & Écriture)',
   subtitle:

@@ -37,6 +37,8 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "reading.page_on_front",
         "reading.page_for_posts",
         "reading.per_page",
+        "reading.posts_per_rss",
+        "reading.rss_use_excerpt",
         "reading.blog_public",
     ];
     let rows: Vec<(String, Value)> = sqlx::query_as(
@@ -174,6 +176,21 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 "reading.per_page doit être compris entre 1 et 100.",
             ));
         }
+    } else if key == "reading.posts_per_rss" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation(
+                "reading.posts_per_rss doit être un entier entre 1 et 100.",
+            ));
+        };
+        if !(1..=100).contains(&n) {
+            return Err(CoreError::validation(
+                "reading.posts_per_rss doit être compris entre 1 et 100.",
+            ));
+        }
+    } else if key == "reading.rss_use_excerpt" && !value.is_boolean() {
+        return Err(CoreError::validation(
+            "reading.rss_use_excerpt doit être un booléen.",
+        ));
     } else if key == "reading.blog_public" && !value.is_boolean() {
         return Err(CoreError::validation(
             "reading.blog_public doit être un booléen.",
@@ -322,4 +339,25 @@ pub async fn get_active_modules(db: &PgPool) -> CoreResult<BTreeMap<String, bool
 pub async fn is_module_active(db: &PgPool, module: &str) -> bool {
     let modules = get_active_modules(db).await.unwrap_or_default();
     *modules.get(module).unwrap_or(&false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_validate_reading_rss_settings() {
+        assert!(validate_setting_value("reading.posts_per_rss", &json!(10)).is_ok());
+        assert!(validate_setting_value("reading.posts_per_rss", &json!(1)).is_ok());
+        assert!(validate_setting_value("reading.posts_per_rss", &json!(100)).is_ok());
+        assert!(validate_setting_value("reading.posts_per_rss", &json!(0)).is_err());
+        assert!(validate_setting_value("reading.posts_per_rss", &json!(101)).is_err());
+        assert!(validate_setting_value("reading.posts_per_rss", &json!("10")).is_err());
+
+        assert!(validate_setting_value("reading.rss_use_excerpt", &json!(true)).is_ok());
+        assert!(validate_setting_value("reading.rss_use_excerpt", &json!(false)).is_ok());
+        assert!(validate_setting_value("reading.rss_use_excerpt", &json!("true")).is_err());
+        assert!(validate_setting_value("reading.rss_use_excerpt", &json!(1)).is_err());
+    }
 }

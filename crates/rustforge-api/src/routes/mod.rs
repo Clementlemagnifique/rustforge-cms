@@ -20,3 +20,4 @@ pub mod taxonomies;
 pub mod users;
 
 pub mod public_lists;
+pub mod feeds;
