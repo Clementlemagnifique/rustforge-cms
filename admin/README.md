@@ -1,41 +1,25 @@
-# 🖥️ RustForge Studio — Interface d'Administration Souveraine
+# RustForge Studio
 
-Le **RustForge Studio** est l'interface d'administration moderne, réactive et ergonomique conçue avec **React 19**, **TypeScript**, **Vite** et **Tailwind CSS v4**.
+Administration React/TypeScript de RustForge CMS, servie sous `/admin/`. Les écrans et limites figurent dans le [tableau de l’existant](../docs/pilotage/07_ETAT_EXISTANT.md). La navigation actuelle utilise le fragment d’URL.
 
----
+Les nouveaux contenus utilisent un premier éditeur de six blocs texte avec `rf.document/1`; les anciens contenus restent en source Markdown. L’aperçu et la sauvegarde partagent la projection Rust et son assainissement. RichText, médias/liens natifs, conversion historique et autosauvegarde restent à livrer : [tâches WP-23 à WP-36](../docs/pilotage/01_COEUR_ADMIN.md), [plan global](../docs/PLAN_ACTION_GLOBAL.md). Les textes du nouvel éditeur sont isolés en français et les identifiants restent indépendants de la langue; les traductions sont reportées.
 
-## 🎯 Principes & Ergonomie
-
-1. **Navigation Hiérarchique Structurée en Pôles Clés :**
-   - 📊 **Tableau de Bord & Vue d'Ensemble** : Métriques de fréquentation en temps réel, alertes système et activité récente.
-   - ✍️ **Contenus & Hub Éditorial** : Articles, pages, types personnalisés, basculement liste / tableau Kanban (drag & drop) et dépublication programmée (`scheduled_unpublish_at`).
-   - 🔄 **Ingestion Universelle & DataMorph** : Glisser-déposer d'archives ZIP (thèmes déclaratifs, extensions) et d'exports XML avec transmutation vers le standard `rf:*` et préservation dans le coffre-fort `_rf_vault`.
-   - 📁 **Médiathèque Pro** : Dossiers virtuels arborescents, aperçus WebP, téléversement par glisser-déposer.
-   - 📝 **Interactions & Formulaires** : Constructeur de formulaires, journal des soumissions avec export.
-   - 🖼️ **Galeries & Médias Multi-sources** : Gestionnaire d'albums photos, vidéos et intégrations externes.
-   - 🎓 **Formations & LMS** : Gestion des cours, chapitres, leçons et suivi des apprenants (activable à la demande).
-   - 💳 **E-Commerce Numérique** : Produits dématérialisés, commandes sécurisées (`pending`), réductions promo et quotas de téléchargements.
-   - ⚙️ **Système & Réglages** : Utilisateurs, permissions, plugins WebAssembly (Wasmtime) et tokens de design.
-
-2. **Assistant IA & Commande Vocale / Texte (`Ctrl + K`) :**
-   - Palette de commande universelle connectée au moteur local Ollama (`gemma4:12b`).
-   - Pilote les actions du CMS par langage naturel via le registre d'outils déterministes Tool Calling / MCP.
-
-3. **Onboarding Interactif Pas-à-Pas :**
-   - Système de visite guidée avec effet de projecteur (*Spotlight*) pour accompagner les nouveaux utilisateurs dans la prise en main de l'interface.
-
----
-
-## 🚀 Démarrage en Développement
+Après préparation des dépendances, depuis `admin` :
 
 ```powershell
-# Installer les dépendances
-npm install
-
-# Démarrer le serveur Vite avec Hot Module Replacement (HMR)
+npm ci
 npm run dev
-# Disponible sur http://localhost:3000
 ```
 
-Le proxy Vite configuré dans `vite.config.ts` redirige automatiquement tous les appels `/api` vers le backend Rust RustForge écoutant sur le port `8080`.
+Le port configuré dans `vite.config.ts` est `3000`; le proxy cible le serveur Rust sur `http://localhost:8080`. Vite peut choisir un autre port si celui-ci est occupé : utiliser l’adresse affichée. Le chemin de base est `/admin/`.
 
+```powershell
+npm run build
+npm run lint
+```
+
+`build` exécute TypeScript et Vite. Le lint antérieur comporte des avertissements React documentés dans les preuves alpha; ne pas le décrire comme sans avertissement sans nouvelle vérification.
+
+Les nouvelles écritures de session utilisent `rustforge_token`; une ancienne clé reste lue provisoirement pour compatibilité, puis supprimée à la prochaine écriture/déconnexion. Les permissions s’appliquent côté serveur. Les écrans et outils IA utilisent les mêmes services métier et ne contournent pas la désactivation d’un module.
+
+La navigation utilise désormais `/api/v1/admin/navigation` et le registre Rust commun. Les sources serveur et Studio doivent être reconstruites ensemble. Le [tableau du menu](../docs/pilotage/10_MENU_ADMIN.md) relie trois niveaux aux interfaces; le [journal](../docs/pilotage/08_JOURNAL_REPRISE.md) indique la recette restante et le point de reprise. Tests ciblés : `node --experimental-strip-types --test tests/navigation.test.ts` depuis ce dossier.

@@ -20,6 +20,16 @@ pub struct TermListQuery {
     pub taxonomy: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DeleteTermQuery {
+    pub reassign_to: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MergeTermPayload {
+    pub target_id: Uuid,
+}
+
 pub async fn list_taxonomies(
     State(state): State<AppState>,
     _auth: AuthUser,
@@ -90,10 +100,24 @@ pub async fn delete_term(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteTermQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     if !auth.user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
-    terms::delete_term(&state.db, id).await?;
+    terms::delete_term_with_reassignment(&state.db, id, query.reassign_to).await?;
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+pub async fn merge_term(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<MergeTermPayload>,
+) -> ApiResult<Json<Term>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let merged = terms::merge_terms(&state.db, id, payload.target_id).await?;
+    Ok(Json(merged))
 }

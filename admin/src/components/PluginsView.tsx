@@ -1,3 +1,9 @@
+/**
+ * ============================================================================
+ * VUE DE GESTION DES PLUGINS WEBASSEMBLY (`PluginsView`)
+ * ============================================================================
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Boxes, RefreshCw, ShieldCheck, Power, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
@@ -21,7 +27,19 @@ export const PluginsView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPlugins();
+    let active = true;
+    api.plugins
+      .list()
+      .then((list) => {
+        if (active) setPlugins(list);
+      })
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleRescan = async () => {
@@ -43,7 +61,7 @@ export const PluginsView: React.FC = () => {
       } else {
         await api.plugins.enable(plugin.id);
       }
-      fetchPlugins();
+      await fetchPlugins();
     } catch (err: any) {
       alert(`Erreur : ${err.message}`);
     }
@@ -62,7 +80,9 @@ export const PluginsView: React.FC = () => {
             Plugins Sandboxés Wasmtime (WASIp2)
           </h3>
           <p className="text-xs text-slate-400 max-w-xl">
-            Contrairement aux runtimes dynamiques historiques non sécurisés, chaque micro-plugin RustForge s'exécute dans un bac à sable mémoire étanche avec quotas stricts de CPU (fuel) et sans accès réseau ou disque non autorisé.
+            Contrairement aux runtimes dynamiques historiques non sécurisés, chaque micro-plugin
+            RustForge s'exécute dans un bac à sable mémoire étanche avec quotas stricts de CPU
+            (fuel) et sans accès réseau ou disque non autorisé.
           </p>
         </div>
 
@@ -84,7 +104,8 @@ export const PluginsView: React.FC = () => {
           </div>
         ) : plugins.length === 0 ? (
           <div className="col-span-full py-12 text-center text-xs text-slate-500">
-            Aucun plugin détecté dans le répertoire plugins/. Cliquez sur "Scanner" après avoir déposé un fichier .wasm.
+            Aucun plugin détecté dans le répertoire plugins/. Cliquez sur "Scanner" après avoir
+            déposé un fichier .wasm.
           </div>
         ) : (
           plugins.map((plugin) => (
@@ -134,7 +155,10 @@ export const PluginsView: React.FC = () => {
               <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] text-slate-500 uppercase font-semibold">Hooks :</span>
                 {plugin.hooks.map((h) => (
-                  <span key={h} className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  <span
+                    key={h}
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+                  >
                     {h}
                   </span>
                 ))}

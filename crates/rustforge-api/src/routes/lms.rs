@@ -96,6 +96,11 @@ pub async fn list_lessons(
     _auth: AuthUser,
     Path(course_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<Lesson>>> {
+    if !_auth.user.role.can_edit_others()
+        && !lms::is_user_enrolled(&state.db, course_id, _auth.user.id).await?
+    {
+        return Err(ApiError::Forbidden);
+    }
     let lessons = lms::list_course_lessons(&state.db, course_id).await?;
     Ok(Json(lessons))
 }
@@ -140,9 +145,7 @@ pub async fn update_progress(
 // Endpoints publics LMS
 // ---------------------------------------------------------------------------
 
-pub async fn public_list_courses(
-    State(state): State<AppState>,
-) -> ApiResult<Json<Vec<Course>>> {
+pub async fn public_list_courses(State(state): State<AppState>) -> ApiResult<Json<Vec<Course>>> {
     let courses = lms::list_courses(&state.db, true).await?;
     Ok(Json(courses))
 }

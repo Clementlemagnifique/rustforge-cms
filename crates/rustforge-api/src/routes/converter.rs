@@ -80,8 +80,8 @@ pub async fn analyze(
     let bytes = zip_bytes
         .ok_or_else(|| ApiError::BadRequest("Aucun fichier 'file' dans l'upload".to_string()))?;
 
-    let manifest = PackageAnalyzer::analyze_zip(&bytes)
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let manifest =
+        PackageAnalyzer::analyze_zip(&bytes).map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     Ok(Json(manifest))
 }
@@ -92,7 +92,7 @@ pub async fn convert_theme(
     auth: AuthUser,
     mut multipart: Multipart,
 ) -> ApiResult<Json<ConvertThemeResponse>> {
-    if !auth.user.role.can_write() {
+    if !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
 
@@ -119,14 +119,22 @@ pub async fn convert_theme(
         }
     }
 
-    let bytes = zip_bytes
-        .ok_or_else(|| ApiError::BadRequest("Archive ZIP requise pour la conversion".to_string()))?;
+    let bytes = zip_bytes.ok_or_else(|| {
+        ApiError::BadRequest("Archive ZIP requise pour la conversion".to_string())
+    })?;
 
     let converted = FseThemeConverter::convert_zip(&bytes, custom_slug.as_deref())
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     // Écriture sécurisée dans themes/<slug>/
     let theme_dir = state.themes_dir.join(&converted.slug);
+    rustforge_core::security::safe_slug(&converted.slug)?;
+    rustforge_core::security::confined_path(&state.themes_dir, &converted.slug)?;
+    if theme_dir.exists() {
+        return Err(ApiError::BadRequest(
+            "Ce thème existe déjà. Choisissez un nouveau nom pour préparer la conversion.".into(),
+        ));
+    }
     let templates_dir = theme_dir.join("templates");
 
     fs::create_dir_all(&templates_dir)
@@ -141,13 +149,14 @@ pub async fn convert_theme(
 
     // Écriture de chaque template MiniJinja (.html)
     for (tpl_name, tpl_content) in &converted.templates {
+        rustforge_core::security::relative_path(tpl_name)?;
         let tpl_path = templates_dir.join(tpl_name);
         fs::write(&tpl_path, tpl_content.as_bytes())
             .await
             .map_err(|e| ApiError::Internal(e.into()))?;
     }
 
-    let preview_url = format!("/?theme={}", converted.slug);
+    let preview_url = format!("/api/v1/themes/{}/preview", converted.slug);
 
     Ok(Json(ConvertThemeResponse {
         success: true,
@@ -167,7 +176,9 @@ pub async fn forms_plan(
 ) -> ApiResult<Json<FormsConversionResult>> {
     let result = FormsConverter::plan_conversion(
         &req.slug,
-        req.author_or_title.as_deref().unwrap_or("Extension Formulaire"),
+        req.author_or_title
+            .as_deref()
+            .unwrap_or("Extension Formulaire"),
     );
     Ok(Json(result))
 }
@@ -199,6 +210,11 @@ pub async fn apply_plan(
     // 3. Changement de thème si demandé
     let mut final_theme = state.active_theme.clone();
     if let Some(ref slug) = req.activate_theme_slug {
+        rustforge_core::security::safe_slug(slug)?;
+        let theme = rustforge_core::security::confined_path(&state.themes_dir, slug)?;
+        if !theme.join("templates/single.html").is_file() {
+            return Err(ApiError::BadRequest("Thème incomplet".into()));
+        }
         update_map.insert(
             "site.active_theme".to_string(),
             serde_json::Value::String(slug.clone()),
@@ -218,46 +234,7 @@ pub async fn apply_plan(
         success: true,
         activated_modules: activated_list,
         active_theme: final_theme,
-        message: "Plan de conversion appliqué avec succès. Modules activés dans RustForge.".to_string(),
+        message: "Plan de conversion appliqué avec succès. Modules activés dans RustForge."
+            .to_string(),
     }))
-}
-
-/// Endpoint d'importation d'un fichier XML WXR WordPress via DataMorph.
-pub async fn import_wxr(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    mut multipart: Multipart,
-) -> ApiResult<Json<rustforge_core::migration::TMIRImportReport>> {
-    if !auth.user.role.is_admin() {
-        return Err(ApiError::Forbidden);
-    }
-
-    let mut xml_bytes: Option<Vec<u8>> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?
-    {
-        let name = field.name().unwrap_or_default().to_string();
-        if name == "file" || name == "wxr" {
-            let bytes = field
-                .bytes()
-                .await
-                .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-            xml_bytes = Some(bytes.to_vec());
-            break;
-        }
-    }
-
-    let bytes = xml_bytes
-        .ok_or_else(|| ApiError::BadRequest("Fichier XML WXR requis dans le champ 'file'".to_string()))?;
-
-    let cursor = std::io::Cursor::new(bytes);
-    let doc = rustforge_core::migration::WxrImporter::parse(cursor)
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-
-    let report = rustforge_core::migration::DataMorphImporter::apply(&state.db, &doc, auth.user.id).await?;
-
-    Ok(Json(report))
 }

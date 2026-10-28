@@ -2,19 +2,45 @@
 //! Applique un document TMIR vers les tables `entries`, `terms`, `taxonomies`, `content_types`
 //! et stocke l'intégralité des champs méta spécifiques dans `_legacy_vault`.
 
+use sqlx::PgPool;
 use std::collections::HashMap;
 use std::time::Instant;
-use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::tmir::{TMIRDocument, TMIRImportReport, TMIREntryStatus};
+use super::tmir::{TMIRDocument, TMIREntryStatus, TMIRImportReport};
 use crate::error::CoreResult;
 
 pub struct DataMorphImporter;
 
 impl DataMorphImporter {
     /// Applique un document TMIR dans la base de données PostgreSQL de RustForge.
-    pub async fn apply(db: &PgPool, doc: &TMIRDocument, default_author_id: Uuid) -> CoreResult<TMIRImportReport> {
+    pub async fn apply(
+        db: &PgPool,
+        doc: &TMIRDocument,
+        default_author_id: Uuid,
+    ) -> CoreResult<TMIRImportReport> {
+        if doc.tmir_version != super::tmir::RFIR_CURRENT_VERSION {
+            return Err(crate::CoreError::validation("Version RFIR incompatible"));
+        }
+        let source = doc
+            .source_site_url
+            .as_deref()
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| {
+                crate::CoreError::validation("URL source requise pour identifier cet import")
+            })?;
+        let mut ids = std::collections::HashSet::new();
+        for e in &doc.entries {
+            if e.source_id.is_empty() || !ids.insert((&e.content_type, &e.source_id)) {
+                return Err(crate::CoreError::validation(
+                    "Identifiant source vide ou dupliqué",
+                ));
+            }
+        }
+        let mut tx = db.begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(79643201)")
+            .execute(&mut *tx)
+            .await?;
         let start = Instant::now();
         let mut report = TMIRImportReport::default();
 
@@ -26,10 +52,11 @@ impl DataMorphImporter {
         }
 
         for ctype in encountered_types {
-            let existing_id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM content_types WHERE slug = $1")
-                .bind(&ctype)
-                .fetch_optional(db)
-                .await?;
+            let existing_id: Option<Uuid> =
+                sqlx::query_scalar("SELECT id FROM content_types WHERE slug = $1")
+                    .bind(&ctype)
+                    .fetch_optional(&mut *tx)
+                    .await?;
 
             let ct_id = match existing_id {
                 Some(id) => id,
@@ -55,7 +82,7 @@ impl DataMorphImporter {
                     .bind(type_name)
                     .bind(type_singular)
                     .bind(format!("Type de contenu importé automatiquement par DataMorph ({})", ctype))
-                    .fetch_one(db)
+                    .fetch_one(&mut *tx)
                     .await?;
 
                     report.created_content_types.push(ctype.clone());
@@ -67,10 +94,13 @@ impl DataMorphImporter {
         }
 
         // S'assurer que le type "post" par défaut est résolu si présent
-        if !content_type_ids.contains_key("post") {
-            if let Ok(Some(id)) = sqlx::query_scalar::<_, Uuid>("SELECT id FROM content_types WHERE slug = 'post'").fetch_optional(db).await {
-                content_type_ids.insert("post".to_string(), id);
-            }
+        if !content_type_ids.contains_key("post")
+            && let Ok(Some(id)) =
+                sqlx::query_scalar::<_, Uuid>("SELECT id FROM content_types WHERE slug = 'post'")
+                    .fetch_optional(&mut *tx)
+                    .await
+        {
+            content_type_ids.insert("post".to_string(), id);
         }
 
         // 2. Ingestion des termes de taxonomies (catégories, tags, custom taxonomies)
@@ -85,10 +115,12 @@ impl DataMorphImporter {
             let tax_id = match taxonomy_ids.get(&tax_slug) {
                 Some(&id) => id,
                 None => {
-                    let tid: Uuid = match sqlx::query_scalar::<_, Uuid>("SELECT id FROM taxonomies WHERE slug = $1")
-                        .bind(&tax_slug)
-                        .fetch_optional(db)
-                        .await?
+                    let tid: Uuid = match sqlx::query_scalar::<_, Uuid>(
+                        "SELECT id FROM taxonomies WHERE slug = $1",
+                    )
+                    .bind(&tax_slug)
+                    .fetch_optional(&mut *tx)
+                    .await?
                     {
                         Some(id) => id,
                         None => {
@@ -106,7 +138,7 @@ impl DataMorphImporter {
                             )
                             .bind(&tax_slug)
                             .bind(tax_name)
-                            .fetch_one(db)
+                            .fetch_one(&mut *tx)
                             .await?
                         }
                     };
@@ -119,20 +151,17 @@ impl DataMorphImporter {
             let res = sqlx::query(
                 r#"INSERT INTO terms (taxonomy_id, name, slug, description, created_at)
                    VALUES ($1, $2, $3, $4, now())
-                   ON CONFLICT (taxonomy_id, slug) DO UPDATE SET name = EXCLUDED.name"#
+                   ON CONFLICT (taxonomy_id, slug) DO UPDATE SET name = EXCLUDED.name"#,
             )
             .bind(tax_id)
             .bind(&term.name)
             .bind(&term.slug)
             .bind(term_desc)
-            .execute(db)
+            .execute(&mut *tx)
             .await;
 
-            if let Ok(r) = res {
-                if r.rows_affected() > 0 {
-                    report.terms_imported += 1;
-                }
-            }
+            let r = res?;
+            report.terms_imported += r.rows_affected() as usize;
         }
 
         // 2b. Ingestion réelle des Médias et mappage des pièces jointes
@@ -167,6 +196,7 @@ impl DataMorphImporter {
                 raw_path
             };
 
+            crate::security::relative_path(&path)?;
             let original_name = if !m.filename.trim().is_empty() {
                 m.filename.clone()
             } else {
@@ -207,7 +237,7 @@ impl DataMorphImporter {
             .bind(default_author_id)
             .bind(&m.source_id)
             .bind(&m.source_url)
-            .fetch_one(db)
+            .fetch_one(&mut *tx)
             .await;
 
             match media_res {
@@ -218,21 +248,7 @@ impl DataMorphImporter {
                         media_id_by_source_url.insert(m.source_url.clone(), mid);
                     }
                 }
-                Err(_) => {
-                    if let Ok(existing_id) = sqlx::query_scalar::<_, Uuid>("SELECT id FROM media WHERE path = $1")
-                        .bind(&path)
-                        .fetch_one(db)
-                        .await
-                    {
-                        report.media_imported += 1;
-                        media_id_by_source_id.insert(m.source_id.clone(), existing_id);
-                        if !m.source_url.is_empty() {
-                            media_id_by_source_url.insert(m.source_url.clone(), existing_id);
-                        }
-                    } else {
-                        report.warnings.push(format!("Média ignoré : {}", path));
-                    }
-                }
+                Err(err) => return Err(err.into()),
             }
         }
 
@@ -241,7 +257,10 @@ impl DataMorphImporter {
             let ct_id = match content_type_ids.get(&entry.content_type) {
                 Some(&id) => id,
                 None => {
-                    report.warnings.push(format!("Type de contenu introuvable pour l'entrée '{}'", entry.title));
+                    report.warnings.push(format!(
+                        "Type de contenu introuvable pour l'entrée '{}'",
+                        entry.title
+                    ));
                     report.entries_skipped += 1;
                     continue;
                 }
@@ -253,8 +272,45 @@ impl DataMorphImporter {
                 TMIREntryStatus::Pending => "draft",
                 TMIREntryStatus::Private => "draft",
                 TMIREntryStatus::Trash => "trash",
+                TMIREntryStatus::Archived => "archived",
+            };
+            // A historical WordPress date is not a TrustPress scheduling instruction.
+            // In particular, private/pending content must never be auto-published later.
+            let published_at = if matches!(entry.status, TMIREntryStatus::Published) {
+                Some(entry.published_at.unwrap_or_else(chrono::Utc::now))
+            } else {
+                None
             };
 
+            let origin:Option<(Uuid,chrono::DateTime<chrono::Utc>)>=sqlx::query_as("SELECT entry_id,target_updated_at FROM import_origins WHERE source=$1 AND entity_type=$2 AND source_id=$3")
+                .bind(source).bind(&entry.content_type).bind(&entry.source_id).fetch_optional(&mut *tx).await?;
+            if let Some((id, stamp)) = origin {
+                let current: (chrono::DateTime<chrono::Utc>, String) =
+                    sqlx::query_as("SELECT updated_at,slug FROM entries WHERE id=$1 FOR UPDATE")
+                        .bind(id)
+                        .fetch_one(&mut *tx)
+                        .await?;
+                if current.0 != stamp || current.1 != entry.slug {
+                    return Err(crate::CoreError::Conflict(format!(
+                        "Le contenu '{}' a été modifié depuis son import. Aucun écrasement automatique.",
+                        entry.slug
+                    )));
+                }
+            } else {
+                let collision: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM entries WHERE content_type_id=$1 AND slug=$2)",
+                )
+                .bind(ct_id)
+                .bind(&entry.slug)
+                .fetch_one(&mut *tx)
+                .await?;
+                if collision {
+                    return Err(crate::CoreError::Conflict(format!(
+                        "Slug déjà occupé sans correspondance source : {}",
+                        entry.slug
+                    )));
+                }
+            }
             // Résolution de l'image mise en avant
             let featured_media_id: Option<Uuid> = {
                 if let Some(ref url) = entry.featured_image_url {
@@ -264,22 +320,32 @@ impl DataMorphImporter {
                 }
             }
             .or_else(|| {
-                entry.legacy_vault
+                entry
+                    .legacy_vault
                     .get("_thumbnail_id")
                     .and_then(|v| {
                         if let Some(s) = v.as_str() {
                             Some(s.to_string())
-                        } else if let Some(n) = v.as_i64() {
-                            Some(n.to_string())
                         } else {
-                            None
+                            v.as_i64().map(|n| n.to_string())
                         }
                     })
                     .and_then(|tid| media_id_by_source_id.get(&tid).copied())
             });
 
             // Construction du payload fields enrichi du coffre-fort _rf_vault / _legacy_vault
-            let mut fields_map = serde_json::Map::new();
+            let mut fields_map = doc
+                .metadata
+                .get(&format!("entry_fields:{}", entry.source_id))
+                .and_then(serde_json::Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            if let Some(author) = &entry.author_name {
+                fields_map.insert(
+                    "_source_author".into(),
+                    serde_json::json!({"name":author,"email":entry.author_email}),
+                );
+            }
             if !entry.legacy_vault.is_empty() {
                 let vault_val = serde_json::to_value(&entry.legacy_vault).unwrap_or_default();
                 fields_map.insert("_rf_vault".to_string(), vault_val.clone());
@@ -299,18 +365,27 @@ impl DataMorphImporter {
                 fields_map.insert("wp_tags".to_string(), tag_val);
             }
 
+            fields_map.entry("_source_publication".to_string()).or_insert_with(||serde_json::json!({"status":entry.status,"published_at":entry.published_at}));
             let fields_json = serde_json::Value::Object(fields_map);
             let excerpt_str = entry.excerpt.as_deref().unwrap_or("");
-            
+            let blocks = doc.metadata.get(&format!("entry_blocks:{}", entry.source_id))
+                .cloned().unwrap_or_else(|| serde_json::json!([]));
+
             // Transmutation souveraine des blocs : <!-- wp:* --> -> <!-- rf:* -->
-            let clean_raw_content = entry.raw_content
+            let clean_raw_content = entry
+                .raw_content
                 .replace("<!-- wp:", "<!-- rf:")
                 .replace("<!-- /wp:", "<!-- /rf:");
 
-            let body_html = if clean_raw_content.contains('<') {
-                clean_raw_content.clone()
+            let (clean_raw_content, body_html) = if blocks.get("rf_schema").is_some() {
+                crate::document::project(&clean_raw_content, &blocks)?
             } else {
-                crate::markdown::render(&clean_raw_content)
+                let html = if clean_raw_content.contains('<') {
+                    ammonia::clean(&clean_raw_content)
+                } else {
+                    crate::markdown::render(&clean_raw_content)
+                };
+                (clean_raw_content, html)
             };
 
             let res = sqlx::query_scalar::<_, Uuid>(
@@ -318,13 +393,15 @@ impl DataMorphImporter {
                     content_type_id, author_id, title, slug, excerpt, body, body_html,
                     blocks, intent, design_tokens, status, fields, featured_media_id, published_at, created_at, updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb, $8::entry_status, $9, $10, $11, now(), now())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $12, '{}'::jsonb, '{}'::jsonb, $8::entry_status, $9, $10, $11, now(), now())
                 ON CONFLICT (content_type_id, slug) DO UPDATE SET
                     title = EXCLUDED.title,
                     excerpt = EXCLUDED.excerpt,
                     body = EXCLUDED.body,
                     body_html = EXCLUDED.body_html,
+                    blocks = EXCLUDED.blocks,
                     fields = EXCLUDED.fields,
+                    status = EXCLUDED.status, published_at = EXCLUDED.published_at,
                     featured_media_id = COALESCE(EXCLUDED.featured_media_id, entries.featured_media_id),
                     updated_at = now()
                 RETURNING id"#
@@ -339,54 +416,73 @@ impl DataMorphImporter {
             .bind(status_str)
             .bind(fields_json)
             .bind(featured_media_id)
-            .bind(entry.published_at)
-            .fetch_one(db)
+            .bind(published_at)
+            .bind(blocks)
+            .fetch_one(&mut *tx)
             .await;
 
             match res {
                 Ok(entry_id) => {
                     report.entries_imported += 1;
+                    sqlx::query("INSERT INTO import_origins(source,entity_type,source_id,entry_id,target_updated_at) SELECT $1,$2,$3,id,updated_at FROM entries WHERE id=$4 ON CONFLICT(source,entity_type,source_id) DO UPDATE SET target_updated_at=EXCLUDED.target_updated_at")
+                        .bind(source).bind(&entry.content_type).bind(&entry.source_id).bind(entry_id).execute(&mut *tx).await?;
 
                     // Association dynamique des termes (Catégories et Tags) dans entry_terms
+                    sqlx::query("DELETE FROM entry_terms WHERE entry_id=$1 AND term_id IN (SELECT t.id FROM terms t JOIN taxonomies tx ON tx.id=t.taxonomy_id WHERE tx.slug IN ('category','tag'))")
+                        .bind(entry_id).execute(&mut *tx).await?;
                     for cat in &entry.categories {
                         let term_slug = crate::slugify(cat);
-                        let _ = sqlx::query(
+                        let linked = sqlx::query(
                             r#"INSERT INTO entry_terms (entry_id, term_id)
                                SELECT $1, t.id FROM terms t
                                JOIN taxonomies tx ON tx.id = t.taxonomy_id
                                WHERE tx.slug = 'category' AND (t.slug = $2 OR t.name = $3)
-                               ON CONFLICT DO NOTHING"#
+                               ON CONFLICT DO NOTHING"#,
                         )
                         .bind(entry_id)
                         .bind(&term_slug)
                         .bind(cat)
-                        .execute(db)
-                        .await;
+                        .execute(&mut *tx)
+                        .await?;
+                        if linked.rows_affected() == 0 {
+                            return Err(crate::CoreError::validation(
+                                "Terme source introuvable ; import annulé",
+                            ));
+                        }
                     }
 
                     for tag in &entry.tags {
                         let term_slug = crate::slugify(tag);
-                        let _ = sqlx::query(
+                        let linked = sqlx::query(
                             r#"INSERT INTO entry_terms (entry_id, term_id)
                                SELECT $1, t.id FROM terms t
                                JOIN taxonomies tx ON tx.id = t.taxonomy_id
                                WHERE tx.slug = 'tag' AND (t.slug = $2 OR t.name = $3)
-                               ON CONFLICT DO NOTHING"#
+                               ON CONFLICT DO NOTHING"#,
                         )
                         .bind(entry_id)
                         .bind(&term_slug)
                         .bind(tag)
-                        .execute(db)
-                        .await;
+                        .execute(&mut *tx)
+                        .await?;
+                        if linked.rows_affected() == 0 {
+                            return Err(crate::CoreError::validation(
+                                "Terme source introuvable ; import annulé",
+                            ));
+                        }
                     }
                 }
                 Err(e) => {
-                    report.warnings.push(format!("Entrée ignorée '{}' ({}) : {}", entry.title, entry.slug, e));
-                    report.entries_skipped += 1;
+                    return Err(e.into());
                 }
             }
         }
 
+        if report.media_imported > 0 {
+            report.warnings.push("Références médias enregistrées. Les fichiers WXR doivent être transférés et vérifiés séparément.".into());
+        }
+        report.warnings.push("Les auteurs source sont conservés en provenance ; les contenus sont attribués à l'administrateur importateur.".into());
+        tx.commit().await?;
         report.execution_time_ms = start.elapsed().as_millis() as u64;
 
         Ok(report)

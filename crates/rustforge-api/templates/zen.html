@@ -82,10 +82,10 @@
 <body>
     <!-- Barre d'outils de confort flottante -->
     <div class="zen-toolbar">
-        <button class="zen-btn" onclick="toggleTheme('light')">☀️</button>
-        <button class="zen-btn" onclick="toggleTheme('sepia')">📜 Sépia</button>
-        <button class="zen-btn" onclick="toggleTheme('dark')">🌙 Nuit</button>
-        <button class="zen-btn" onclick="toggleFont()">🔤 Police</button>
+        <button class="zen-btn" data-reader-theme="light">☀️</button>
+        <button class="zen-btn" data-reader-theme="sepia">📜 Sépia</button>
+        <button class="zen-btn" data-reader-theme="dark">🌙 Nuit</button>
+        <button class="zen-btn" data-reader-font>🔤 Police</button>
         <a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}" style="text-decoration: none; font-family: sans-serif; font-size: 0.8rem; color: inherit; border-left: 1px solid rgba(120,120,120,0.3); padding-left: 0.8rem;">Quitter ✕</a>
     </div>
 
@@ -93,7 +93,7 @@
     <main class="zen-container">
         <h1>{{ entry.title }}</h1>
         <div style="font-size: 0.95rem; opacity: 0.7; margin-bottom: 3rem; font-family: sans-serif;">
-            {{ entry.author_name | default("TrustPress") }} &bull; Lecture estimée à 3 min
+            {{ entry.author_name | default("RustForge CMS") }} &bull; Lecture estimée à 3 min
         </div>
         
         <div>
@@ -103,15 +103,6 @@
         <a class="back-link" href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}">&larr; Quitter le mode Zen et revenir à la page</a>
     </main>
 
-    <script>
-        function toggleTheme(theme) {
-            document.body.classList.remove('dark-mode', 'sepia-mode');
-            if (theme === 'dark') document.body.classList.add('dark-mode');
-            if (theme === 'sepia') document.body.classList.add('sepia-mode');
-        }
-        function toggleFont() {
-            document.body.classList.toggle('sans-mode');
-        }
-    </script>
+    <script src="/public/reader.js" defer></script>
 </body>
 </html>

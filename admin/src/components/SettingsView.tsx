@@ -1,152 +1,411 @@
-import React, { useState, useEffect } from 'react';
-import { Palette, Save, CheckCircle2 } from 'lucide-react';
-import { api } from '../api';
+/**
+ * ============================================================================
+ * VUE RÉGLAGES DU SITE : GÉNÉRAL, LECTURE & ÉCRITURE (`SettingsView`)
+ * ============================================================================
+ * Tâches : `WP-69` à `WP-81` (Titre, slogan, URL, e-mail d'administration,
+ * langue/fuseau/formats de date, inscription et rôle par défaut borné,
+ * accueil statique ou derniers articles, pagination et visibilité moteurs).
+ */
 
-export const SettingsView: React.FC = () => {
-  const [settings, setSettings] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+import React, { useEffect } from 'react';
+import {
+  Save,
+  CheckCircle2,
+  Globe,
+  BookOpen,
+  PenTool,
+  AlertTriangle,
+} from 'lucide-react';
+import { settingsMessages } from '../i18n/messages.fr';
+import { useSettingsStore, type SettingsTab } from '../stores/useSettingsStore';
+
+interface SettingsViewProps {
+  initialTab?: SettingsTab;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'general' }) => {
+  const activeTab = useSettingsStore((s) => s.activeTab);
+  const settings = useSettingsStore((s) => s.settings);
+  const pages = useSettingsStore((s) => s.pages);
+  const categories = useSettingsStore((s) => s.categories);
+  const loading = useSettingsStore((s) => s.loading);
+  const saving = useSettingsStore((s) => s.saving);
+  const saved = useSettingsStore((s) => s.saved);
+  const error = useSettingsStore((s) => s.error);
+
+  const setActiveTab = useSettingsStore((s) => s.setActiveTab);
+  const loadAll = useSettingsStore((s) => s.loadAll);
+  const setSetting = useSettingsStore((s) => s.setSetting);
+  const saveSettings = useSettingsStore((s) => s.saveSettings);
 
   useEffect(() => {
-    api.settings.getAll()
-      .then(setSettings)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+    setActiveTab(initialTab);
+    void loadAll();
+  }, [initialTab, setActiveTab, loadAll]);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setSaved(false);
-    try {
-      const res = await api.settings.update(settings);
-      setSettings(res);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      alert(`Erreur: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
+    void saveSettings();
   };
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Chargement des réglages...</div>;
+    return (
+      <div className="p-8 text-center text-slate-500 text-xs">
+        Chargement des réglages…
+      </div>
+    );
   }
 
+  const showOnFront = settings['reading.show_on_front'] || 'posts';
+  const blogPublic = settings['reading.blog_public'] !== false;
+  const canRegister = settings['users.can_register'] === true;
+
   return (
-    <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
+      {/* En-tête & bouton d'enregistrement */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-bold text-white">Réglages Généraux & Design System</h3>
-          <p className="text-xs text-slate-400">
-            Contrôlez les métadonnées globales du site et les variables de style.
-          </p>
+          <h3 className="text-base font-bold text-white">{settingsMessages.title}</h3>
+          <p className="text-xs text-slate-400">{settingsMessages.subtitle}</p>
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95"
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all"
         >
-          {saved ? <CheckCircle2 className="w-4 h-4 text-emerald-300" /> : <Save className="w-4 h-4" />}
-          <span>{saving ? 'Enregistrement...' : saved ? 'Enregistré !' : 'Enregistrer'}</span>
+          {saved ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          <span>
+            {saving
+              ? settingsMessages.savingButton
+              : saved
+              ? settingsMessages.savedFeedback
+              : settingsMessages.saveButton}
+          </span>
         </button>
       </div>
 
-      {/* Identité du site */}
-      <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
-        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Identité du site</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-[11px] text-slate-400 block mb-1">Titre du site</label>
-            <input
-              type="text"
-              value={settings['site.title'] || ''}
-              onChange={(e) => setSettings({ ...settings, 'site.title': e.target.value })}
-              className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+      {/* Sous-onglets Général / Lecture / Écriture */}
+      <div className="flex items-center gap-2 bg-[#0f1422] p-1 rounded-xl border border-white/5 w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab('general')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            activeTab === 'general'
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>{settingsMessages.tabGeneral}</span>
+        </button>
 
-          <div>
-            <label className="text-[11px] text-slate-400 block mb-1">Slogan</label>
-            <input
-              type="text"
-              value={settings['site.tagline'] || ''}
-              onChange={(e) => setSettings({ ...settings, 'site.tagline': e.target.value })}
-              className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('reading')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            activeTab === 'reading'
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>{settingsMessages.tabReading}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('writing')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            activeTab === 'writing'
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <PenTool className="w-3.5 h-3.5" />
+          <span>{settingsMessages.tabWriting}</span>
+        </button>
       </div>
 
-      {/* Design System & Tokens */}
-      <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
-        <div className="flex items-center gap-2 text-indigo-400">
-          <Palette className="w-4 h-4" />
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Tokens Globaux du Design System</h4>
+      {error && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
         </div>
-        <p className="text-xs text-slate-400">
-          Ces tokens sont modifiables par simple commande vocale ou prompt dans l'Assistant IA.
-        </p>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div>
-            <label className="text-[11px] text-slate-400 block mb-1">Couleur Primaire</label>
-            <input
-              type="text"
-              value={settings['site.design_tokens']?.primary_color || '#6366f1'}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  'site.design_tokens': {
-                    ...(settings['site.design_tokens'] || {}),
-                    primary_color: e.target.value,
-                  },
-                })
-              }
-              className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
-            />
+      {/* ONGLET 1 : GÉNÉRAL (`WP-69` à `WP-74`) */}
+      {activeTab === 'general' && (
+        <div className="space-y-6">
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Identité & Adresses du site (WP-69, WP-70, WP-71)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Titre du site</label>
+                <input
+                  type="text"
+                  value={settings['site.title'] || ''}
+                  onChange={(e) => setSetting('site.title', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Slogan</label>
+                <input
+                  type="text"
+                  value={settings['site.tagline'] || ''}
+                  onChange={(e) => setSetting('site.tagline', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Adresse publique du site (URL)
+                </label>
+                <input
+                  type="url"
+                  value={settings['site.url'] || ''}
+                  onChange={(e) => setSetting('site.url', e.target.value)}
+                  placeholder="https://exemple.fr"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Adresse e-mail d’administration
+                </label>
+                <input
+                  type="email"
+                  value={settings['site.admin_email'] || ''}
+                  onChange={(e) => setSetting('site.admin_email', e.target.value)}
+                  placeholder="admin@exemple.fr"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] text-slate-400 block mb-1">Police des Titres</label>
-            <input
-              type="text"
-              value={settings['site.design_tokens']?.font_heading || 'Plus Jakarta Sans'}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  'site.design_tokens': {
-                    ...(settings['site.design_tokens'] || {}),
-                    font_heading: e.target.value,
-                  },
-                })
-              }
-              className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Inscription, Langue & Fuseau horaire (WP-72, WP-73)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Langue principale du site
+                </label>
+                <select
+                  value={settings['site.language'] || 'fr'}
+                  onChange={(e) => setSetting('site.language', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="fr">Français (fr)</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="text-[11px] text-slate-400 block mb-1">Rayon des Bordures</label>
-            <input
-              type="text"
-              value={settings['site.design_tokens']?.radius || '12px'}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  'site.design_tokens': {
-                    ...(settings['site.design_tokens'] || {}),
-                    radius: e.target.value,
-                  },
-                })
-              }
-              className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Fuseau horaire</label>
+                <select
+                  value={settings['site.timezone'] || 'Europe/Paris'}
+                  onChange={(e) => setSetting('site.timezone', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+                  <option value="UTC">UTC</option>
+                  <option value="America/Montreal">America/Montreal</option>
+                  <option value="Europe/Brussels">Europe/Brussels</option>
+                  <option value="Europe/Zurich">Europe/Zurich</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Rôle par défaut des nouveaux inscrits
+                </label>
+                <select
+                  value={settings['users.default_role'] || 'subscriber'}
+                  onChange={(e) => setSetting('users.default_role', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="subscriber">Abonné / Lecteur</option>
+                  <option value="author">Auteur</option>
+                  <option value="editor">Éditeur</option>
+                </select>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2.5 text-xs text-slate-300 pt-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={canRegister}
+                onChange={(e) => setSetting('users.can_register', e.target.checked)}
+                className="rounded border-white/20 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span>Autoriser l’inscription publique de nouveaux membres (WP-72)</span>
+            </label>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ONGLET 2 : LECTURE & ACCUEIL (`WP-78` à `WP-81`) */}
+      {activeTab === 'reading' && (
+        <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-5">
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+            Affichage de la page d’accueil & Pagination (WP-78, WP-79, WP-81)
+          </h4>
+
+          <div className="space-y-3">
+            <label className="text-[11px] text-slate-400 block">
+              La page d’accueil affiche :
+            </label>
+            <div className="flex flex-col sm:flex-row gap-4 text-xs text-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="show_on_front"
+                  checked={showOnFront === 'posts'}
+                  onChange={() => setSetting('reading.show_on_front', 'posts')}
+                />
+                <span>Les derniers articles publiés</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="show_on_front"
+                  checked={showOnFront === 'page'}
+                  onChange={() => setSetting('reading.show_on_front', 'page')}
+                />
+                <span>Une page statique dédiée</span>
+              </label>
+            </div>
+          </div>
+
+          {showOnFront === 'page' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Page d’accueil statique
+                </label>
+                <select
+                  value={settings['reading.page_on_front'] || ''}
+                  onChange={(e) => setSetting('reading.page_on_front', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">— Sélectionner une page publiée —</option>
+                  {pages.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} (/{p.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
+                Nombre maximal d’articles par page publique (1 à 100)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={settings['reading.per_page'] ?? 10}
+                onChange={(e) =>
+                  setSetting('reading.per_page', Math.max(1, Math.min(100, Number(e.target.value) || 10)))
+                }
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
+                Affichage des articles dans les flux
+              </label>
+              <select
+                value={settings['reading.rss_use_excerpt'] ? 'excerpt' : 'full'}
+                onChange={(e) =>
+                  setSetting('reading.rss_use_excerpt', e.target.value === 'excerpt')
+                }
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="full">Texte complet</option>
+                <option value="excerpt">Extrait uniquement</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-white/5">
+            <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!blogPublic}
+                onChange={(e) => setSetting('reading.blog_public', !e.target.checked)}
+                className="rounded border-white/20 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span>
+                Demander aux moteurs de recherche de ne pas indexer ce site (ajoute{' '}
+                <code className="text-amber-300">noindex, nofollow</code>)
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* ONGLET 3 : ÉCRITURE & DÉFAUTS (`WP-75`) */}
+      {activeTab === 'writing' && (
+        <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+            Options de rédaction par défaut (WP-75)
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
+                Catégorie par défaut des nouveaux articles
+              </label>
+              <select
+                value={settings['writing.default_category'] || 'non-classe'}
+                onChange={(e) => setSetting('writing.default_category', e.target.value)}
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.slug}>
+                    {cat.name} ({cat.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
+                Mode d’édition par défaut
+              </label>
+              <select
+                value={settings['writing.default_editor_mode'] || 'blocks'}
+                onChange={(e) => setSetting('writing.default_editor_mode', e.target.value)}
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="blocks">Éditeur visuel par blocs (rf.document/1)</option>
+                <option value="markdown">Source Markdown</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

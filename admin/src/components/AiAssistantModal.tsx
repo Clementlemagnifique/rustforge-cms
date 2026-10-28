@@ -38,8 +38,16 @@ const SUGGESTIONS = [
   { icon: Search, color: 'text-purple-400', label: 'Auditer le dernier contenu', prompt: 'Fais un audit SEO et GEO de mon dernier contenu modifié et donne-moi les 3 priorités.' },
 ];
 
-const ActionCard: React.FC<{ action: AiAction }> = ({ action }) => {
+const ActionCard: React.FC<{ action: AiAction; onApplied?: () => void }> = ({ action, onApplied }) => {
   const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [applying, setApplying] = useState(false);
+  const approve = async () => {
+    setApplying(true);
+    try { const value = await api.ai.approve(action.data.plan_id); setResult(value); if (value.success) onApplied?.(); }
+    catch (err) { setResult({ success: false, message: err instanceof Error ? err.message : 'Validation impossible' }); }
+    finally { setApplying(false); }
+  };
   return (
     <div className={`rounded-lg border text-[11px] ${action.success ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
       <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left">
@@ -53,6 +61,12 @@ const ActionCard: React.FC<{ action: AiAction }> = ({ action }) => {
           {JSON.stringify({ arguments: action.arguments, data: action.data }, null, 2)}
         </pre>
       )}
+      {action.data?.approval_required && !result && <div className="p-3 space-y-2 border-t border-white/10">
+        <p className="text-amber-200">Proposition en attente : vérifiez les changements avant validation.</p>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap">{JSON.stringify(action.data.arguments, null, 2)}</pre>
+        <button disabled={applying} onClick={approve} className="rounded bg-indigo-600 px-3 py-2 text-white">{applying ? 'Application…' : 'Valider et appliquer'}</button>
+      </div>}
+      {result && <p role="status" className="p-3 text-slate-200">{result.message}</p>}
     </div>
   );
 };
@@ -63,12 +77,14 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
+  const [pendingPlans, setPendingPlans] = useState<AiAction[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (isOpen) {
       api.ai.status().then(setStatus).catch(() => setStatus(null));
+      api.ai.plans().then(rows => setPendingPlans(rows.filter(p => p.status === 'pending').map(p => ({ tool: p.tool, arguments: p.arguments, success: true, message: 'Proposition enregistrée à reprendre', data: { approval_required: true, plan_id: p.id, arguments: p.arguments } })))).catch(() => setPendingPlans([]));
     }
   }, [isOpen]);
 
@@ -190,6 +206,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
 
         {/* Conversation */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {pendingPlans.map(p => <ActionCard key={p.data.plan_id} action={p} onApplied={onRefresh} />)}
           {messages.length === 0 && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
@@ -228,7 +245,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
                         <Wrench className="w-3 h-3" /> {m.actions.length} action(s) exécutée(s)
                       </p>
                       {m.actions.map((a, j) => (
-                        <ActionCard key={j} action={a} />
+                        <ActionCard key={j} action={a} onApplied={onRefresh} />
                       ))}
                     </div>
                   )}

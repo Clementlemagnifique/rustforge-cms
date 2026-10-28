@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod admin;
 pub mod auth;
 pub mod capsules;
 pub mod content_types;
@@ -9,6 +10,7 @@ pub mod forms;
 pub mod galleries;
 pub mod lms;
 pub mod media;
+pub mod migration;
 pub mod plugins;
 pub mod public;
 pub mod settings;

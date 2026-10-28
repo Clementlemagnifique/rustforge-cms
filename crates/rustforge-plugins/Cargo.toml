@@ -3,6 +3,7 @@ name = "rustforge-plugins"
 description = "Runtime de plugins WebAssembly (Wasmtime, component model) pour RustForge CMS."
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 [dependencies]

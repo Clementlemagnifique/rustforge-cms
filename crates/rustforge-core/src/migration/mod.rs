@@ -4,6 +4,7 @@
 pub mod capsule;
 pub mod exporter;
 pub mod importer;
+pub mod native_backup;
 pub mod php_serializer;
 pub mod tmir;
 pub mod wxr_importer;
@@ -11,8 +12,13 @@ pub mod wxr_importer;
 pub use capsule::{CapsuleManager, CapsuleManifest, CapsulePackReport, CapsuleUnpackReport};
 pub use exporter::DataMorphExporter;
 pub use importer::DataMorphImporter;
-pub use php_serializer::{is_likely_php_serialized, maybe_deserialize_php, PhpDeserializer, PhpParseError};
-pub use tmir::{RFIRDocument, RFIREntry, RFIREntryStatus, RFIRImportReport, RFIRMedia, RFIRTerm, TMIRDocument, TMIREntry, TMIREntryStatus, TMIRImportReport, TMIRMedia, TMIRTerm};
+pub use php_serializer::{
+    PhpDeserializer, PhpParseError, is_likely_php_serialized, maybe_deserialize_php,
+};
+pub use tmir::{
+    RFIRDocument, RFIREntry, RFIREntryStatus, RFIRImportReport, RFIRMedia, RFIRTerm, TMIRDocument,
+    TMIREntry, TMIREntryStatus, TMIRImportReport, TMIRMedia, TMIRTerm,
+};
 pub use wxr_importer::WxrImporter;
 
 #[cfg(test)]
@@ -57,7 +63,10 @@ mod tests {
         let cursor = Cursor::new(mock_wxr.as_bytes());
         let doc = WxrImporter::parse(cursor).expect("Le parsing WXR doit réussir");
 
-        assert_eq!(doc.source_site_url, Some("https://mon-site-wp.fr".to_string()));
+        assert_eq!(
+            doc.source_site_url,
+            Some("https://mon-site-wp.fr".to_string())
+        );
         assert_eq!(doc.terms.len(), 1);
         assert_eq!(doc.terms[0].slug, "tutoriels");
         assert_eq!(doc.terms[0].name, "Tutoriels");
@@ -85,9 +94,11 @@ mod tests {
 
     #[test]
     fn test_sovereign_rf_xml_and_rfir_json_export() {
-        let mut doc = RFIRDocument::default();
-        doc.source_generator = "RustForge Sovereign Exporter 1.0".to_string();
-        doc.source_site_url = Some("https://rustforge.dev".to_string());
+        let mut doc = RFIRDocument {
+            source_generator: "RustForge Sovereign Exporter 1.0".into(),
+            source_site_url: Some("https://rustforge.dev".into()),
+            ..Default::default()
+        };
 
         doc.terms.push(RFIRTerm {
             source_id: "term-1".to_string(),
@@ -107,7 +118,8 @@ mod tests {
             title: "Pourquoi choisir RustForge CMS".to_string(),
             content_type: "post".to_string(),
             status: RFIREntryStatus::Published,
-            raw_content: "<!-- rf:heading --><h2>Pure Performance</h2><!-- /rf:heading -->".to_string(),
+            raw_content: "<!-- rf:heading --><h2>Pure Performance</h2><!-- /rf:heading -->"
+                .to_string(),
             excerpt: Some("Découvrez le CMS souverain".to_string()),
             author_name: Some("Équipe RustForge".to_string()),
             author_email: Some("contact@rustforge.dev".to_string()),
@@ -126,11 +138,15 @@ mod tests {
         // 2. Test RF-XML
         let xml_str = DataMorphExporter::to_rf_xml(&doc).expect("Export RF-XML doit réussir");
         assert!(xml_str.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
-        assert!(xml_str.contains("<rustforge version=\"1.0\" xmlns:rf=\"https://rustforge.dev/export/1.0/\">"));
+        assert!(xml_str.contains(
+            "<rustforge version=\"1.0\" xmlns:rf=\"https://rustforge.dev/export/1.0/\">"
+        ));
         assert!(xml_str.contains("<rf:taxonomy>rf_category</rf:taxonomy>"));
         assert!(xml_str.contains("<rf:category><![CDATA[Rust & Sécurité]]></rf:category>"));
         assert!(xml_str.contains("<rf:tag><![CDATA[Performance]]></rf:tag>"));
-        assert!(xml_str.contains("<!-- rf:heading --><h2>Pure Performance</h2><!-- /rf:heading -->"));
+        assert!(
+            xml_str.contains("<!-- rf:heading --><h2>Pure Performance</h2><!-- /rf:heading -->")
+        );
         assert!(xml_str.contains("<rf:vault><![CDATA[{\"_rf_sovereign_score\":100}]]></rf:vault>"));
         assert!(!xml_str.contains("wp:"));
         assert!(!xml_str.contains("wordpress"));
@@ -148,21 +164,28 @@ mod tests {
             media_count: 10,
         };
 
-        let temp_capsule = std::env::temp_dir().join(format!("test_capsule_{}.rfcapsule", uuid::Uuid::new_v4()));
+        let temp_capsule =
+            std::env::temp_dir().join(format!("test_capsule_{}.rfcapsule", uuid::Uuid::new_v4()));
         let file = std::fs::File::create(&temp_capsule).expect("create file");
         let mut zip = zip::ZipWriter::new(file);
-        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
 
-        zip.start_file("capsule.json", options).expect("start capsule.json");
+        zip.start_file("capsule.json", options)
+            .expect("start capsule.json");
         let manifest_bytes = serde_json::to_vec_pretty(&manifest).expect("serialize manifest");
         std::io::Write::write_all(&mut zip, &manifest_bytes).expect("write manifest");
 
         let doc = RFIRDocument::default();
-        zip.start_file("database.rfir.json", options).expect("start database.rfir.json");
+        zip.start_file("database.rfir.json", options)
+            .expect("start database.rfir.json");
         let doc_bytes = serde_json::to_vec_pretty(&doc).expect("serialize doc");
         std::io::Write::write_all(&mut zip, &doc_bytes).expect("write doc");
 
         zip.finish().expect("finish zip");
+
+        // A legacy editorial capsule must never be accepted as a native full backup.
+        assert!(CapsuleManager::inspect(std::fs::File::open(&temp_capsule).unwrap()).is_err());
 
         // Vérification de la lecture
         let read_file = std::fs::File::open(&temp_capsule).expect("open zip");

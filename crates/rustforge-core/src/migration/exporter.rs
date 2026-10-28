@@ -9,16 +9,21 @@ use sqlx::PgPool;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-use crate::CoreError;
 use super::tmir::{RFIRDocument, RFIREntry, RFIREntryStatus, RFIRMedia, RFIRTerm};
+use crate::CoreError;
 
 pub struct DataMorphExporter;
 
 impl DataMorphExporter {
     /// Extrait l'ensemble des données d'un site RustForge sous forme de document pivot RFIRDocument.
     pub async fn dump_database(pool: &PgPool) -> Result<RFIRDocument, CoreError> {
-        let mut doc = RFIRDocument::default();
-        doc.source_generator = "RustForge Sovereign Exporter 1.0".to_string();
+        let mut doc = RFIRDocument {
+            source_site_url: crate::settings::get(pool, "site.url")
+                .await?
+                .and_then(|v| v.as_str().map(str::to_string)),
+            source_generator: "RustForge Sovereign Exporter 1.0".into(),
+            ..Default::default()
+        };
 
         // 1. Termes et taxonomies
         let term_rows: Vec<(Uuid, String, String, String, Option<String>)> = sqlx::query_as(
@@ -29,7 +34,7 @@ impl DataMorphExporter {
         )
         .fetch_all(pool)
         .await
-        .unwrap_or_default();
+        .map_err(CoreError::from)?;
 
         for (id, tax, name, slug, desc) in term_rows {
             doc.terms.push(RFIRTerm {
@@ -44,13 +49,13 @@ impl DataMorphExporter {
 
         // 2. Médias
         let media_rows: Vec<(Uuid, String, String, String, Option<String>)> = sqlx::query_as(
-            "SELECT id, filename, path, mime_type, alt
+            "SELECT id, original_name, path, mime_type, alt
              FROM media
              ORDER BY created_at ASC",
         )
         .fetch_all(pool)
         .await
-        .unwrap_or_default();
+        .map_err(CoreError::from)?;
 
         for (id, filename, path, mime_type, alt) in media_rows {
             let url = format!("/uploads/{}", path);
@@ -66,7 +71,7 @@ impl DataMorphExporter {
         }
 
         // 3. Entrées
-        let entry_rows: Vec<(
+        type ExportRow = (
             Uuid,
             String,
             String,
@@ -79,15 +84,17 @@ impl DataMorphExporter {
             Option<DateTime<Utc>>,
             Option<String>,
             Value,
-        )> = sqlx::query_as(
+            Value,
+        );
+        let entry_rows: Vec<ExportRow> = sqlx::query_as(
             "SELECT e.id, ct.slug as content_type, e.title, e.slug, e.body, e.excerpt,
                     e.status::text, u.display_name as author_name, u.email as author_email,
-                    e.published_at, ('/uploads/' || m.path) as featured_media_url, e.fields
+                    e.published_at, ('/uploads/' || m.path) as featured_media_url, e.fields, e.blocks
              FROM entries e
              JOIN content_types ct ON ct.id = e.content_type_id
              LEFT JOIN users u ON u.id = e.author_id
              LEFT JOIN media m ON m.id = e.featured_media_id
-             WHERE e.status <> 'trash'
+             WHERE TRUE
              ORDER BY e.created_at ASC",
         )
         .fetch_all(pool)
@@ -107,6 +114,7 @@ impl DataMorphExporter {
             published_at,
             featured_media_url,
             fields,
+            blocks,
         ) in entry_rows
         {
             let status = match status_str.as_str() {
@@ -114,6 +122,7 @@ impl DataMorphExporter {
                 "pending" => RFIREntryStatus::Pending,
                 "private" => RFIREntryStatus::Private,
                 "trash" => RFIREntryStatus::Trash,
+                "archived" => RFIREntryStatus::Archived,
                 _ => RFIREntryStatus::Draft,
             };
 
@@ -157,6 +166,9 @@ impl DataMorphExporter {
                 }
             }
 
+            doc.metadata
+                .insert(format!("entry_fields:{id}"), fields.clone());
+            doc.metadata.insert(format!("entry_blocks:{id}"), blocks);
             doc.entries.push(RFIREntry {
                 source_id: id.to_string(),
                 slug,
@@ -187,12 +199,29 @@ impl DataMorphExporter {
     pub fn to_rf_xml(doc: &RFIRDocument) -> Result<String, CoreError> {
         let mut out = String::with_capacity(16 * 1024);
         out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        out.push_str("<rustforge version=\"1.0\" xmlns:rf=\"https://rustforge.dev/export/1.0/\">\n");
+        out.push_str(
+            "<rustforge version=\"1.0\" xmlns:rf=\"https://rustforge.dev/export/1.0/\">\n",
+        );
+        let document =
+            serde_json::to_string(doc).map_err(|e| CoreError::validation(e.to_string()))?;
+        out.push_str(&format!(
+            "  <rf:document><![CDATA[{}]]></rf:document>\n",
+            cdata(&document)
+        ));
         out.push_str("  <rf:channel>\n");
-        out.push_str(&format!("    <rf:generator>{}</rf:generator>\n", xml_escape(&doc.source_generator)));
-        out.push_str(&format!("    <rf:generated_at>{}</rf:generated_at>\n", doc.generated_at.to_rfc3339()));
+        out.push_str(&format!(
+            "    <rf:generator>{}</rf:generator>\n",
+            xml_escape(&doc.source_generator)
+        ));
+        out.push_str(&format!(
+            "    <rf:generated_at>{}</rf:generated_at>\n",
+            doc.generated_at.to_rfc3339()
+        ));
         if let Some(ref url) = doc.source_site_url {
-            out.push_str(&format!("    <rf:site_url>{}</rf:site_url>\n", xml_escape(url)));
+            out.push_str(&format!(
+                "    <rf:site_url>{}</rf:site_url>\n",
+                xml_escape(url)
+            ));
         }
 
         // 1. Termes
@@ -201,11 +230,23 @@ impl DataMorphExporter {
             for term in &doc.terms {
                 out.push_str("      <rf:term>\n");
                 out.push_str(&format!("        <rf:id>{}</rf:id>\n", term.source_id));
-                out.push_str(&format!("        <rf:taxonomy>{}</rf:taxonomy>\n", xml_escape(&term.taxonomy)));
-                out.push_str(&format!("        <rf:slug>{}</rf:slug>\n", xml_escape(&term.slug)));
-                out.push_str(&format!("        <rf:name><![CDATA[{}]]></rf:name>\n", term.name));
+                out.push_str(&format!(
+                    "        <rf:taxonomy>{}</rf:taxonomy>\n",
+                    xml_escape(&term.taxonomy)
+                ));
+                out.push_str(&format!(
+                    "        <rf:slug>{}</rf:slug>\n",
+                    xml_escape(&term.slug)
+                ));
+                out.push_str(&format!(
+                    "        <rf:name><![CDATA[{}]]></rf:name>\n",
+                    cdata(&term.name)
+                ));
                 if let Some(ref desc) = term.description {
-                    out.push_str(&format!("        <rf:description><![CDATA[{}]]></rf:description>\n", desc));
+                    out.push_str(&format!(
+                        "        <rf:description><![CDATA[{}]]></rf:description>\n",
+                        cdata(desc)
+                    ));
                 }
                 out.push_str("      </rf:term>\n");
             }
@@ -218,11 +259,23 @@ impl DataMorphExporter {
             for m in &doc.media {
                 out.push_str("      <rf:media>\n");
                 out.push_str(&format!("        <rf:id>{}</rf:id>\n", m.source_id));
-                out.push_str(&format!("        <rf:url>{}</rf:url>\n", xml_escape(&m.source_url)));
-                out.push_str(&format!("        <rf:filename>{}</rf:filename>\n", xml_escape(&m.filename)));
-                out.push_str(&format!("        <rf:mime_type>{}</rf:mime_type>\n", xml_escape(&m.mime_type)));
+                out.push_str(&format!(
+                    "        <rf:url>{}</rf:url>\n",
+                    xml_escape(&m.source_url)
+                ));
+                out.push_str(&format!(
+                    "        <rf:filename>{}</rf:filename>\n",
+                    xml_escape(&m.filename)
+                ));
+                out.push_str(&format!(
+                    "        <rf:mime_type>{}</rf:mime_type>\n",
+                    xml_escape(&m.mime_type)
+                ));
                 if let Some(ref alt) = m.alt_text {
-                    out.push_str(&format!("        <rf:alt><![CDATA[{}]]></rf:alt>\n", alt));
+                    out.push_str(&format!(
+                        "        <rf:alt><![CDATA[{}]]></rf:alt>\n",
+                        cdata(alt)
+                    ));
                 }
                 out.push_str("      </rf:media>\n");
             }
@@ -234,36 +287,61 @@ impl DataMorphExporter {
         for entry in &doc.entries {
             out.push_str("      <rf:item>\n");
             out.push_str(&format!("        <rf:id>{}</rf:id>\n", entry.source_id));
-            out.push_str(&format!("        <rf:title><![CDATA[{}]]></rf:title>\n", entry.title));
-            out.push_str(&format!("        <rf:slug>{}</rf:slug>\n", xml_escape(&entry.slug)));
-            out.push_str(&format!("        <rf:content_type>{}</rf:content_type>\n", xml_escape(&entry.content_type)));
+            out.push_str(&format!(
+                "        <rf:title><![CDATA[{}]]></rf:title>\n",
+                cdata(&entry.title)
+            ));
+            out.push_str(&format!(
+                "        <rf:slug>{}</rf:slug>\n",
+                xml_escape(&entry.slug)
+            ));
+            out.push_str(&format!(
+                "        <rf:content_type>{}</rf:content_type>\n",
+                xml_escape(&entry.content_type)
+            ));
             let status_str = match entry.status {
                 RFIREntryStatus::Published => "published",
                 RFIREntryStatus::Draft => "draft",
                 RFIREntryStatus::Pending => "pending",
                 RFIREntryStatus::Private => "private",
                 RFIREntryStatus::Trash => "trash",
+                RFIREntryStatus::Archived => "archived",
             };
             out.push_str(&format!("        <rf:status>{}</rf:status>\n", status_str));
 
             if let Some(ref author) = entry.author_name {
-                out.push_str(&format!("        <rf:author><![CDATA[{}]]></rf:author>\n", author));
+                out.push_str(&format!(
+                    "        <rf:author><![CDATA[{}]]></rf:author>\n",
+                    cdata(author)
+                ));
             }
             if let Some(dt) = entry.published_at {
-                out.push_str(&format!("        <rf:published_at>{}</rf:published_at>\n", dt.to_rfc3339()));
+                out.push_str(&format!(
+                    "        <rf:published_at>{}</rf:published_at>\n",
+                    dt.to_rfc3339()
+                ));
             }
             if let Some(ref excerpt) = entry.excerpt {
-                out.push_str(&format!("        <rf:excerpt><![CDATA[{}]]></rf:excerpt>\n", excerpt));
+                out.push_str(&format!(
+                    "        <rf:excerpt><![CDATA[{}]]></rf:excerpt>\n",
+                    cdata(excerpt)
+                ));
             }
 
             // Contenu (les blocs utilisent <!-- rf:* -->)
-            out.push_str(&format!("        <rf:content><![CDATA[{}]]></rf:content>\n", entry.raw_content));
+            out.push_str(&format!(
+                "        <rf:content><![CDATA[{}]]></rf:content>\n",
+                cdata(&entry.raw_content)
+            ));
 
             // Catégories
             if !entry.categories.is_empty() {
                 out.push_str("        <rf:categories>\n");
                 for cat in &entry.categories {
-                    out.push_str(&format!("          <rf:category><![CDATA[{}]]></rf:category>\n", cat));
+                    out.push_str(&format!(
+                        "          <rf:category><![CDATA[{}]]></rf:category>\n",
+                        cdata(cat)
+                    ));
                 }
                 out.push_str("        </rf:categories>\n");
             }
@@ -272,20 +350,30 @@ impl DataMorphExporter {
             if !entry.tags.is_empty() {
                 out.push_str("        <rf:tags>\n");
                 for tag in &entry.tags {
-                    out.push_str(&format!("          <rf:tag><![CDATA[{}]]></rf:tag>\n", tag));
+                    out.push_str(&format!(
+                        "          <rf:tag><![CDATA[{}]]></rf:tag>\n",
+                        cdata(tag)
+                    ));
                 }
                 out.push_str("        </rf:tags>\n");
             }
 
             // Image mise en avant
             if let Some(ref media_url) = entry.featured_image_url {
-                out.push_str(&format!("        <rf:featured_media_url>{}</rf:featured_media_url>\n", xml_escape(media_url)));
+                out.push_str(&format!(
+                    "        <rf:featured_media_url>{}</rf:featured_media_url>\n",
+                    xml_escape(media_url)
+                ));
             }
 
             // Coffre-fort numérique _rf_vault
             if !entry.legacy_vault.is_empty() {
-                let vault_json = serde_json::to_string(&entry.legacy_vault).unwrap_or_else(|_| "{}".to_string());
-                out.push_str(&format!("        <rf:vault><![CDATA[{}]]></rf:vault>\n", vault_json));
+                let vault_json =
+                    serde_json::to_string(&entry.legacy_vault).unwrap_or_else(|_| "{}".to_string());
+                out.push_str(&format!(
+                    "        <rf:vault><![CDATA[{}]]></rf:vault>\n",
+                    cdata(&vault_json)
+                ));
             }
 
             out.push_str("      </rf:item>\n");
@@ -305,4 +393,8 @@ fn xml_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+}
+
+fn cdata(value: &str) -> String {
+    value.replace("]]>", "]]]]><![CDATA[>")
 }

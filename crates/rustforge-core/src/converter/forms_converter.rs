@@ -2,8 +2,8 @@
 //! Distingue le code applicatif PHP (remplacé par rustforge-core::forms)
 //! des données de formulaires stockées en base de données.
 
-use serde::{Deserialize, Serialize};
 use super::manifest::{CompatibilityReport, CompatibilityStatus, ConversionStrategyKind};
+use serde::{Deserialize, Serialize};
 
 /// Proposition de schéma de formulaire RustForge prêt à l'emploi.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,16 +79,16 @@ impl FormsConverter {
 
         let report = CompatibilityReport {
             score: 95,
-            status: CompatibilityStatus::FullySupported,
+            status: CompatibilityStatus::PartiallySupported,
             migrated_features: vec![
-                "Soumissions sécurisées avec validation JSON Schema stricte en Rust".to_string(),
+                "Validation du sous-ensemble de schéma pris en charge ; vérifier le formulaire proposé".to_string(),
                 "Protection anti-spam native par pot de miel (Honeypot) sans captcha".to_string(),
-                "Hachage d'adresses IP anonymisé RGPD avec sel journalier tournant".to_string(),
+                "Collecte IP désactivée".to_string(),
                 "Stockage persistant des soumissions dans la table forms_submissions".to_string(),
             ],
             replaced_features: vec![
                 "Le code PHP et les scripts jQuery du plugin sont totalement neutralisés".to_string(),
-                "Les shortcodes ([wpforms id=X]) sont remplacés par le bloc universel FormEmbed".to_string(),
+                "Remplacement des shortcodes à raccorder et vérifier dans le rendu public".to_string(),
                 "Les requêtes AJAX WordPress (admin-ajax.php) sont remplacées par l'endpoint REST /api/v1/forms/{id}/submit".to_string(),
             ],
             partially_supported: vec![

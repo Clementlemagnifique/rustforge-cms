@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/admin/',
   plugins: [
     react(),
     tailwindcss(),
@@ -13,6 +14,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8080',
       '/uploads': 'http://localhost:8080',
+      '/api/v1': 'http://localhost:8080',
     },
   },
 })

@@ -1,34 +1,25 @@
-# Politique de Sécurité — RustForge CMS
+# Politique de sécurité — RustForge CMS
 
-## 🛡️ Engagement de Sécurité Mémoire & Architecture Souveraine
+Le projet utilise Rust, des mots de passe hachés avec Argon2 et un runtime WebAssembly à capacités contrôlées. Ces choix ne garantissent pas l'absence de vulnérabilité. L'état et les limites du lot du 27 octobre 2026 sont décrits dans [la feuille de route](docs/FEUILLE_DE_ROUTE_APRES_CONSOLIDATION.md) et [les validations](docs/VALIDATION_CONSOLIDATION_2026-10-27.md).
 
-RustForge CMS est conçu selon un modèle de sécurité strict **Zero-Trust & Memory-Safe**, éliminant par construction les classes de vulnérabilités endémiques du Web historique (RCE PHP2Shell, corruptions mémoire, désérialisations non contrôlées, traversées d'archives Zip Slip).
+## Protections mises en place
 
----
+- Secret JWT personnel obligatoire, jeton opérateur pour l'installation initiale et droits revérifiés côté serveur.
+- Contrôles de propriété sur les contenus concernés, commandes, téléchargements et accès aux leçons.
+- HTML assaini, types de médias contrôlés, limites d'archives et de corps HTTP, contrôle des destinations de fichiers.
+- Liens de téléchargement HMAC-SHA256, quotas atomiques et stockage privé distinct du dossier public.
+- Propositions IA persistées puis approuvées explicitement ; état d'exécution conservé pour éviter le rejeu aveugle.
+- Vérification de l'inventaire SHA-256 des capsules, restauration sur cible compatible sans données métier et transactions SQL.
+- Limite de cadence locale sur connexion/installation, en-têtes navigateur et modules vérifiés côté serveur.
 
-## 🔒 Protections Intégrées Nativement
+Les tests couvrent des scénarios synthétiques, pas l'ensemble des routes, dépendances, systèmes d'exploitation ou configurations d'hébergement. La limite de cadence n'est pas distribuée. Le CORS autorise actuellement les origines sans cookie d'authentification ; ce n'est pas une barrière d'autorisation. Le Studio utilise un jeton porteur : toute faille XSS reste sérieuse.
 
-1. **Garanties Mémoire du Compilateur Rust** :
-   - Aucun accès pointeur non initialisé, pas de débordement de tampon (*Buffer Overflow*), pas de *Use-After-Free*.
-2. **Sandbox WebAssembly (Wasmtime 50 / WASIp2)** :
-   - Les extensions et plugins tiers s'exécutent dans une sandbox isolée sans accès réseau ni système de fichiers non explicitement accordé via le contrat WIT [`wit/rustforge-plugin.wit`](file:///c:/Users/cleme/Desktop/CMS%20Rust/wit/rustforge-plugin.wit).
-3. **Protection Anti-Zip Slip & Assainissement d'Archives** :
-   - Le moteur d'encapsulation universelle ([`CapsuleManager`](file:///c:/Users/cleme/Desktop/CMS%20Rust/crates/rustforge-core/src/migration/capsule.rs)) valide strictement chaque composant de chemin avant toute extraction et rejette toute tentative de traversée de répertoire (`..`, racines absolues, préfixes de lecteur).
-4. **Assainissement des Médias SVG & WebP** :
-   - Nettoyage automatique des balises et scripts dangereux dans les fichiers vectoriels SVG via `ammonia` pour prévenir les failles XSS persistantes.
-5. **Authentification & Hachage Robuste** :
-   - Chiffrement des mots de passe en **Argon2id** (paramétrage conforme aux recommandations OWASP).
-   - Jetons de session JWT signés cryptographiquement.
+## Exploitation
 
----
+Configurer HTTPS, les accès PostgreSQL, les permissions des répertoires et la sauvegarde externe. Ne pas exposer `protected_downloads` par le reverse proxy. Utiliser des secrets distincts entre installations et tourner les secrets lors d'une restauration sur un autre serveur. Les sauvegardes contiennent notamment des hachages de mots de passe et des réglages sensibles ; elles ne sont ni chiffrées ni signées.
 
-## 🚨 Signaler une Vulnérabilité
+Ne restaurer que des archives d'origine fiable. SHA-256 détecte une corruption mais ne prouve pas l'identité de l'émetteur. Une coupure brutale pendant la restauration exige encore une reprise manuelle ; les procédures sont dans [DEMARRAGE_ET_REPRISE.md](docs/DEMARRAGE_ET_REPRISE.md).
 
-Si vous découvrez une faille de sécurité potentielle dans RustForge CMS, nous vous remercions de ne pas ouvrir d'issue publique sur GitHub.
+## Signaler un problème
 
-Veuillez signaler toute vulnérabilité de manière responsable en fournissant :
-- Une description précise du comportement inattendu
-- Les étapes de reproduction ou un script de preuve de concept (PoC)
-- Les versions de RustForge impactées
-
-Les correctifs de sécurité sont traités en priorité absolue et font l'objet d'une publication immédiate.
+Dans ce dépôt privé, transmettre au mainteneur une description, les versions concernées, les étapes de reproduction et des données anonymisées. Ne pas publier de secrets ni de données clients dans une issue publique. Aucun délai de correction ou certification de sécurité n'est annoncé à ce stade.

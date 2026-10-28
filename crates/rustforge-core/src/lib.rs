@@ -7,18 +7,21 @@
 //! - [`markdown`], [`fields`] : rendu et validation du contenu
 
 pub mod ai;
+pub mod archive;
 pub mod blocks;
 pub mod content_types;
+pub mod document;
 pub mod converter;
 pub mod ecommerce;
 pub mod entries;
 pub mod error;
 pub mod fields;
+pub mod form_validation;
 pub mod forms;
 pub mod galleries;
 pub mod hooks;
-pub mod lms;
 pub mod llm;
+pub mod lms;
 pub mod markdown;
 pub mod media;
 pub mod media_processor;
@@ -26,6 +29,7 @@ pub mod migration;
 pub mod models;
 pub mod pagination;
 pub mod scheduler;
+pub mod security;
 pub mod settings;
 pub mod stats;
 pub mod terms;
@@ -59,7 +63,11 @@ pub async fn migrate(pool: &PgPool) -> CoreResult<()> {
 /// Génère un slug URL à partir d'un texte libre (accents translittérés).
 pub fn slugify(input: &str) -> String {
     let s = slug::slugify(input.trim());
-    if s.is_empty() { "sans-titre".to_string() } else { s }
+    if s.is_empty() {
+        "sans-titre".to_string()
+    } else {
+        s
+    }
 }
 
 #[cfg(test)]

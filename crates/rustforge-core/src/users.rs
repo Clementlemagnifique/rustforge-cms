@@ -12,11 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     CoreError, CoreResult, Page, PageParams,
-    models::{Role, User},
+    models::{Role, User, UserSession},
 };
 
-const USER_COLUMNS: &str =
-    "id, email, username, display_name, role, bio, created_at, updated_at, last_login_at, password_hash";
+const USER_COLUMNS: &str = "id, email, username, display_name, role, bio, created_at, updated_at, last_login_at, (SELECT count(*) FROM entries e WHERE e.author_id = users.id AND e.status <> 'trash') AS entry_count, password_hash";
 
 #[derive(Debug, Deserialize)]
 pub struct NewUser {
@@ -51,13 +50,19 @@ pub fn hash_password(password: &str) -> CoreResult<String> {
 
 pub fn verify_password(password: &str, hash: &str) -> bool {
     PasswordHash::new(hash)
-        .map(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+        .map(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
         .unwrap_or(false)
 }
 
 fn validate_password(password: &str) -> CoreResult<()> {
     if password.chars().count() < 10 {
-        return Err(CoreError::validation("le mot de passe doit contenir au moins 10 caractères"));
+        return Err(CoreError::validation(
+            "le mot de passe doit contenir au moins 10 caractères",
+        ));
     }
     Ok(())
 }
@@ -66,7 +71,10 @@ fn validate_email(email: &str) -> CoreResult<String> {
     let email = email.trim().to_lowercase();
     let valid = email.len() <= 254
         && email.split_once('@').is_some_and(|(local, domain)| {
-            !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+            !local.is_empty()
+                && domain.contains('.')
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
         });
     if !valid {
         return Err(CoreError::validation("adresse e-mail invalide"));
@@ -77,7 +85,9 @@ fn validate_email(email: &str) -> CoreResult<String> {
 fn validate_username(username: &str) -> CoreResult<String> {
     let username = username.trim().to_lowercase();
     let valid = (3..=32).contains(&username.len())
-        && username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.');
+        && username
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.');
     if !valid {
         return Err(CoreError::validation(
             "nom d'utilisateur invalide (3 à 32 caractères : lettres, chiffres, . _ -)",
@@ -87,10 +97,17 @@ fn validate_username(username: &str) -> CoreResult<String> {
 }
 
 pub async fn count(db: &PgPool) -> CoreResult<i64> {
-    Ok(sqlx::query_scalar("SELECT count(*) FROM users").fetch_one(db).await?)
+    Ok(sqlx::query_scalar("SELECT count(*) FROM users")
+        .fetch_one(db)
+        .await?)
 }
 
 pub async fn create(db: &PgPool, input: NewUser) -> CoreResult<User> {
+    let mut conn = db.acquire().await?;
+    create_in(&mut conn, input).await
+}
+
+pub async fn create_in(conn: &mut sqlx::PgConnection, input: NewUser) -> CoreResult<User> {
     let email = validate_email(&input.email)?;
     let username = validate_username(&input.username)?;
     validate_password(&input.password)?;
@@ -110,30 +127,40 @@ pub async fn create(db: &PgPool, input: NewUser) -> CoreResult<User> {
     .bind(display_name)
     .bind(hash)
     .bind(input.role)
-    .fetch_one(db)
+    .fetch_one(conn)
     .await?;
     Ok(user)
 }
 
 pub async fn get(db: &PgPool, id: Uuid) -> CoreResult<User> {
-    Ok(sqlx::query_as::<_, User>(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = $1"))
-        .bind(id)
-        .fetch_one(db)
-        .await?)
+    Ok(
+        sqlx::query_as::<_, User>(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = $1"))
+            .bind(id)
+            .fetch_one(db)
+            .await?,
+    )
 }
 
-pub async fn list(db: &PgPool, params: PageParams, search: Option<&str>) -> CoreResult<Page<User>> {
+pub async fn list(
+    db: &PgPool,
+    params: PageParams,
+    search: Option<&str>,
+    role: Option<Role>,
+) -> CoreResult<Page<User>> {
     let params = params.normalized();
     let pattern = search.map(|s| format!("%{}%", s.trim()));
-    let filter = "($1::text IS NULL OR email ILIKE $1 OR username ILIKE $1 OR display_name ILIKE $1)";
+    let filter = "($1::text IS NULL OR email ILIKE $1 OR username ILIKE $1 OR display_name ILIKE $1)
+                  AND ($2::user_role IS NULL OR role = $2)";
     let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM users WHERE {filter}"))
         .bind(&pattern)
+        .bind(role)
         .fetch_one(db)
         .await?;
     let items = sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE {filter} ORDER BY created_at ASC LIMIT $2 OFFSET $3"
+        "SELECT {USER_COLUMNS} FROM users WHERE {filter} ORDER BY created_at ASC LIMIT $3 OFFSET $4"
     ))
     .bind(&pattern)
+    .bind(role)
     .bind(params.limit())
     .bind(params.offset())
     .fetch_all(db)
@@ -182,21 +209,100 @@ pub async fn update(db: &PgPool, id: Uuid, input: UserUpdate) -> CoreResult<User
 }
 
 pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    delete_with_reassignment(db, id, None).await
+}
+
+/// Supprime un compte utilisateur en réattribuant optionnellement ses entrées, médias et
+/// formulaires vers `reassign_to` (`WP-54`).
+pub async fn delete_with_reassignment(
+    db: &PgPool,
+    id: Uuid,
+    reassign_to: Option<Uuid>,
+) -> CoreResult<()> {
     let user = get(db, id).await?;
     if user.role == Role::Admin {
         ensure_other_admin(db, id).await?;
     }
-    sqlx::query("DELETE FROM users WHERE id = $1").bind(id).execute(db).await?;
+    if let Some(target_id) = reassign_to {
+        if target_id == id {
+            return Err(CoreError::validation(
+                "Impossible de réattribuer les contenus vers le compte en cours de suppression.",
+            ));
+        }
+        let _ = get(db, target_id).await?;
+    }
+
+    let mut tx = db.begin().await?;
+    if let Some(target_id) = reassign_to {
+        sqlx::query("UPDATE entries SET author_id = $2 WHERE author_id = $1")
+            .bind(id)
+            .bind(target_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE media SET uploaded_by = $2 WHERE uploaded_by = $1")
+            .bind(id)
+            .bind(target_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE forms SET created_by = $2 WHERE created_by = $1")
+            .bind(id)
+            .bind(target_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE galleries SET created_by = $2 WHERE created_by = $1")
+            .bind(id)
+            .bind(target_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE lms_courses SET created_by = $2 WHERE created_by = $1")
+            .bind(id)
+            .bind(target_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
 }
 
+/// Liste les sessions actives (`refresh_tokens` non révoqués et non expirés) d'un utilisateur (`WP-55`).
+pub async fn list_active_sessions(db: &PgPool, user_id: Uuid) -> CoreResult<Vec<UserSession>> {
+    Ok(sqlx::query_as::<_, UserSession>(
+        "SELECT id, user_id, created_at, expires_at
+         FROM refresh_tokens
+         WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+         ORDER BY created_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(db)
+    .await?)
+}
+
+/// Révoque toutes les sessions actives d'un utilisateur (`WP-55`).
+pub async fn revoke_all_user_sessions(db: &PgPool, user_id: Uuid) -> CoreResult<u64> {
+    let res = sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now()
+         WHERE user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(db)
+    .await?;
+    Ok(res.rows_affected())
+}
+
 async fn ensure_other_admin(db: &PgPool, excluded: Uuid) -> CoreResult<()> {
-    let others: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE role = 'admin' AND id <> $1")
-        .bind(excluded)
-        .fetch_one(db)
-        .await?;
+    let others: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM users WHERE role = 'admin' AND id <> $1")
+            .bind(excluded)
+            .fetch_one(db)
+            .await?;
     if others == 0 {
-        return Err(CoreError::Conflict("le site doit conserver au moins un administrateur".into()));
+        return Err(CoreError::Conflict(
+            "le site doit conserver au moins un administrateur".into(),
+        ));
     }
     Ok(())
 }
@@ -241,7 +347,11 @@ fn generate_token() -> String {
 }
 
 /// Émet un nouveau jeton de rafraîchissement et retourne sa valeur en clair.
-pub async fn issue_refresh_token(db: &PgPool, user_id: Uuid, ttl: Duration) -> CoreResult<(String, DateTime<Utc>)> {
+pub async fn issue_refresh_token(
+    db: &PgPool,
+    user_id: Uuid,
+    ttl: Duration,
+) -> CoreResult<(String, DateTime<Utc>)> {
     let token = generate_token();
     let expires_at = Utc::now() + ttl;
     sqlx::query("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")
@@ -274,10 +384,12 @@ pub async fn consume_refresh_token(db: &PgPool, token: &str) -> CoreResult<User>
 }
 
 pub async fn revoke_refresh_token(db: &PgPool, token: &str) -> CoreResult<()> {
-    sqlx::query("UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL")
-        .bind(hash_token(token))
-        .execute(db)
-        .await?;
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL",
+    )
+    .bind(hash_token(token))
+    .execute(db)
+    .await?;
     Ok(())
 }
 

@@ -7,24 +7,24 @@
     <!-- Hero Section -->
     <div style="text-align: center; max-width: 800px; margin: 0 auto 5rem auto;">
         <span style="background: rgba(79, 70, 229, 0.15); color: #818cf8; border: 1px solid rgba(79, 70, 229, 0.3); padding: 0.35rem 0.9rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
-            Moteur CMS Rust Ultra-Rapide
+            Bienvenue sur notre site
         </span>
         <h1 style="font-size: 3.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem; letter-spacing: -0.02em;">
-            L'excellence éditoriale propulsée par <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Rust & l'IA</span>
+            {{ site_title }} <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></span>
         </h1>
         <p style="font-size: 1.25rem; color: #94a3b8; line-height: 1.6;">
-            {{ site_tagline }} — Séparation stricte du fond et de la forme, compression WebP automatique, rendu en &lt; 1 ms et pilotage vocal par LLM.
+            {{ site_tagline }}
         </p>
     </div>
 
-    <!-- Derniers Articles -->
-    <div>
+    <!-- Publications -->
+    <div id="publications">
         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1rem;">
             <div>
                 <h2 style="font-size: 1.8rem; margin: 0;">Dernières Publications</h2>
-                <p style="color: #64748b; margin: 0.3rem 0 0 0; font-size: 0.95rem;">Contenus structurés et optimisés pour la citation GEO.</p>
+                <p style="color: #64748b; margin: 0.3rem 0 0 0; font-size: 0.95rem;">Retrouvez nos articles et nos pages.</p>
             </div>
-            <a href="/{{ locale }}/articles" style="font-weight: 600; font-size: 0.95rem;">Voir tout &rarr;</a>
+            <a href="/{{ locale }}#publications" style="font-weight: 600; font-size: 0.95rem;">Voir tout &rarr;</a>
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2rem;">
@@ -44,7 +44,7 @@
                     </p>
                 </div>
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #64748b;">
-                    <span>{{ entry.author_name | default("TrustPress Editor") }}</span>
+                    <span>{{ entry.author_name | default("RustForge CMS Editor") }}</span>
                     <a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}" style="color: var(--tp-primary); font-weight: 600;">Lire &rarr;</a>
                 </div>
             </article>

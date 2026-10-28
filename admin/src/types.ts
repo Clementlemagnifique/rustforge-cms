@@ -1,5 +1,15 @@
 export type Role = 'admin' | 'editor' | 'author' | 'subscriber';
 
+export interface AdminMenuItem {
+  id: string; parent: string | null; label: string; label_key: string; route: string | null;
+  module: string | null; roles: Role[]; state: 'ready' | 'partial' | 'planned';
+  design: string; features: string[]; tasks: string[]; source: string;
+}
+export interface AdminNavigation {
+  schema_version: number; items: AdminMenuItem[]; catalog: AdminMenuItem[];
+  modules: Record<string, boolean>; supported_modules: string[];
+}
+
 export type EntryStatus = 'draft' | 'published' | 'archived' | 'trash';
 
 export interface User {
@@ -10,6 +20,16 @@ export interface User {
   role: Role;
   bio?: string;
   created_at: string;
+  updated_at?: string;
+  last_login_at?: string | null;
+  entry_count?: number;
+}
+
+export interface UserSession {
+  id: string;
+  user_id: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface ContentType {
@@ -28,9 +48,14 @@ export interface ContentType {
 
 export interface TermRef {
   id: string;
+  taxonomy_id?: string;
+  parent_id?: string | null;
   name: string;
   slug: string;
   taxonomy: string;
+  description?: string;
+  entry_count?: number;
+  created_at?: string;
 }
 
 export interface Entry {
@@ -45,7 +70,7 @@ export interface Entry {
   excerpt: string;
   body: string;
   body_html: string;
-  blocks: any[];
+  blocks: unknown;
   intent: Record<string, any>;
   design_tokens: Record<string, any>;
   status: EntryStatus;
@@ -59,6 +84,14 @@ export interface Entry {
   terms: TermRef[];
 }
 
+export interface MediaFolder {
+  id: string;
+  parent_id?: string | null;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
 export interface Media {
   id: string;
   path: string;
@@ -70,7 +103,22 @@ export interface Media {
   height?: number;
   alt: string;
   caption: string;
+  folder_id?: string | null;
+  webp_path?: string | null;
+  webp_url?: string | null;
   created_at: string;
+}
+
+export interface PublicMenuItem {
+  id: string;
+  label: string;
+  url: string;
+  target?: '_self' | '_blank';
+}
+
+export interface PublicMenus {
+  header: PublicMenuItem[];
+  footer: PublicMenuItem[];
 }
 
 export interface PluginInfo {
@@ -136,4 +184,14 @@ export interface AiChatResponse {
   actions: AiAction[];
   model: string;
   duration_ms: number;
+}
+export interface MigrationInspection {
+  source_url: string; entries: number; terms: number; media_references: number;
+  by_type: Record<string, number>; sample: { title: string; slug: string; content_type: string; status: string }[];
+  warnings: string[]; blocking_conflicts: number; seal: string;
+}
+export interface MigrationImportResult {
+  status: 'content_imported';
+  report: { entries_imported: number; terms_imported: number; warnings: string[] };
+  checks_remaining: string[];
 }

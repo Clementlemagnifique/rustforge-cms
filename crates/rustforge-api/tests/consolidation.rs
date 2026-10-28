@@ -1,0 +1,1787 @@
+//! Regression scenarios use ONLY an explicitly supplied, disposable PostgreSQL server.
+use axum::{
+    Router,
+    body::{Body, to_bytes},
+    http::Request,
+};
+use rustforge_core::{
+    self as core, NoopHooks, entries,
+    models::{EntryInput, Role},
+    users::{self, NewUser},
+};
+use serde_json::{Value, json};
+use sqlx::{PgPool, postgres::PgPoolOptions};
+use std::{
+    io::Cursor,
+    path::{Path, PathBuf},
+};
+use tower::ServiceExt;
+use uuid::Uuid;
+
+const SECRET: &str = "regression-only-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
+async fn migration_request(
+    app: &Router,
+    url: &str,
+    token: &str,
+    xml: &str,
+    fields: &[(&str, &str)],
+) -> (u16, Value) {
+    let boundary = "trustpress-regression-boundary";
+    let mut body = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"export.xml\"\r\nContent-Type: text/xml\r\n\r\n{xml}\r\n"
+    );
+    for (key, value) in fields {
+        body.push_str(&format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n"
+        ));
+    }
+    body.push_str(&format!("--{boundary}--\r\n"));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(url)
+                .header("authorization", format!("Bearer {token}"))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let code = response.status().as_u16();
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    (code, serde_json::from_slice(&bytes).unwrap())
+}
+async fn request(
+    app: &Router,
+    method: &str,
+    url: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (u16, Value) {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(url)
+        .header("content-type", "application/json");
+    if let Some(token) = token {
+        req = req.header("authorization", format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(req.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status().as_u16();
+    let bytes = to_bytes(response.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| json!(String::from_utf8_lossy(&bytes))),
+    )
+}
+async fn database(server: &PgPool, base: &str) -> (String, PgPool) {
+    let name = format!("rf_regression_{}", Uuid::new_v4().simple());
+    sqlx::query(&format!("CREATE DATABASE {name}"))
+        .execute(server)
+        .await
+        .unwrap();
+    let url = format!("{}/{name}", base.rsplit_once('/').unwrap().0);
+    let db = PgPoolOptions::new()
+        .max_connections(6)
+        .connect(&url)
+        .await
+        .unwrap();
+    core::migrate(&db).await.unwrap();
+    (name, db)
+}
+async fn account(db: &PgPool, name: &str, role: Role) -> core::models::User {
+    users::create(
+        db,
+        NewUser {
+            email: format!("{name}@example.test"),
+            username: name.into(),
+            display_name: None,
+            password: "test-password-long-123!".into(),
+            role,
+        },
+    )
+    .await
+    .unwrap()
+}
+async fn app(db: PgPool, root: &Path) -> Router {
+    for dir in ["uploads", "plugins", "themes", "protected"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    let plugins = rustforge_plugins::PluginManager::new(db.clone(), root.join("plugins"))
+        .await
+        .unwrap();
+    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut state = rustforge_api::AppState::new(
+        db,
+        plugins,
+        SECRET.into(),
+        root.join("uploads"),
+        Some(workspace.join("admin/dist")),
+        workspace.join("themes"),
+        "default".into(),
+    );
+    state.protected_downloads_dir = root.join("protected");
+    state.setup_token = Some(SECRET.into());
+    rustforge_api::build_router(state)
+}
+fn input(v: Value) -> EntryInput {
+    serde_json::from_value(v).unwrap()
+}
+
+#[test]
+fn malformed_php_and_form_constraints_are_rejected() {
+    use core::migration::php_serializer::PhpDeserializer;
+    for value in ["é", "s:1:\"é\";", "a:999999999:{}", "b:7;", "N;junk"] {
+        assert!(PhpDeserializer::deserialize(value).is_err(), "{value}");
+    }
+    let schema = json!({"type":"object","properties":{"email":{"type":"string","format":"email"}},"required":["email"]});
+    assert!(core::form_validation::validate(&schema, &json!({"email":"ok@example.test"})).is_ok());
+    for v in [
+        json!({}),
+        json!({"email":"wrong"}),
+        json!({"email":4}),
+        json!({"email":"ok@example.test","extra":true}),
+    ] {
+        assert!(core::form_validation::validate(&schema, &v).is_err());
+    }
+    assert!(core::form_validation::schema(&json!({"type":"string","pattern":".*"}), 0).is_err());
+}
+
+#[test]
+fn rf_xml_preserves_complete_envelope_and_cdata() {
+    use core::migration::{
+        exporter::DataMorphExporter, tmir::TMIRDocument, wxr_importer::WxrImporter,
+    };
+    let mut doc = TMIRDocument {
+        source_site_url: Some("https://source.example.test".into()),
+        ..Default::default()
+    };
+    doc.metadata.insert(
+        "nested".into(),
+        json!({"xml":"]]> & <tag>","bool":false,"array":[1,2]}),
+    );
+    let native = json!({"rf_schema":"rf.document/1","rf_blocks":[{"rf_id":"p","rf_type":"paragraph","rf_text":"Source ]]> & <tag>"}]});
+    doc.metadata.insert("entry_blocks:native-test".into(), native.clone());
+    let xml = DataMorphExporter::to_rf_xml(&doc).unwrap();
+    let restored = WxrImporter::parse(Cursor::new(xml)).unwrap();
+    assert_eq!(restored.metadata["entry_blocks:native-test"], native);
+    assert_eq!(
+        serde_json::to_value(doc).unwrap(),
+        serde_json::to_value(restored).unwrap()
+    );
+}
+
+#[tokio::test]
+async fn upload_cannot_disguise_active_html() {
+    for (name, mime) in [
+        ("page.html", "text/plain"),
+        ("photo.png", "image/png"),
+        ("script.svg", "application/pdf"),
+    ] {
+        assert!(
+            core::media_processor::process_upload(b"<script>alert(1)</script>", name, mime)
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires RUSTFORGE_TEST_DATABASE_URL pointing to a disposable PostgreSQL server"]
+async fn postgres_http_and_native_backup_regressions() {
+    use core::migration::{
+        capsule::{CapsuleManager, StoragePaths},
+        exporter::DataMorphExporter,
+        importer::DataMorphImporter,
+        native_backup,
+    };
+    let base = std::env::var("RUSTFORGE_TEST_DATABASE_URL")
+        .expect("disposable test server URL required; never use a production URL");
+    let server = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&base)
+        .await
+        .unwrap();
+    let (name, db) = database(&server, &base).await;
+    let (target_name, target) = database(&server, &base).await;
+    let root = std::env::temp_dir().join(format!("rf_regression_{}", Uuid::new_v4()));
+    let app = app(db.clone(), &root).await;
+    // A public installer cannot be claimed without the operator token; install is atomic.
+    let setup = json!({"setup_token":"wrong","site_title":"Regression","admin_email":"admin@example.test","admin_username":"admin","admin_password":"test-password-long-123!"});
+    assert_eq!(
+        request(&app, "POST", "/api/v1/setup/install", None, setup.clone())
+            .await
+            .0,
+        403
+    );
+    let mut setup = setup;
+    setup["setup_token"] = json!(SECRET);
+    let installed = request(&app, "POST", "/api/v1/setup/install", None, setup.clone()).await;
+    assert_eq!(installed.0, 200, "{installed:?}");
+    assert_eq!(
+        request(&app, "POST", "/api/v1/setup/install", None, setup)
+            .await
+            .0,
+        403
+    );
+    let admin_id = Uuid::parse_str(installed.1["user"]["id"].as_str().unwrap()).unwrap();
+    let admin = installed.1["token"].as_str().unwrap().to_string();
+    let author = account(&db, "author", Role::Author).await;
+    let other = account(&db, "other", Role::Author).await;
+    let subscriber = account(&db, "reader", Role::Subscriber).await;
+    let token = rustforge_api::auth::create_token(author.id, author.role, SECRET).unwrap();
+    let other_token = rustforge_api::auth::create_token(other.id, other.role, SECRET).unwrap();
+    let reader_token =
+        rustforge_api::auth::create_token(subscriber.id, subscriber.role, SECRET).unwrap();
+    let preview = request(
+        &app,
+        "POST",
+        "/api/v1/entries/preview",
+        Some(&token),
+        json!({"body":"# Titre\n<script>alert(1)</script>"}),
+    )
+    .await;
+    assert_eq!(preview.0, 200);
+    assert!(
+        preview.1["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("<h1>Titre</h1>")
+    );
+    assert!(!preview.1["body_html"].as_str().unwrap().contains("<script"));
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            "/api/v1/entries/preview",
+            Some(&reader_token),
+            json!({"body":"private"})
+        )
+        .await
+        .0,
+        403
+    );
+    let fixture = include_str!("../../../tests/fixtures/wordpress-editorial.xml");
+    assert_eq!(
+        migration_request(&app, "/api/v1/converter/inspect-wxr", &token, fixture, &[])
+            .await
+            .0,
+        403
+    );
+    let before_inspection: i64 = sqlx::query_scalar("SELECT count(*) FROM entries")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let inspection =
+        migration_request(&app, "/api/v1/converter/inspect-wxr", &admin, fixture, &[]).await;
+    assert_eq!(inspection.0, 200, "{inspection:?}");
+    assert_eq!(inspection.1["entries"], 2);
+    let after_inspection: i64 = sqlx::query_scalar("SELECT count(*) FROM entries")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(before_inspection, after_inspection);
+    let seal = inspection.1["seal"].as_str().unwrap();
+    assert_eq!(
+        migration_request(
+            &app,
+            "/api/v1/converter/import-wxr",
+            &admin,
+            fixture,
+            &[("seal", seal)]
+        )
+        .await
+        .0,
+        400
+    );
+    assert_eq!(
+        migration_request(
+            &app,
+            "/api/v1/converter/import-wxr",
+            &admin,
+            &fixture.replace("Article de démonstration", "Fichier changé"),
+            &[("seal", seal), ("acknowledge", "true")]
+        )
+        .await
+        .0,
+        400
+    );
+    for _ in 0..2 {
+        let imported = migration_request(
+            &app,
+            "/api/v1/converter/import-wxr",
+            &admin,
+            fixture,
+            &[("seal", seal), ("acknowledge", "true")],
+        )
+        .await;
+        assert_eq!(imported.0, 200, "{imported:?}");
+        assert_eq!(imported.1["report"]["entries_imported"], 2);
+    }
+    let page_status: String =
+        sqlx::query_scalar("SELECT status::text FROM entries WHERE slug='presentation'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(page_status, "draft");
+    for _ in 0..2 { core::scheduler::run_scheduler_tick(&db).await.unwrap(); }
+    let private_state:(String,Option<chrono::DateTime<chrono::Utc>>)=sqlx::query_as("SELECT status::text,published_at FROM entries WHERE slug='presentation'").fetch_one(&db).await.unwrap();
+    assert_eq!(private_state,("draft".into(),None));
+    assert_eq!(request(&app,"GET","/api/v1/public/entries/page/presentation",None,Value::Null).await.0,404);
+    let media:Uuid=sqlx::query_scalar("INSERT INTO media(path,original_name,mime_type,size_bytes) VALUES('example.txt','example.txt','text/plain',14) RETURNING id").fetch_one(&db).await.unwrap();
+    let term: Uuid = sqlx::query_scalar("SELECT id FROM terms LIMIT 1")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let parent = entries::create(
+        &db,
+        &NoopHooks,
+        "page",
+        author.id,
+        input(json!({"title":"Parent"})),
+    )
+    .await
+    .unwrap();
+    let entry=entries::create(&db,&NoopHooks,"page",author.id,input(json!({"title":"Original","body":"Bonjour","status":"published","fields":{"_rf_vault":{"private":"kept"}},"blocks":[{"type":"paragraph","content":"kept"}],"intent":{"goal":"kept"},"parent_id":parent.id,"featured_media_id":media,"term_ids":[term]}))).await.unwrap();
+    let endpoint = format!("/api/v1/entries/{}", entry.id);
+    let updated = request(
+        &app,
+        "PUT",
+        &endpoint,
+        Some(&token),
+        json!({"title":"Modified"}),
+    )
+    .await;
+    assert_eq!(updated.0, 200, "{updated:?}");
+    assert_eq!(updated.1["blocks"], entry.blocks);
+    assert_eq!(updated.1["fields"], entry.fields);
+    assert_eq!(updated.1["body"], "Bonjour");
+    assert_eq!(updated.1["parent_id"], json!(parent.id));
+    assert_eq!(updated.1["featured_media_id"], json!(media));
+    assert_eq!(updated.1["terms"][0]["id"], json!(term));
+    let stale_input = EntryInput::from_patch(&entry, json!({"title":"Outdated client"})).unwrap();
+    assert!(
+        entries::update(&db, &NoopHooks, entry.id, author.id, stale_input)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &endpoint,
+            Some(&other_token),
+            json!({"title":"Forbidden"})
+        )
+        .await
+        .0,
+        403
+    );
+    assert_eq!(
+        request(&app, "GET", &endpoint, Some(&reader_token), Value::Null)
+            .await
+            .0,
+        403
+    );
+    let public = request(
+        &app,
+        "GET",
+        &format!("/api/v1/public/entries/page/{}", entry.slug),
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(public.0, 200, "{public:?}");
+    assert!(public.1.get("fields").is_none());
+    assert!(public.1.get("body").is_none());
+    let revisions = request(
+        &app,
+        "GET",
+        &format!("{endpoint}/revisions"),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(revisions.0, 200);
+    let revision = revisions
+        .1
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["title"] == "Original")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let restore = format!("{endpoint}/revisions/{revision}/restore");
+    assert_eq!(
+        request(&app, "POST", &restore, Some(&other_token), json!({}))
+            .await
+            .0,
+        403
+    );
+    let restored = request(&app, "POST", &restore, Some(&token), json!({})).await;
+    assert_eq!(restored.0, 200, "{restored:?}");
+    assert_eq!(restored.1["blocks"], entry.blocks);
+    // Cached public HTML must disappear after unpublishing.
+    let page = format!("/fr/page/{}", entry.slug);
+    assert_eq!(request(&app, "GET", &page, None, Value::Null).await.0, 200);
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &endpoint,
+            Some(&token),
+            json!({"status":"draft"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(request(&app, "GET", &page, None, Value::Null).await.0, 404);
+    // Proposal -> explicit approval -> idempotent repeated approval, without a model call.
+    // Also verify G2 native document lifecycle: creation -> publication -> preview/public HTML ->
+    // reopening -> concurrent edit conflict -> text-only patch guard -> modern & legacy revision restore.
+    let native_doc_v1 = json!({
+        "rf_schema": "rf.document/1",
+        "rf_blocks": [
+            {"rf_id": "h1_intro", "rf_type": "heading", "rf_text": "Titre natif V1", "rf_level": 2},
+            {"rf_id": "p_body", "rf_type": "paragraph", "rf_text": "Paragraphe <script>alert(1)</script> **littéral** & sûr"},
+            {"rf_id": "q_cite", "rf_type": "quote", "rf_text": "Citation première ligne\nSeconde ligne"},
+            {"rf_id": "c_code", "rf_type": "code", "rf_text": "fn main() { println!(\"rf\"); }"},
+            {"rf_id": "l_items", "rf_type": "list", "rf_ordered": true, "rf_items": ["Étape A", "Étape B"]},
+            {"rf_id": "d_sep", "rf_type": "divider"}
+        ]
+    });
+    let native_preview = request(
+        &app,
+        "POST",
+        "/api/v1/entries/preview",
+        Some(&token),
+        json!({"body": "", "blocks": native_doc_v1}),
+    )
+    .await;
+    assert_eq!(native_preview.0, 200, "{native_preview:?}");
+    let preview_body = native_preview.1["body"].as_str().unwrap().to_string();
+    let preview_html = native_preview.1["body_html"].as_str().unwrap().to_string();
+    assert!(preview_html.contains("<h2>Titre natif V1</h2>"));
+    assert!(preview_html.contains("<ol>"));
+    assert!(preview_html.contains("<hr"));
+    assert!(!preview_html.contains("<script"));
+    assert!(!preview_html.contains("<strong>littéral"));
+
+    let created_native = request(
+        &app,
+        "POST",
+        "/api/v1/entries?content_type=post",
+        Some(&token),
+        json!({
+            "title": "Article Natif G2",
+            "slug": "article-natif-g2",
+            "excerpt": "Résumé natif",
+            "body": "ignoré par la projection native",
+            "blocks": native_doc_v1,
+            "status": "published",
+            "fields": {
+                "_rf_vault": {"origin_key": "preserve_me", "nested": {"count": 42}}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(created_native.0, 200, "{created_native:?}");
+    let native_id = Uuid::parse_str(created_native.1["id"].as_str().unwrap()).unwrap();
+    let native_endpoint = format!("/api/v1/entries/{native_id}");
+    assert_eq!(created_native.1["blocks"], native_doc_v1);
+    assert_eq!(created_native.1["body"], preview_body);
+    assert_eq!(created_native.1["body_html"], preview_html);
+    assert_eq!(
+        created_native.1["fields"]["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+
+    // Public SSR and headless API serve the exact projected HTML without exposing raw body or vault.
+    let ssr_post = request(&app, "GET", "/fr/post/article-natif-g2", None, Value::Null).await;
+    assert_eq!(ssr_post.0, 200);
+    assert!(ssr_post.1.as_str().unwrap().contains("<h2>Titre natif V1</h2>"));
+    assert!(!ssr_post.1.as_str().unwrap().contains("<script>alert(1)"));
+    let pub_json = request(
+        &app,
+        "GET",
+        "/api/v1/public/entries/post/article-natif-g2",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(pub_json.0, 200);
+    assert_eq!(pub_json.1["body_html"], preview_html);
+    assert!(pub_json.1.get("body").is_none());
+    assert!(pub_json.1.get("fields").is_none());
+
+    // Reopening returns identical blocks, IDs, projected body and vault.
+    let reopened = request(&app, "GET", &native_endpoint, Some(&token), Value::Null).await;
+    assert_eq!(reopened.0, 200);
+    assert_eq!(reopened.1["blocks"], native_doc_v1);
+    assert_eq!(reopened.1["body"], preview_body);
+    assert_eq!(reopened.1["body_html"], preview_html);
+    let v1_updated_at = reopened.1["updated_at"].as_str().unwrap().to_string();
+
+    // Text-only patch attempting to change `body` without updating `blocks` or converting must be rejected (409).
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &native_endpoint,
+            Some(&token),
+            json!({"body": "Tentative d'écrasement texte seul"})
+        )
+        .await
+        .0,
+        409
+    );
+    // AI tool attempting to overwrite `body` only on a native document must also fail on approval.
+    let bad_ai_plan = request(
+        &app,
+        "POST",
+        "/api/v1/ai/execute",
+        Some(&token),
+        json!({
+            "tool_name": "create_or_update_content",
+            "arguments": {"id": native_id, "body": "Texte IA sans blocs"}
+        }),
+    )
+    .await;
+    assert_eq!(bad_ai_plan.0, 200);
+    let bad_ai_approve = format!(
+        "/api/v1/ai/plans/{}/approve",
+        bad_ai_plan.1["data"]["plan_id"].as_str().unwrap()
+    );
+    let bad_ai_res = request(&app, "POST", &bad_ai_approve, Some(&token), json!({})).await;
+    assert_eq!(bad_ai_res.1["success"], false);
+
+    // Update blocks to V2, then verify concurrent edit with stale expected_updated_at is rejected (409).
+    let native_doc_v2 = json!({
+        "rf_schema": "rf.document/1",
+        "rf_blocks": [
+            {"rf_id": "h1_intro", "rf_type": "heading", "rf_text": "Titre natif V2", "rf_level": 2},
+            {"rf_id": "p_body", "rf_type": "paragraph", "rf_text": "Contenu mis à jour en V2"}
+        ]
+    });
+    let updated_native = request(
+        &app,
+        "PUT",
+        &native_endpoint,
+        Some(&token),
+        json!({
+            "title": "Article Natif G2 V2",
+            "blocks": native_doc_v2,
+            "expected_updated_at": v1_updated_at
+        }),
+    )
+    .await;
+    assert_eq!(updated_native.0, 200, "{updated_native:?}");
+    assert_eq!(updated_native.1["blocks"], native_doc_v2);
+    assert!(
+        updated_native.1["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("<h2>Titre natif V2</h2>")
+    );
+    assert_eq!(
+        updated_native.1["fields"]["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+    // Stale concurrent modification is rejected.
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &native_endpoint,
+            Some(&token),
+            json!({
+                "title": "Conflit concurrent",
+                "blocks": native_doc_v1,
+                "expected_updated_at": v1_updated_at
+            })
+        )
+        .await
+        .0,
+        409
+    );
+
+    // Legacy revision without snapshot cannot overwrite a native document (409).
+    let legacy_rev_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO revisions(entry_id, author_id, title, excerpt, body, fields, snapshot)
+         VALUES ($1, $2, 'Ancienne sans snapshot', '', 'Corps ancien', '{}'::jsonb, NULL)
+         RETURNING id",
+    )
+    .bind(native_id)
+    .bind(author.id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            &format!("{native_endpoint}/revisions/{legacy_rev_id}/restore"),
+            Some(&token),
+            json!({})
+        )
+        .await
+        .0,
+        409
+    );
+
+    // Modern revision with full snapshot restores V1 blocks, IDs, projected body/HTML and vault.
+    let native_revs = request(
+        &app,
+        "GET",
+        &format!("{native_endpoint}/revisions"),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(native_revs.0, 200);
+    let rev_v1_id = native_revs
+        .1
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["title"] == "Article Natif G2")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let restored_native = request(
+        &app,
+        "POST",
+        &format!("{native_endpoint}/revisions/{rev_v1_id}/restore"),
+        Some(&token),
+        json!({}),
+    )
+    .await;
+    assert_eq!(restored_native.0, 200, "{restored_native:?}");
+    assert_eq!(restored_native.1["blocks"], native_doc_v1);
+    assert_eq!(restored_native.1["body"], preview_body);
+    assert_eq!(restored_native.1["body_html"], preview_html);
+    assert_eq!(
+        restored_native.1["fields"]["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+
+    // 9b. Conversion explicite Markdown -> rf.document/1, blocs image/button sûrs et hiérarchie de pages sans cycle
+    let converted_md = request(
+        &app,
+        "POST",
+        "/api/v1/entries/convert-blocks",
+        Some(&token),
+        json!({
+            "body": "# Titre converti\n\nParagraphe converti.\n\n![Visuel](/uploads/2026/10/visuel.webp)\n*Légende convertie*\n\n[Découvrir](/contact)"
+        }),
+    )
+    .await;
+    assert_eq!(converted_md.0, 200, "{converted_md:?}");
+    assert_eq!(converted_md.1["blocks"]["rf_schema"], "rf.document/1");
+    assert_eq!(
+        converted_md.1["blocks"]["rf_blocks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert!(
+        converted_md.1["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("<img src=\"/uploads/2026/10/visuel.webp\" alt=\"Visuel\"")
+    );
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            "/api/v1/entries/preview",
+            Some(&token),
+            json!({
+                "body": "",
+                "blocks": {
+                    "rf_schema": "rf.document/1",
+                    "rf_blocks": [{"rf_id": "bad_img", "rf_type": "image", "rf_url": "javascript:alert(1)"}]
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+    let page_parent = request(
+        &app,
+        "POST",
+        "/api/v1/entries?content_type=page",
+        Some(&token),
+        json!({"title": "Page Parente", "slug": "page-parente", "status": "published"}),
+    )
+    .await;
+    assert_eq!(page_parent.0, 200);
+    let page_parent_id = page_parent.1["id"].as_str().unwrap();
+    let page_child = request(
+        &app,
+        "POST",
+        "/api/v1/entries?content_type=page",
+        Some(&token),
+        json!({"title": "Page Enfant", "slug": "page-enfant", "parent_id": page_parent_id, "status": "published"}),
+    )
+    .await;
+    assert_eq!(page_child.0, 200);
+    let page_child_id = page_child.1["id"].as_str().unwrap();
+    // Refuser un cycle A -> B -> A
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/entries/{page_parent_id}"),
+            Some(&token),
+            json!({"parent_id": page_child_id}),
+        )
+        .await
+        .0,
+        422
+    );
+    // Refuser un parent d'un autre type de contenu (post au lieu de page)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/entries/{page_child_id}"),
+            Some(&token),
+            json!({"parent_id": native_id}),
+        )
+        .await
+        .0,
+        422
+    );
+    // 9b. Permaliens & redirection canonique sans chaîne (WP-21) + garde expected_updated_at sur restauration de révision (WP-28).
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/entries/{page_child_id}"),
+            Some(&token),
+            json!({"slug": "page-enfant-v2"}),
+        )
+        .await
+        .0,
+        200
+    );
+    let renamed_v3 = request(
+        &app,
+        "PUT",
+        &format!("/api/v1/entries/{page_child_id}"),
+        Some(&token),
+        json!({"slug": "page-enfant-v3"}),
+    )
+    .await;
+    assert_eq!(renamed_v3.0, 200);
+    assert_eq!(
+        renamed_v3.1["fields"]["_rf_vault"]["rf_old_slugs"],
+        json!(["page-enfant", "page-enfant-v2"])
+    );
+    // L'ancien slug initial et le slug intermédiaire redirigent tous deux en 308 Permanent directement vers la cible finale.
+    assert_eq!(
+        request(&app, "GET", "/fr/page/page-enfant", None, Value::Null)
+            .await
+            .0,
+        308
+    );
+    assert_eq!(
+        request(&app, "GET", "/fr/page/page-enfant-v2", None, Value::Null)
+            .await
+            .0,
+        308
+    );
+    let child_revs = request(
+        &app,
+        "GET",
+        &format!("/api/v1/entries/{page_child_id}/revisions"),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(child_revs.0, 200);
+    let oldest_child_rev = child_revs.1.as_array().unwrap().last().unwrap()["id"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            &format!("/api/v1/entries/{page_child_id}/revisions/{oldest_child_rev}/restore"),
+            Some(&token),
+            json!({"expected_updated_at": "2020-01-01T00:00:00Z"}),
+        )
+        .await
+        .0,
+        409
+    );
+    // 10. Quick Edit (WP-18) & filtres combinés (WP-16/WP-17) : associer une catégorie et modifier le titre sans renvoyer blocks ni body conserve l'enveloppe native et le coffre _rf_vault.
+    let created_term = request(
+        &app,
+        "POST",
+        "/api/v1/terms",
+        Some(&token),
+        json!({"taxonomy": "category", "name": "Guide technique"}),
+    )
+    .await;
+    assert_eq!(created_term.0, 200, "{created_term:?}");
+    let term_id = Uuid::parse_str(created_term.1["id"].as_str().unwrap()).unwrap();
+    let quick_edited = request(
+        &app,
+        "PUT",
+        &native_endpoint,
+        Some(&token),
+        json!({
+            "title": "Article natif G2",
+            "slug": "article-natif-g2",
+            "status": "published",
+            "term_ids": [term_id]
+        }),
+    )
+    .await;
+    assert_eq!(quick_edited.0, 200, "{quick_edited:?}");
+    assert_eq!(quick_edited.1["blocks"], native_doc_v1);
+    assert_eq!(quick_edited.1["fields"]["_rf_vault"]["origin_key"], "preserve_me");
+    assert_eq!(quick_edited.1["terms"][0]["slug"], "guide-technique");
+    let filtered_list = request(
+        &app,
+        "GET",
+        "/api/v1/entries?content_type=post&taxonomy=category&term=guide-technique&order=title",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(filtered_list.0, 200, "{filtered_list:?}");
+    assert_eq!(filtered_list.1["total"], 1);
+    assert_eq!(filtered_list.1["items"][0]["id"], native_id.to_string());
+
+    // 11. Catégories hiérarchiques & étiquettes (WP-19) : hiérarchie, anti-cycle, fusion et suppression avec réaffectation.
+    let child_term = request(
+        &app,
+        "POST",
+        "/api/v1/terms",
+        Some(&token),
+        json!({"taxonomy": "category", "name": "Sous-guide Rust", "parent_id": term_id}),
+    )
+    .await;
+    assert_eq!(child_term.0, 200, "{child_term:?}");
+    let child_term_id = Uuid::parse_str(child_term.1["id"].as_str().unwrap()).unwrap();
+    // Refuser un cycle de catégories parent -> enfant -> parent (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/terms/{term_id}"),
+            Some(&token),
+            json!({"parent_id": child_term_id}),
+        )
+        .await
+        .0,
+        422
+    );
+    // Créer une étiquette (tag) et refuser de l'utiliser comme parent d'une catégorie (422)
+    let created_tag = request(
+        &app,
+        "POST",
+        "/api/v1/terms",
+        Some(&token),
+        json!({"taxonomy": "tag", "name": "rust-cms"}),
+    )
+    .await;
+    assert_eq!(created_tag.0, 200, "{created_tag:?}");
+    let tag_id = Uuid::parse_str(created_tag.1["id"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/terms/{child_term_id}"),
+            Some(&token),
+            json!({"parent_id": tag_id}),
+        )
+        .await
+        .0,
+        422
+    );
+    // Refuser la fusion d'une catégorie parente vers son propre sous-terme (422 anti-cycle)
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            &format!("/api/v1/terms/{term_id}/merge"),
+            Some(&token),
+            json!({"target_id": child_term_id}),
+        )
+        .await
+        .0,
+        422
+    );
+    // Créer une catégorie cible `final_cat` et fusionner `term_id` vers `final_cat` :
+    // l'entrée `native_id` et le sous-terme `child_term_id` sont rattachés à `final_cat`.
+    let final_cat = request(
+        &app,
+        "POST",
+        "/api/v1/terms",
+        Some(&token),
+        json!({"taxonomy": "category", "name": "Documentation officielle"}),
+    )
+    .await;
+    assert_eq!(final_cat.0, 200, "{final_cat:?}");
+    let final_cat_id = Uuid::parse_str(final_cat.1["id"].as_str().unwrap()).unwrap();
+    let merged_term = request(
+        &app,
+        "POST",
+        &format!("/api/v1/terms/{term_id}/merge"),
+        Some(&token),
+        json!({"target_id": final_cat_id}),
+    )
+    .await;
+    assert_eq!(merged_term.0, 200, "{merged_term:?}");
+    assert_eq!(merged_term.1["entry_count"], 1);
+    // Supprimer `child_term_id` avec réaffectation vers `final_cat_id`.
+    let deleted_with_reassign = request(
+        &app,
+        "DELETE",
+        &format!("/api/v1/terms/{child_term_id}?reassign_to={final_cat_id}"),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(deleted_with_reassign.0, 200, "{deleted_with_reassign:?}");
+    let after_reassign = request(
+        &app,
+        "GET",
+        "/api/v1/entries?content_type=post&taxonomy=category&term=documentation-officielle",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(after_reassign.0, 200, "{after_reassign:?}");
+    assert_eq!(after_reassign.1["total"], 1);
+
+    // 12. G3 Lot 1 : Protection de suppression des médias utilisés (WP-40), Menus publics (WP-46) & CSS personnalisé borné (WP-48/WP-50).
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/entries/{page_child_id}"),
+            Some(&token),
+            json!({"featured_media_id": media}),
+        )
+        .await
+        .0,
+        200
+    );
+    // Refuser la suppression non forcée d'un média utilisé dans un contenu actif (409 Conflict)
+    assert_eq!(
+        request(
+            &app,
+            "DELETE",
+            &format!("/api/v1/media/{media}"),
+            Some(&token),
+            Value::Null,
+        )
+        .await
+        .0,
+        409
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            &format!("/api/v1/entries/{page_child_id}"),
+            Some(&token),
+            json!({"featured_media_id": null}),
+        )
+        .await
+        .0,
+        200
+    );
+    // Refuser une URL javascript: dans site.menus (422) et du HTML/@import dans site.design_tokens.custom_css (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [{"id": "bad", "label": "Piège", "url": "javascript:alert(1)"}]
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.design_tokens": {
+                    "primary_color": "#4f46e5",
+                    "custom_css": "</style><script>alert(1)</script>"
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+    // Enregistrer un menu public et un CSS personnalisé valides et vérifier leur rendu SSR immédiat
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [{"id": "m1", "label": "Documentation G3", "url": "/fr/post/article-natif-g2", "target": "_self"}],
+                    "footer": [{"id": "m2", "label": "Mentions légales", "url": "/fr/page/page-parente", "target": "_self"}]
+                },
+                "site.design_tokens": {
+                    "primary_color": "#4f46e5",
+                    "accent_color": "#06b6d4",
+                    "radius": "14px",
+                    "container_width": "1280px",
+                    "custom_css": ".custom-g3-rule { letter-spacing: 0.01em; }"
+                }
+            }),
+        )
+        .await
+        .0,
+        200
+    );
+    let home_g3 = request(&app, "GET", "/fr", None, Value::Null).await;
+    assert_eq!(home_g3.0, 200);
+    let home_html = home_g3.1.as_str().unwrap();
+    assert!(home_html.contains("Documentation G3"));
+    assert!(home_html.contains("Mentions légales"));
+    assert!(home_html.contains(".custom-g3-rule"));
+
+    // 13. G3 Lot 2 : Utilisateurs, rôles, réattribution et sessions (WP-52 à WP-55) + Réglages Lecture/Général (WP-69 à WP-81).
+    let filtered_authors = request(
+        &app,
+        "GET",
+        "/api/v1/users?role=author",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(filtered_authors.0, 200, "{filtered_authors:?}");
+    assert_eq!(filtered_authors.1["total"], 2);
+    // Un auteur non-admin ne peut pas s'octroyer le rôle admin (WP-52/WP-53)
+    let self_updated = request(
+        &app,
+        "PUT",
+        &format!("/api/v1/users/{}", author.id),
+        Some(&token),
+        json!({"display_name": "Auteur Vérifié", "bio": "Bio test", "role": "admin"}),
+    )
+    .await;
+    assert_eq!(self_updated.0, 200, "{self_updated:?}");
+    assert_eq!(self_updated.1["role"], "author");
+    assert_eq!(self_updated.1["display_name"], "Auteur Vérifié");
+    // Sessions actives (WP-55) : issue_refresh_token -> list_sessions -> revoke_sessions
+    let _ = users::issue_refresh_token(&db, author.id, chrono::Duration::days(1))
+        .await
+        .unwrap();
+    let sessions_before = request(
+        &app,
+        "GET",
+        &format!("/api/v1/users/{}/sessions", author.id),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(sessions_before.0, 200, "{sessions_before:?}");
+    assert_eq!(sessions_before.1.as_array().unwrap().len(), 1);
+    let revoked_sessions = request(
+        &app,
+        "DELETE",
+        &format!("/api/v1/users/{}/sessions", author.id),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(revoked_sessions.0, 200, "{revoked_sessions:?}");
+    assert_eq!(revoked_sessions.1["revoked"], 1);
+    // Créer un auteur éphémère, lui attribuer une page, puis supprimer le compte avec réattribution vers `author.id` (WP-54)
+    let temp_author = account(&db, "temp_writer", Role::Author).await;
+    let temp_token =
+        rustforge_api::auth::create_token(temp_author.id, temp_author.role, SECRET).unwrap();
+    let temp_entry = request(
+        &app,
+        "POST",
+        "/api/v1/entries?content_type=post",
+        Some(&temp_token),
+        json!({"title": "Article à réattribuer", "body": "Texte", "status": "published"}),
+    )
+    .await;
+    assert_eq!(temp_entry.0, 200, "{temp_entry:?}");
+    let temp_entry_id = Uuid::parse_str(temp_entry.1["id"].as_str().unwrap()).unwrap();
+    let deleted_user = request(
+        &app,
+        "DELETE",
+        &format!(
+            "/api/v1/users/{}?reassign_to={}",
+            temp_author.id, author.id
+        ),
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(deleted_user.0, 200, "{deleted_user:?}");
+    let reassigned_entry = request(
+        &app,
+        "GET",
+        &format!("/api/v1/entries/{temp_entry_id}"),
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(reassigned_entry.0, 200, "{reassigned_entry:?}");
+    assert_eq!(
+        reassigned_entry.1["author_id"].as_str().unwrap(),
+        author.id.to_string()
+    );
+    // Réglages Lecture & Général (WP-72, WP-78, WP-79, WP-81) : refuser users.default_role = admin (422) et reading.per_page = 0 (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"users.default_role": "admin"}),
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.per_page": 0}),
+        )
+        .await
+        .0,
+        422
+    );
+    // Configurer une page d'accueil statique + blog_public = false (noindex) et vérifier le SSR de `/fr`
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "reading.show_on_front": "page",
+                "reading.page_on_front": page_parent_id.to_string(),
+                "reading.blog_public": false
+            }),
+        )
+        .await
+        .0,
+        200
+    );
+    let static_home = request(&app, "GET", "/fr", None, Value::Null).await;
+    assert_eq!(static_home.0, 200);
+    let static_home_html = static_home.1.as_str().unwrap();
+    assert!(static_home_html.contains("Page Parente"));
+    assert!(static_home_html.contains("noindex, nofollow"));
+
+    let proposal=request(&app,"POST","/api/v1/ai/execute",Some(&token),json!({"tool_name":"create_or_update_content","arguments":{"id":entry.id,"title":"AI approved"}})).await;
+    assert_eq!(proposal.0, 200, "{proposal:?}");
+    assert_eq!(entries::get(&db, entry.id).await.unwrap().title, "Original");
+    let approve = format!(
+        "/api/v1/ai/plans/{}/approve",
+        proposal.1["data"]["plan_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        request(&app, "POST", &approve, Some(&other_token), json!({}))
+            .await
+            .0,
+        403
+    );
+    let approved = request(&app, "POST", &approve, Some(&token), json!({})).await;
+    assert_eq!(approved.1["success"], true, "{approved:?}");
+    assert_eq!(
+        request(&app, "POST", &approve, Some(&token), json!({}))
+            .await
+            .1,
+        approved.1
+    );
+    let proposal = request(
+        &app,
+        "POST",
+        "/api/v1/ai/execute",
+        Some(&token),
+        json!({"tool_name":"create_or_update_content","arguments":{"id":entry.id,"title":"Stale"}}),
+    )
+    .await;
+    request(
+        &app,
+        "PUT",
+        &endpoint,
+        Some(&token),
+        json!({"title":"Human edit"}),
+    )
+    .await;
+    let stale = format!(
+        "/api/v1/ai/plans/{}/approve",
+        proposal.1["data"]["plan_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        request(&app, "POST", &stale, Some(&token), json!({}))
+            .await
+            .1["success"],
+        false
+    );
+    assert_eq!(
+        entries::get(&db, entry.id).await.unwrap().title,
+        "Human edit"
+    );
+    // Checkout never accepts a test payment; manual completion is privileged and idempotent.
+    let expensive = core::ecommerce::create_product(
+        &db,
+        serde_json::from_value(
+            json!({"title":"Limit","price_cents":2147483647,"status":"published"}),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert!(core::ecommerce::checkout(&db,serde_json::from_value(json!({"customer_email":"buyer@example.test","items":[{"product_id":expensive.id},{"product_id":expensive.id}]})).unwrap()).await.is_err());
+    assert!(
+        core::ecommerce::create_discount(
+            &db,
+            serde_json::from_value(
+                json!({"code":"INVALID","amount":101,"discount_type":"percentage"})
+            )
+            .unwrap()
+        )
+        .await
+        .is_err()
+    );
+    let product=core::ecommerce::create_product(&db,serde_json::from_value(json!({"title":"File","price_cents":500,"file_path":"file.pdf","download_limit":1,"status":"published"})).unwrap()).await.unwrap();
+    assert!(
+        core::ecommerce::create_product(
+            &db,
+            serde_json::from_value(
+                json!({"title":"Bad","price_cents":500,"file_path":"../secret"})
+            )
+            .unwrap()
+        )
+        .await
+        .is_err()
+    );
+    let checkout = json!({"customer_email":"buyer@example.test","items":[{"product_id":product.id}],"gateway":"test"});
+    assert!(
+        core::ecommerce::checkout(&db, serde_json::from_value(checkout.clone()).unwrap())
+            .await
+            .is_err()
+    );
+    let mut checkout = checkout;
+    checkout["gateway"] = json!("manual");
+    let order = core::ecommerce::checkout(&db, serde_json::from_value(checkout).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&order.order).unwrap()["status"],
+        "pending"
+    );
+    let complete = format!("/api/v1/ecommerce/orders/{}/complete", order.order.id);
+    assert_eq!(
+        request(&app, "POST", &complete, Some(&token), json!({}))
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        request(&app, "POST", &complete, Some(&admin), json!({}))
+            .await
+            .0,
+        200
+    );
+    assert_eq!(
+        request(&app, "POST", &complete, Some(&admin), json!({}))
+            .await
+            .0,
+        200
+    );
+    let sales: i32 = sqlx::query_scalar("SELECT sales_count FROM ecommerce_products WHERE id=$1")
+        .bind(product.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(sales, 1);
+    let download = core::ecommerce::generate_download_token(order.items[0].id, SECRET, 1);
+    let (a, b) = tokio::join!(
+        core::ecommerce::verify_and_consume_download(&db, &download, SECRET),
+        core::ecommerce::verify_and_consume_download(&db, &download, SECRET)
+    );
+    assert_ne!(a.is_ok(), b.is_ok());
+    assert!(
+        core::ecommerce::verify_and_consume_download(&db, &download, "wrong")
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            &format!("/api/v1/ecommerce/orders/items/{}/token", order.items[0].id),
+            Some(&other_token),
+            json!({})
+        )
+        .await
+        .0,
+        403
+    );
+    // Import source mapping detects a changed target instead of overwriting human work.
+    // Also verify RFIR JSON and RF-XML SQL export/import roundtrip for native documents (blocks, IDs, body, HTML, vault).
+    let doc = DataMorphExporter::dump_database(&db).await.unwrap();
+    let exported_blocks = &doc.metadata[&format!("entry_blocks:{native_id}")];
+    assert_eq!(exported_blocks, &native_doc_v1);
+    let rfir_json = DataMorphExporter::to_json(&doc).unwrap();
+    let mut parsed_json: core::migration::RFIRDocument = serde_json::from_str(&rfir_json).unwrap();
+    parsed_json.source_site_url = Some("https://wp.example.test".into());
+    for e in &mut parsed_json.entries {
+        e.slug = format!("import-{}", e.slug);
+    }
+    DataMorphImporter::apply(&db, &parsed_json, admin_id)
+        .await
+        .unwrap();
+    DataMorphImporter::apply(&db, &parsed_json, admin_id)
+        .await
+        .unwrap();
+    let imported_native_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM entries WHERE slug='import-article-natif-g2'",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let imported_native = entries::get(&db, imported_native_id).await.unwrap();
+    assert_eq!(imported_native.blocks, native_doc_v1);
+    assert_eq!(imported_native.body, preview_body);
+    assert_eq!(imported_native.body_html, preview_html);
+    assert_eq!(
+        imported_native.fields["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+
+    // Also verify RF-XML export -> WxrImporter::parse -> DataMorphImporter::apply SQL roundtrip.
+    let mut xml_source_doc = DataMorphExporter::dump_database(&db).await.unwrap();
+    xml_source_doc.source_site_url = Some("https://rfxml.example.test".into());
+    xml_source_doc
+        .entries
+        .retain(|e| e.source_id == native_id.to_string());
+    xml_source_doc.entries[0].slug = "rfxml-article-natif-g2".into();
+    let rf_xml_str = DataMorphExporter::to_rf_xml(&xml_source_doc).unwrap();
+    let parsed_xml_doc =
+        core::migration::wxr_importer::WxrImporter::parse(Cursor::new(rf_xml_str)).unwrap();
+    DataMorphImporter::apply(&db, &parsed_xml_doc, admin_id)
+        .await
+        .unwrap();
+    let xml_imported_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM entries WHERE slug='rfxml-article-natif-g2'",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let xml_imported = entries::get(&db, xml_imported_id).await.unwrap();
+    assert_eq!(xml_imported.blocks, native_doc_v1);
+    assert_eq!(xml_imported.body, preview_body);
+    assert_eq!(xml_imported.body_html, preview_html);
+    assert_eq!(
+        xml_imported.fields["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+
+    let imported: Uuid = sqlx::query_scalar("SELECT entry_id FROM import_origins WHERE source='https://wp.example.test' LIMIT 1")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE entries SET updated_at=now(),title='Keep human edit' WHERE id=$1")
+        .bind(imported)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert!(
+        DataMorphImporter::apply(&db, &parsed_json, admin_id)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        entries::get(&db, imported).await.unwrap().title,
+        "Keep human edit"
+    );
+    // Native capsule includes module data and physical roots, and rejects overwrite.
+    let form:Uuid=sqlx::query_scalar("INSERT INTO forms(name,slug,fields,created_by) VALUES('Contact','contact',$1,$2) RETURNING id").bind(json!({"type":"object","properties":{}})).bind(admin_id).fetch_one(&db).await.unwrap();
+    core::forms::submit(
+        &db,
+        form,
+        serde_json::from_value(json!({"data":{}})).unwrap(),
+    )
+    .await
+    .unwrap();
+    let gallery: Uuid = sqlx::query_scalar(
+        "INSERT INTO galleries(name,slug) VALUES('Gallery','gallery') RETURNING id",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO gallery_items(gallery_id,media_id) VALUES($1,$2)")
+        .bind(gallery)
+        .bind(media)
+        .execute(&db)
+        .await
+        .unwrap();
+    let course: Uuid = sqlx::query_scalar(
+        "INSERT INTO lms_courses(title,slug,product_id) VALUES('Course','course',$1) RETURNING id",
+    )
+    .bind(product.id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE ecommerce_products SET course_id=$1 WHERE id=$2")
+        .bind(course)
+        .bind(product.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let module: Uuid = sqlx::query_scalar(
+        "INSERT INTO lms_modules(course_id,title) VALUES($1,'Module') RETURNING id",
+    )
+    .bind(course)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO lms_lessons(course_id,module_id,title,slug,content) VALUES($1,$2,'Lesson','lesson','Private lesson')").bind(course).bind(module).execute(&db).await.unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            &format!("/api/v1/lms/courses/{course}/lessons"),
+            Some(&reader_token),
+            Value::Null
+        )
+        .await
+        .0,
+        403
+    );
+
+    // G1 Modules & Navigation HTTP regressions:
+    // 1. Author and Subscriber cannot PUT /api/v1/admin/modules (403) and do not receive full admin catalog.
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/admin/modules",
+            Some(&token),
+            json!({"lms": false})
+        )
+        .await
+        .0,
+        403
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/admin/modules",
+            Some(&reader_token),
+            json!({"lms": false})
+        )
+        .await
+        .0,
+        403
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/admin/modules",
+            Some(&admin),
+            json!({"unknown_module": true})
+        )
+        .await
+        .0,
+        400
+    );
+    let author_nav = request(&app, "GET", "/api/v1/admin/navigation", Some(&token), Value::Null).await;
+    assert_eq!(author_nav.0, 200);
+    assert!(author_nav.1["catalog"].as_array().unwrap().is_empty());
+    assert!(
+        !author_nav.1["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["id"] == "rf_lms" || n["id"] == "rf_settings")
+    );
+
+    // 2. Zen mode cache invalidation & module guard: warm SSR cache while zen_mode is active, then disable zen_mode.
+    let zen_url = "/fr/post/article-natif-g2/zen";
+    let zen_active = request(&app, "GET", zen_url, None, Value::Null).await;
+    assert_eq!(zen_active.0, 200);
+    assert!(zen_active.1.as_str().unwrap().contains("Titre natif V1"));
+    let disable_zen = request(
+        &app,
+        "PUT",
+        "/api/v1/admin/modules",
+        Some(&admin),
+        json!({"zen_mode": false}),
+    )
+    .await;
+    assert_eq!(disable_zen.0, 200);
+    assert_eq!(disable_zen.1["modules"]["zen_mode"], false);
+    assert_eq!(request(&app, "GET", zen_url, None, Value::Null).await.0, 404);
+
+    // 3. Disabling LMS removes it from navigation and closes both admin and public LMS APIs (404),
+    // while preserving underlying course/module/lesson data upon reactivation.
+    let disable_lms = request(
+        &app,
+        "PUT",
+        "/api/v1/admin/modules",
+        Some(&admin),
+        json!({"lms": false}),
+    )
+    .await;
+    assert_eq!(disable_lms.0, 200);
+    assert_eq!(disable_lms.1["modules"]["lms"], false);
+    assert!(
+        !disable_lms.1["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["module"] == "lms")
+    );
+    assert!(
+        disable_lms.1["catalog"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["id"] == "rf_lms")
+    );
+    assert_eq!(
+        request(&app, "GET", "/api/v1/lms/courses", Some(&admin), Value::Null)
+            .await
+            .0,
+        404
+    );
+    assert_eq!(
+        request(&app, "GET", "/api/v1/public/lms/courses", None, Value::Null)
+            .await
+            .0,
+        404
+    );
+    // Persisted in DB across new router/state instantiation ("restart").
+    let restarted_app = crate::app(db.clone(), &root).await;
+    let nav_after_restart = request(
+        &restarted_app,
+        "GET",
+        "/api/v1/admin/navigation",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(nav_after_restart.0, 200);
+    assert_eq!(nav_after_restart.1["modules"]["lms"], false);
+    assert_eq!(nav_after_restart.1["modules"]["zen_mode"], false);
+
+    // 4. Atomic concurrent updates to distinct module flags merge both changes without clobbering.
+    let (mod_a, mod_b) = tokio::join!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/admin/modules",
+            Some(&admin),
+            json!({"forms": false})
+        ),
+        request(
+            &app,
+            "PUT",
+            "/api/v1/admin/modules",
+            Some(&admin),
+            json!({"lms": true, "zen_mode": true})
+        )
+    );
+    assert_eq!(mod_a.0, 200);
+    assert_eq!(mod_b.0, 200);
+    let merged_nav = request(&app, "GET", "/api/v1/admin/navigation", Some(&admin), Value::Null).await;
+    assert_eq!(merged_nav.0, 200);
+    assert_eq!(merged_nav.1["modules"]["forms"], false);
+    assert_eq!(merged_nav.1["modules"]["lms"], true);
+    assert_eq!(merged_nav.1["modules"]["zen_mode"], true);
+    assert_eq!(merged_nav.1["modules"]["galleries"], true);
+    assert_eq!(merged_nav.1["modules"]["ecommerce"], true);
+    // Reactivated LMS still has its course and lessons intact.
+    let courses_after = request(&app, "GET", "/api/v1/lms/courses", Some(&admin), Value::Null).await;
+    assert_eq!(courses_after.0, 200);
+    assert_eq!(courses_after.1.as_array().unwrap().len(), 1);
+    let lessons_after = request(
+        &app,
+        "GET",
+        &format!("/api/v1/lms/courses/{course}/lessons"),
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(lessons_after.0, 200);
+    assert_eq!(lessons_after.1.as_array().unwrap().len(), 1);
+
+    std::fs::write(root.join("uploads/example.txt"), b"physical-media").unwrap();
+    std::fs::write(root.join("protected/file.pdf"), b"private-product").unwrap();
+    assert_eq!(
+        request(&app, "GET", "/api/v1/forms", Some(&admin), Value::Null)
+            .await
+            .0,
+        404
+    );
+    let paths = StoragePaths {
+        uploads: root.join("uploads"),
+        themes: root.join("themes"),
+        plugins: root.join("plugins"),
+        protected: root.join("protected"),
+    };
+    let archive = root.join("test.rfcapsule");
+    // Missing source media must fail explicitly, without leaving a half-written capsule.
+    std::fs::rename(root.join("uploads/example.txt"), root.join("example.saved")).unwrap();
+    assert!(
+        CapsuleManager::pack(&db, &paths, &archive, None)
+            .await
+            .is_err()
+    );
+    assert!(!archive.exists());
+    std::fs::rename(root.join("example.saved"), root.join("uploads/example.txt")).unwrap();
+    CapsuleManager::pack(&db, &paths, &archive, Some("https://source.test".into()))
+        .await
+        .unwrap();
+    let bytes = std::fs::read(&archive).unwrap();
+    // Recompute ZIP CRC after tampering, while keeping the original SHA inventory.
+    // This proves the application inventory detects changes beyond container integrity.
+    let mut source_zip = zip::ZipArchive::new(Cursor::new(&bytes)).unwrap();
+    let mut corrupt = Cursor::new(Vec::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut corrupt);
+        for i in 0..source_zip.len() {
+            let mut file = source_zip.by_index(i).unwrap();
+            let name = file.name().to_string();
+            let mut data = Vec::new();
+            std::io::Read::read_to_end(&mut file, &mut data).unwrap();
+            if name == "uploads/example.txt" {
+                data = b"tampered".to_vec();
+            }
+            writer
+                .start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut writer, &data).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+    assert!(CapsuleManager::inspect(Cursor::new(corrupt.into_inner())).is_err());
+    assert_eq!(
+        CapsuleManager::inspect(Cursor::new(&bytes))
+            .unwrap()
+            .version,
+        "2.0"
+    );
+    let dest = root.join("restored");
+    let dest_paths = StoragePaths {
+        uploads: dest.join("uploads"),
+        themes: dest.join("themes"),
+        plugins: dest.join("plugins"),
+        protected: dest.join("protected"),
+    };
+    CapsuleManager::unpack(&target, &dest_paths, Cursor::new(&bytes), None, Uuid::nil())
+        .await
+        .unwrap();
+    let before = native_backup::dump(&db).await.unwrap();
+    let after = native_backup::dump(&target).await.unwrap();
+    for table in native_backup::TABLES {
+        assert_eq!(
+            before.tables[*table].len(),
+            after.tables[*table].len(),
+            "{table}"
+        );
+    }
+    assert_eq!(
+        entries::get(&target, entry.id).await.unwrap().fields,
+        entry.fields
+    );
+    let restored_native_target = entries::get(&target, native_id).await.unwrap();
+    assert_eq!(restored_native_target.blocks, native_doc_v1);
+    assert_eq!(restored_native_target.body, preview_body);
+    assert_eq!(restored_native_target.body_html, preview_html);
+    assert_eq!(
+        restored_native_target.fields["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
+    assert!(users::verify_password(
+        "test-password-long-123!",
+        &users::get(&target, admin_id).await.unwrap().password_hash
+    ));
+    assert_eq!(
+        std::fs::read(dest.join("protected/file.pdf")).unwrap(),
+        b"private-product"
+    );
+    let restored_course: Option<Uuid> =
+        sqlx::query_scalar("SELECT course_id FROM ecommerce_products WHERE id=$1")
+            .bind(product.id)
+            .fetch_one(&target)
+            .await
+            .unwrap();
+    assert_eq!(restored_course, Some(course));
+    assert!(
+        CapsuleManager::unpack(&target, &dest_paths, Cursor::new(&bytes), None, Uuid::nil())
+            .await
+            .is_err()
+    );
+    // Release HTML must reference an asset actually served under /admin/.
+    let index = request(&app, "GET", "/admin/", None, Value::Null).await;
+    assert_eq!(index.0, 200);
+    let html = index.1.as_str().unwrap();
+    let asset = html
+        .split("src=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap();
+    assert!(asset.starts_with("/admin/assets/"), "{asset}");
+    assert_eq!(request(&app, "GET", asset, None, Value::Null).await.0, 200);
+    // Explicitly close clients before dropping only the databases created by this test.
+    drop(app);
+    db.close().await;
+    target.close().await;
+    for db_name in [name, target_name] {
+        assert!(db_name.starts_with("rf_regression_"));
+        sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)"))
+            .execute(&server)
+            .await
+            .unwrap();
+    }
+    server.close().await;
+    // Leave temporary test artifacts available for diagnosis; no recursive deletion.
+}

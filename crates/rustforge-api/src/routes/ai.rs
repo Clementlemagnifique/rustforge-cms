@@ -3,7 +3,10 @@
 
 use std::{collections::BTreeMap, time::Instant};
 
-use axum::{Json, extract::State};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -31,7 +34,7 @@ pub struct ExecuteToolRequest {
     pub arguments: Value,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ExecuteToolResponse {
     pub success: bool,
     pub message: String,
@@ -47,7 +50,108 @@ pub async fn execute_tool(
     auth: AuthUser,
     Json(req): Json<ExecuteToolRequest>,
 ) -> ApiResult<Json<ExecuteToolResponse>> {
-    Ok(Json(run_tool(&state, &auth, &req.tool_name, req.arguments).await?))
+    Ok(Json(
+        propose_or_read(&state, &auth, &req.tool_name, req.arguments).await?,
+    ))
+}
+
+async fn propose_or_read(
+    state: &AppState,
+    auth: &AuthUser,
+    name: &str,
+    mut args: Value,
+) -> ApiResult<ExecuteToolResponse> {
+    rustforge_core::security::require_writer(auth.user.role)?;
+    if matches!(name, "search_content" | "audit_geo_and_seo") {
+        return run_tool(state, auth, name, args).await;
+    }
+    if !matches!(
+        name,
+        "create_or_update_content" | "update_design_system" | "create_content_type"
+    ) {
+        return Err(ApiError::BadRequest("Outil inconnu".into()));
+    }
+    if name != "create_or_update_content" && !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    if !args.is_object() {
+        return Err(ApiError::BadRequest("Arguments invalides".into()));
+    }
+    if name == "create_or_update_content"
+        && let Some(id) = str_arg(&args, "id")
+    {
+        let entry = entries::get(&state.db, parse_uuid(id)?).await?;
+        rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &entry)?;
+        args["expected_updated_at"] = json!(entry.updated_at);
+    }
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO ai_action_plans(actor_id,tool,arguments) VALUES($1,$2,$3) RETURNING id",
+    )
+    .bind(auth.user.id)
+    .bind(name)
+    .bind(&args)
+    .fetch_one(&state.db)
+    .await
+    .map_err(rustforge_core::CoreError::from)?;
+    Ok(ExecuteToolResponse{success:true,message:"Proposition enregistrée ; aucune modification appliquée. Vérifiez les arguments puis validez.".into(),data:Some(json!({"approval_required":true,"plan_id":id,"arguments":args}))})
+}
+
+pub async fn list_plans(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<Value>>> {
+    let rows=sqlx::query_scalar("SELECT to_jsonb(p) FROM ai_action_plans p WHERE actor_id=$1 ORDER BY created_at DESC LIMIT 50")
+        .bind(auth.user.id).fetch_all(&state.db).await.map_err(rustforge_core::CoreError::from)?;
+    Ok(Json(rows))
+}
+
+pub async fn approve_plan(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<ExecuteToolResponse>> {
+    rustforge_core::security::require_writer(auth.user.role)?;
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(rustforge_core::CoreError::from)?;
+    let row:Option<(String,Value,String,Option<Value>,bool)>=sqlx::query_as("SELECT tool,arguments,status,result,expires_at>now() FROM ai_action_plans WHERE id=$1 AND actor_id=$2 FOR UPDATE")
+        .bind(id).bind(auth.user.id).fetch_optional(&mut *tx).await.map_err(rustforge_core::CoreError::from)?;
+    let (tool, args, status, result, valid) = row.ok_or(ApiError::Forbidden)?;
+    if status == "applied" {
+        return Ok(Json(
+            serde_json::from_value(result.ok_or(ApiError::NotFound)?)
+                .map_err(|e| ApiError::Internal(e.into()))?,
+        ));
+    }
+    if status != "pending" || !valid {
+        return Err(ApiError::BadRequest("Cette proposition ne peut pas être rejouée. Consultez son état et créez un nouveau plan si nécessaire.".into()));
+    }
+    sqlx::query("UPDATE ai_action_plans SET status='executing' WHERE id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(rustforge_core::CoreError::from)?;
+    tx.commit().await.map_err(rustforge_core::CoreError::from)?;
+    // Executing is durable BEFORE the write: an interrupted request is never blindly replayed.
+    let result = match run_tool(&state, &auth, &tool, args).await {
+        Ok(value) => value,
+        Err(err) => ExecuteToolResponse {
+            success: false,
+            message: err.to_string(),
+            data: None,
+        },
+    };
+    let status = if result.success { "applied" } else { "failed" };
+    sqlx::query("UPDATE ai_action_plans SET status=$2,result=$3 WHERE id=$1")
+        .bind(id)
+        .bind(status)
+        .bind(serde_json::to_value(&result).map_err(|e| ApiError::Internal(e.into()))?)
+        .execute(&state.db)
+        .await
+        .map_err(rustforge_core::CoreError::from)?;
+    Ok(Json(result))
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +159,10 @@ pub async fn execute_tool(
 // ---------------------------------------------------------------------------
 
 fn str_arg<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
-    args.get(key).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty())
+    args.get(key)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 fn parse_uuid(s: &str) -> ApiResult<Uuid> {
@@ -63,7 +170,12 @@ fn parse_uuid(s: &str) -> ApiResult<Uuid> {
 }
 
 /// Exécute un outil déclaratif avec les droits de l'utilisateur courant.
-pub async fn run_tool(state: &AppState, auth: &AuthUser, name: &str, args: Value) -> ApiResult<ExecuteToolResponse> {
+pub async fn run_tool(
+    state: &AppState,
+    auth: &AuthUser,
+    name: &str,
+    args: Value,
+) -> ApiResult<ExecuteToolResponse> {
     if !auth.user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
@@ -76,7 +188,9 @@ pub async fn run_tool(state: &AppState, auth: &AuthUser, name: &str, args: Value
                 return Err(ApiError::Forbidden);
             }
             // Fusion avec les tokens existants : seules les clés fournies changent.
-            let mut tokens = settings::get(&state.db, "site.design_tokens").await?.unwrap_or_else(|| json!({}));
+            let mut tokens = settings::get(&state.db, "site.design_tokens")
+                .await?
+                .unwrap_or_else(|| json!({}));
             if let (Some(current), Some(new)) = (tokens.as_object_mut(), args.as_object()) {
                 for (k, v) in new {
                     current.insert(k.clone(), v.clone());
@@ -112,21 +226,37 @@ pub async fn run_tool(state: &AppState, auth: &AuthUser, name: &str, args: Value
             })
         }
         "audit_geo_and_seo" => {
-            let id = parse_uuid(str_arg(&args, "entry_id").ok_or_else(|| ApiError::BadRequest("entry_id requis".into()))?)?;
+            let id = parse_uuid(
+                str_arg(&args, "entry_id")
+                    .ok_or_else(|| ApiError::BadRequest("entry_id requis".into()))?,
+            )?;
             let entry = entries::get(&state.db, id).await?;
+            rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &entry)?;
             let report = audit_entry(&entry);
             Ok(ExecuteToolResponse {
                 success: true,
-                message: format!("Audit SEO & GEO de « {} » : score {}/100", entry.title, report["score"]),
+                message: format!(
+                    "Audit SEO & GEO de « {} » : score {}/100",
+                    entry.title, report["score"]
+                ),
                 data: Some(report),
             })
         }
         "search_content" => {
-            let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(5).clamp(1, 20);
+            let limit = args
+                .get("limit")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(5)
+                .clamp(1, 20);
             let query = EntryQuery {
                 q: str_arg(&args, "query").map(str::to_string),
                 content_type: str_arg(&args, "content_type").map(str::to_string),
                 per_page: Some(limit),
+                author_id: if auth.user.role.can_edit_others() {
+                    None
+                } else {
+                    Some(auth.user.id)
+                },
                 ..Default::default()
             };
             let page = entries::list(&state.db, &query).await?;
@@ -138,6 +268,7 @@ pub async fn run_tool(state: &AppState, auth: &AuthUser, name: &str, args: Value
                         "id": e.id, "title": e.title, "slug": e.slug,
                         "content_type": e.content_type, "status": e.status,
                         "excerpt": e.excerpt, "updated_at": e.updated_at,
+                        "body": e.body,
                     })
                 })
                 .collect();
@@ -151,11 +282,22 @@ pub async fn run_tool(state: &AppState, auth: &AuthUser, name: &str, args: Value
     }
 }
 
-async fn create_or_update_content(state: &AppState, auth: &AuthUser, args: &Value) -> ApiResult<ExecuteToolResponse> {
+async fn create_or_update_content(
+    state: &AppState,
+    auth: &AuthUser,
+    args: &Value,
+) -> ApiResult<ExecuteToolResponse> {
     let existing: Option<Entry> = match str_arg(args, "id") {
         Some(id) => Some(entries::get(&state.db, parse_uuid(id)?).await?),
         None => None,
     };
+    if let Some(current) = &existing {
+        rustforge_core::document::validate_source_patch(&current.blocks, &current.body, args)?;
+        EntryInput::from_patch(
+            current,
+            json!({"expected_updated_at":args["expected_updated_at"]}),
+        )?;
+    }
 
     let title = str_arg(args, "title")
         .map(str::to_string)
@@ -171,36 +313,55 @@ async fn create_or_update_content(state: &AppState, auth: &AuthUser, args: &Valu
             .unwrap_or_default()
     };
     let value = |key: &str, current: Option<&Value>, default: Value| -> Value {
-        args.get(key).filter(|v| !v.is_null()).cloned().or_else(|| current.cloned()).unwrap_or(default)
+        args.get(key)
+            .filter(|v| !v.is_null())
+            .cloned()
+            .or_else(|| current.cloned())
+            .unwrap_or(default)
     };
 
     let status = match str_arg(args, "status") {
         Some("published") => EntryStatus::Published,
         Some("archived") => EntryStatus::Archived,
-        Some(_) => EntryStatus::Draft,
-        None => existing.as_ref().map(|e| e.status).unwrap_or(EntryStatus::Draft),
+        Some("draft") => EntryStatus::Draft,
+        Some(_) => return Err(ApiError::BadRequest("Statut de contenu inconnu".into())),
+        None => existing
+            .as_ref()
+            .map(|e| e.status)
+            .unwrap_or(EntryStatus::Draft),
     };
 
     // Termes : slugs (ou noms) → identifiants ; sinon termes existants.
     let term_ids = match args.get("terms").and_then(|v| v.as_array()) {
         Some(wanted) => {
             let all = terms::list_terms(&state.db, None).await?;
-            wanted
-                .iter()
-                .filter_map(|w| w.as_str())
-                .filter_map(|w| {
-                    let slug = rustforge_core::slugify(w);
-                    all.iter().find(|t| t.slug == slug || t.name.eq_ignore_ascii_case(w)).map(|t| t.id)
-                })
-                .collect()
+            let mut selected = Vec::new();
+            for wanted in wanted {
+                let wanted = wanted
+                    .as_str()
+                    .ok_or_else(|| ApiError::BadRequest("Terme invalide".into()))?;
+                let slug = rustforge_core::slugify(wanted);
+                let term = all
+                    .iter()
+                    .find(|t| t.slug == slug || t.name.eq_ignore_ascii_case(wanted))
+                    .ok_or_else(|| ApiError::BadRequest(format!("Terme inconnu : {wanted}")))?;
+                selected.push(term.id);
+            }
+            selected
         }
-        None => existing.as_ref().map(|e| e.terms.iter().map(|t| t.id).collect()).unwrap_or_default(),
+        None => existing
+            .as_ref()
+            .map(|e| e.terms.iter().map(|t| t.id).collect())
+            .unwrap_or_default(),
     };
 
     let e = existing.as_ref();
     let input = EntryInput {
+        expected_updated_at: e.map(|entry| entry.updated_at),
         title,
-        slug: str_arg(args, "slug").map(str::to_string).or_else(|| e.map(|e| e.slug.clone())),
+        slug: str_arg(args, "slug")
+            .map(str::to_string)
+            .or_else(|| e.map(|e| e.slug.clone())),
         excerpt: text("excerpt", e.map(|e| &e.excerpt)),
         body: text("body", e.map(|e| &e.body)),
         blocks: value("blocks", e.map(|e| &e.blocks), json!([])),
@@ -217,13 +378,27 @@ async fn create_or_update_content(state: &AppState, auth: &AuthUser, args: &Valu
 
     let (entry, verb) = match existing {
         Some(current) => (
-            entries::update(&state.db, state.plugins.as_ref(), current.id, auth.user.id, input).await?,
+            entries::update(
+                &state.db,
+                state.plugins.as_ref(),
+                current.id,
+                auth.user.id,
+                input,
+            )
+            .await?,
             "mis à jour",
         ),
         None => {
             let content_type = str_arg(args, "content_type").unwrap_or("post");
             (
-                entries::create(&state.db, state.plugins.as_ref(), content_type, auth.user.id, input).await?,
+                entries::create(
+                    &state.db,
+                    state.plugins.as_ref(),
+                    content_type,
+                    auth.user.id,
+                    input,
+                )
+                .await?,
                 "créé",
             )
         }
@@ -231,7 +406,11 @@ async fn create_or_update_content(state: &AppState, auth: &AuthUser, args: &Valu
 
     Ok(ExecuteToolResponse {
         success: true,
-        message: format!("Contenu « {} » {verb} ({})", entry.title, status_label(entry.status)),
+        message: format!(
+            "Contenu « {} » {verb} ({})",
+            entry.title,
+            status_label(entry.status)
+        ),
         data: Some(json!({
             "id": entry.id, "title": entry.title, "slug": entry.slug,
             "content_type": entry.content_type, "status": entry.status,
@@ -256,9 +435,23 @@ fn audit_entry(entry: &Entry) -> Value {
     let body = &entry.body;
     let words = body.split_whitespace().count();
     let lines: Vec<&str> = body.lines().map(str::trim).collect();
-    let headings: Vec<&str> = lines.iter().copied().filter(|l| l.starts_with('#')).collect();
-    let question_headings = headings.iter().filter(|h| h.trim_end().ends_with('?')).count();
-    let list_items = lines.iter().filter(|l| l.starts_with("- ") || l.starts_with("* ") || l.chars().next().is_some_and(|c| c.is_ascii_digit()) && l.contains(". ")).count();
+    let headings: Vec<&str> = lines
+        .iter()
+        .copied()
+        .filter(|l| l.starts_with('#'))
+        .collect();
+    let question_headings = headings
+        .iter()
+        .filter(|h| h.trim_end().ends_with('?'))
+        .count();
+    let list_items = lines
+        .iter()
+        .filter(|l| {
+            l.starts_with("- ")
+                || l.starts_with("* ")
+                || l.chars().next().is_some_and(|c| c.is_ascii_digit()) && l.contains(". ")
+        })
+        .count();
     let links = body.matches("](").count();
     let title_len = entry.title.chars().count();
     let excerpt_len = entry.excerpt.chars().count();
@@ -266,17 +459,53 @@ fn audit_entry(entry: &Entry) -> Value {
     let mut score: i32 = 0;
     let mut recos: Vec<String> = Vec::new();
     let mut check = |ok: bool, points: i32, reco: &str| {
-        if ok { score += points } else { recos.push(reco.to_string()) }
+        if ok {
+            score += points
+        } else {
+            recos.push(reco.to_string())
+        }
     };
 
-    check((30..=65).contains(&title_len), 15, "Titre : viser 30 à 65 caractères pour l'affichage dans les SERP.");
-    check((70..=160).contains(&excerpt_len), 15, "Extrait / meta description : viser 70 à 160 caractères.");
-    check(words >= 300, 20, "Contenu : au moins 300 mots pour être considéré comme une source substantielle.");
-    check(headings.len() >= 2, 15, "Structure : ajouter des intertitres (##) pour segmenter le contenu.");
-    check(question_headings >= 1, 10, "GEO : formuler au moins un intertitre sous forme de question (les LLM citent les réponses directes).");
-    check(list_items >= 3, 10, "GEO : ajouter une liste à puces de points clés, facilement extractible par les moteurs génératifs.");
-    check(links >= 1, 5, "Maillage : ajouter au moins un lien interne ou une source externe.");
-    check(entry.intent.as_object().is_some_and(|o| !o.is_empty()), 10, "Intention : renseigner l'audience cible et le ton pour guider les futures réécritures IA.");
+    check(
+        (30..=65).contains(&title_len),
+        15,
+        "Titre : viser 30 à 65 caractères pour l'affichage dans les SERP.",
+    );
+    check(
+        (70..=160).contains(&excerpt_len),
+        15,
+        "Extrait / meta description : viser 70 à 160 caractères.",
+    );
+    check(
+        words >= 300,
+        20,
+        "Contenu : au moins 300 mots pour être considéré comme une source substantielle.",
+    );
+    check(
+        headings.len() >= 2,
+        15,
+        "Structure : ajouter des intertitres (##) pour segmenter le contenu.",
+    );
+    check(
+        question_headings >= 1,
+        10,
+        "GEO : formuler au moins un intertitre sous forme de question (les LLM citent les réponses directes).",
+    );
+    check(
+        list_items >= 3,
+        10,
+        "GEO : ajouter une liste à puces de points clés, facilement extractible par les moteurs génératifs.",
+    );
+    check(
+        links >= 1,
+        5,
+        "Maillage : ajouter au moins un lien interne ou une source externe.",
+    );
+    check(
+        entry.intent.as_object().is_some_and(|o| !o.is_empty()),
+        10,
+        "Intention : renseigner l'audience cible et le ton pour guider les futures réécritures IA.",
+    );
 
     json!({
         "entry_id": entry.id,
@@ -376,13 +605,19 @@ pub struct ChatResponse {
 
 async fn system_prompt(state: &AppState, auth: &AuthUser) -> ApiResult<String> {
     let site = settings::all(&state.db).await?;
-    let site_title = site.get("site.title").and_then(|v| v.as_str()).unwrap_or("RustForge");
+    let site_title = site
+        .get("site.title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("RustForge");
     let types = content_types::list(&state.db).await?;
     let types_desc = types
         .iter()
         .map(|t| {
             let fields = serde_json::to_string(&t.fields).unwrap_or_default();
-            format!("- `{}` ({}) champs personnalisés : {}", t.slug, t.name, fields)
+            format!(
+                "- `{}` ({}) champs personnalisés : {}",
+                t.slug, t.name, fields
+            )
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -430,14 +665,27 @@ pub async fn chat(
         req.messages
             .into_iter()
             .filter(|m| matches!(m.role, Role::User | Role::Assistant))
-            .map(|m| ChatMessage { role: m.role, content: m.content, tool_calls: None, tool_name: None }),
+            .map(|m| ChatMessage {
+                role: m.role,
+                content: m.content,
+                tool_calls: None,
+                tool_name: None,
+            }),
     );
 
     let mut actions = Vec::new();
     let mut reply = String::new();
 
     for step in 0..MAX_AGENT_STEPS {
-        let answer = client.chat(&messages, &tools).await?;
+        let answer = match client.chat(&messages, &tools).await {
+            Ok(answer) => answer,
+            Err(err) => {
+                reply = format!(
+                    "Le modèle a interrompu la conversation : {err}. Consultez les actions ci-dessous avant de réessayer."
+                );
+                break;
+            }
+        };
         let calls = answer.tool_calls.clone().unwrap_or_default();
         reply = answer.content.clone();
         messages.push(answer);
@@ -445,18 +693,43 @@ pub async fn chat(
         if calls.is_empty() {
             break;
         }
-        tracing::debug!(step, calls = calls.len(), "appels d'outils demandés par le modèle");
+        tracing::debug!(
+            step,
+            calls = calls.len(),
+            "appels d'outils demandés par le modèle"
+        );
 
         for call in calls {
             let args = call.function.arguments_object();
             let name = call.function.name.clone();
-            let log = match run_tool(&state, &auth, &name, args.clone()).await {
-                Ok(res) => ActionLog { tool: name.clone(), arguments: args, success: res.success, message: res.message, data: res.data },
-                Err(err) => ActionLog { tool: name.clone(), arguments: args, success: false, message: err.to_string(), data: None },
+            let log = match propose_or_read(&state, &auth, &name, args.clone()).await {
+                Ok(res) => ActionLog {
+                    tool: name.clone(),
+                    arguments: args,
+                    success: res.success,
+                    message: res.message,
+                    data: res.data,
+                },
+                Err(err) => ActionLog {
+                    tool: name.clone(),
+                    arguments: args,
+                    success: false,
+                    message: err.to_string(),
+                    data: None,
+                },
             };
-            let feedback = json!({ "success": log.success, "message": log.message, "data": log.data });
+            let feedback =
+                json!({ "success": log.success, "message": log.message, "data": log.data });
             messages.push(ChatMessage::tool_result(name, feedback.to_string()));
             actions.push(log);
+        }
+        if actions.iter().any(|a| {
+            a.data
+                .as_ref()
+                .is_some_and(|d| d["approval_required"] == true)
+        }) {
+            reply="Une proposition est prête. Consultez ses détails et validez-la dans le Studio pour appliquer les changements.".into();
+            break;
         }
 
         if step + 1 == MAX_AGENT_STEPS {
@@ -465,8 +738,17 @@ pub async fn chat(
     }
 
     if reply.trim().is_empty() {
-        reply = if actions.is_empty() { "(aucune réponse du modèle)".into() } else { "Actions exécutées.".into() };
+        reply = if actions.is_empty() {
+            "(aucune réponse du modèle)".into()
+        } else {
+            "Actions exécutées.".into()
+        };
     }
 
-    Ok(Json(ChatResponse { reply, actions, model, duration_ms: started.elapsed().as_millis() }))
+    Ok(Json(ChatResponse {
+        reply,
+        actions,
+        model,
+        duration_ms: started.elapsed().as_millis(),
+    }))
 }

@@ -12,7 +12,7 @@ use crate::{
 };
 use rustforge_core::{
     Page, PageParams,
-    models::User,
+    models::{Role, User, UserSession},
     users::{self, NewUser, UserUpdate},
 };
 
@@ -21,6 +21,12 @@ pub struct UserQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
     pub search: Option<String>,
+    pub role: Option<Role>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct DeleteUserQuery {
+    pub reassign_to: Option<Uuid>,
 }
 
 pub async fn list(
@@ -32,7 +38,7 @@ pub async fn list(
         return Err(ApiError::Forbidden);
     }
     let params = PageParams::new(query.page, query.per_page);
-    let page = users::list(&state.db, params, query.search.as_deref()).await?;
+    let page = users::list(&state.db, params, query.search.as_deref(), query.role).await?;
     Ok(Json(page))
 }
 
@@ -70,10 +76,35 @@ pub async fn delete(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteUserQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     if !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
-    users::delete(&state.db, id).await?;
+    users::delete_with_reassignment(&state.db, id, query.reassign_to).await?;
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<UserSession>>> {
+    if !auth.user.role.is_admin() && auth.user.id != id {
+        return Err(ApiError::Forbidden);
+    }
+    let sessions = users::list_active_sessions(&state.db, id).await?;
+    Ok(Json(sessions))
+}
+
+pub async fn revoke_sessions(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !auth.user.role.is_admin() && auth.user.id != id {
+        return Err(ApiError::Forbidden);
+    }
+    let revoked = users::revoke_all_user_sessions(&state.db, id).await?;
+    Ok(Json(serde_json::json!({ "success": true, "revoked": revoked })))
 }

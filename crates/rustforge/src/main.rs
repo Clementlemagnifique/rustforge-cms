@@ -1,11 +1,11 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use dotenvy::dotenv;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use rustforge_api::{AppState, build_router};
 use rustforge_core::{models::Role, users::NewUser};
 use rustforge_plugins::PluginManager;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+mod initialize;
 
 #[derive(Parser)]
 #[command(name = "rustforge")]
@@ -17,15 +17,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Prépare la configuration et les tables, sans écraser une installation existante.
+    Init {
+        #[arg(long, env = "DATABASE_URL")]
+        database_url: Option<String>,
+    },
     /// Lance le serveur HTTP RustForge CMS (API + Studio + Uploads).
     Serve {
-        #[arg(short, long, env = "PORT", default_value = "8080")]
-        port: u16,
-        #[arg(long, env = "HOST", default_value = "0.0.0.0")]
-        host: String,
+        #[arg(short, long, env = "PORT", value_name = "PORT")]
+        port: Option<u16>,
+        #[arg(long, env = "HOST", value_name = "HOST")]
+        host: Option<String>,
     },
     /// Applique les migrations PostgreSQL.
     Migrate,
+    /// Génère un secret aléatoire local, sans connexion à la base.
+    GenerateSecret,
     /// Crée un compte super-administrateur.
     CreateAdmin {
         #[arg(short, long)]
@@ -84,55 +91,47 @@ enum Commands {
     },
 }
 
-fn load_config_file() {
-    let path = std::path::Path::new("config.toml");
-    if path.exists() {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.starts_with('#') || trimmed.is_empty() || trimmed.starts_with('[') {
-                    continue;
-                }
-                if let Some((k, v)) = trimmed.split_once('=') {
-                    let key = k.trim();
-                    let val = v.trim().trim_matches('"').trim_matches('\'');
-                    match key {
-                        "url" if std::env::var("DATABASE_URL").is_err() => {
-                            unsafe { std::env::set_var("DATABASE_URL", val); }
-                        }
-                        "port" if std::env::var("PORT").is_err() => {
-                            unsafe { std::env::set_var("PORT", val); }
-                        }
-                        "host" if std::env::var("HOST").is_err() => {
-                            unsafe { std::env::set_var("HOST", val); }
-                        }
-                        "jwt_secret" if std::env::var("JWT_SECRET").is_err() => {
-                            unsafe { std::env::set_var("JWT_SECRET", val); }
-                        }
-                        "uploads_dir" if std::env::var("UPLOADS_DIR").is_err() => {
-                            unsafe { std::env::set_var("UPLOADS_DIR", val); }
-                        }
-                        "plugins_dir" if std::env::var("PLUGINS_DIR").is_err() => {
-                            unsafe { std::env::set_var("PLUGINS_DIR", val); }
-                        }
-                        "admin_dist" if std::env::var("ADMIN_DIST").is_err() => {
-                            unsafe { std::env::set_var("ADMIN_DIST", val); }
-                        }
-                        "themes_dir" if std::env::var("THEMES_DIR").is_err() => {
-                            unsafe { std::env::set_var("THEMES_DIR", val); }
-                        }
-                        _ => {}
-                    }
-                }
-            }
+fn load_config_file() -> anyhow::Result<toml::Value> {
+    match std::fs::read_to_string("config.toml") {
+        Ok(content) => Ok(toml::from_str(&content)?),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            Ok(toml::Value::Table(Default::default()))
         }
+        Err(err) => Err(err.into()),
     }
+}
+
+fn configured(config: &toml::Value, key: &str) -> Option<String> {
+    if let Ok(value) = std::env::var(key) {
+        return Some(value);
+    }
+    let path = match key {
+        "DATABASE_URL" => ["database", "url"],
+        "PORT" => ["server", "port"],
+        "HOST" => ["server", "host"],
+        "JWT_SECRET" => ["server", "jwt_secret"],
+        "UPLOADS_DIR" => ["storage", "uploads_dir"],
+        "PLUGINS_DIR" => ["storage", "plugins_dir"],
+        "THEMES_DIR" => ["storage", "themes_dir"],
+        "ADMIN_DIST" => ["storage", "admin_dist"],
+        "ACTIVE_THEME" => ["theme", "active"],
+        "PROTECTED_DOWNLOADS_DIR" => ["storage", "protected_downloads_dir"],
+        "RUSTFORGE_SETUP_TOKEN" => ["server", "setup_token"],
+        _ => return None,
+    };
+    config.get(path[0]).and_then(|v| v.get(path[1])).map(|v| {
+        v.as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| v.to_string())
+    })
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenv().ok();
-    load_config_file();
+    // An extracted installation must never inherit secrets from a parent directory.
+    dotenvy::from_path(".env").ok();
+    let config = load_config_file()?;
+    let setting = |key: &str| configured(&config, key);
 
     tracing_subscriber::registry()
         .with(
@@ -143,18 +142,34 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/trustpress".to_string());
+    let database_url = setting("DATABASE_URL")
+        .unwrap_or_else(|| "postgres://postgres:postgres@localhost:5432/trustpress".to_string());
 
     match cli.command {
+        Commands::Init { database_url } => {
+            let url=database_url.ok_or_else(||anyhow::anyhow!("Fournissez DATABASE_URL ou utilisez le lanceur start pour renseigner votre base PostgreSQL."))?;
+            initialize::initialize(&std::env::current_dir()?, &url).await?;
+        }
+        Commands::GenerateSecret => {
+            println!(
+                "{}{}",
+                uuid::Uuid::new_v4().simple(),
+                uuid::Uuid::new_v4().simple()
+            );
+        }
         Commands::Migrate => {
-            println!("🔄 Connexion à PostgreSQL : {database_url}");
+            println!("🔄 Connexion à PostgreSQL");
             let pool = rustforge_core::connect(&database_url).await?;
             println!("🚀 Application des migrations...");
             rustforge_core::migrate(&pool).await?;
             println!("✅ Base de données à jour !");
         }
-        Commands::CreateAdmin { email, username, password, name } => {
+        Commands::CreateAdmin {
+            email,
+            username,
+            password,
+            name,
+        } => {
             let pool = rustforge_core::connect(&database_url).await?;
             rustforge_core::migrate(&pool).await?;
             println!("👤 Création de l'administrateur « {username} » ({email})...");
@@ -180,42 +195,40 @@ async fn main() -> anyhow::Result<()> {
             let pool = match rustforge_core::connect(&database_url).await {
                 Ok(p) => {
                     if let Err(e) = rustforge_core::migrate(&p).await {
-                        tracing::warn!("Migrations non exécutées ou déjà en cours: {e}");
+                        return Err(e.into());
                     }
                     p
                 }
                 Err(e) => {
-                    tracing::error!("Impossible de joindre la base PostgreSQL ({database_url}): {e}");
+                    tracing::error!("Impossible de joindre PostgreSQL");
                     tracing::warn!("Serveur démarré en attente de la base de données.");
                     return Err(e.into());
                 }
             };
 
-            let plugins_dir = std::env::var("PLUGINS_DIR")
+            let plugins_dir = setting("PLUGINS_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("plugins"));
+                .unwrap_or_else(|| PathBuf::from("plugins"));
 
-            let uploads_dir = std::env::var("UPLOADS_DIR")
+            let uploads_dir = setting("UPLOADS_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("uploads"));
+                .unwrap_or_else(|| PathBuf::from("uploads"));
             tokio::fs::create_dir_all(&uploads_dir).await?;
 
-            let admin_dist = std::env::var("ADMIN_DIST")
+            let admin_dist = setting("ADMIN_DIST")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("admin/dist"));
+                .unwrap_or_else(|| PathBuf::from("admin/dist"));
 
-            let themes_dir = std::env::var("THEMES_DIR")
+            let themes_dir = setting("THEMES_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("themes"));
+                .unwrap_or_else(|| PathBuf::from("themes"));
 
-            let active_theme = std::env::var("ACTIVE_THEME")
-                .unwrap_or_else(|_| "default".to_string());
+            let active_theme = setting("ACTIVE_THEME").unwrap_or_else(|| "default".to_string());
 
-            let jwt_secret = std::env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "rustforge-super-secret-development-key-2026".to_string());
+            let jwt_secret = setting("JWT_SECRET").unwrap_or_else(String::new);
 
             let plugin_manager = PluginManager::new(pool.clone(), plugins_dir).await?;
-            let app_state = AppState::new(
+            let mut app_state = AppState::new(
                 pool.clone(),
                 plugin_manager,
                 jwt_secret,
@@ -225,19 +238,72 @@ async fn main() -> anyhow::Result<()> {
                 active_theme,
             );
 
+            app_state.protected_downloads_dir = setting("PROTECTED_DOWNLOADS_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("protected_downloads"));
+            tokio::fs::create_dir_all(&app_state.protected_downloads_dir).await?;
+            rustforge_core::security::safe_slug(&app_state.active_theme)?;
+            if app_state.jwt_secret.len() < 32
+                || app_state.jwt_secret.contains("changez")
+                || app_state.jwt_secret.contains("super-secret")
+            {
+                anyhow::bail!(
+                    "Configurez JWT_SECRET avec un secret aléatoire unique d'au moins 32 caractères avant de démarrer."
+                );
+            }
+            let has_admin: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE role='admin')")
+                    .fetch_one(&pool)
+                    .await?;
+            if !has_admin {
+                let setup = setting("RUSTFORGE_SETUP_TOKEN").unwrap_or_else(|| {
+                    format!(
+                        "{}{}",
+                        uuid::Uuid::new_v4().simple(),
+                        uuid::Uuid::new_v4().simple()
+                    )
+                });
+                println!("Clé d'installation à saisir dans le Studio : {setup}");
+                app_state.setup_token = Some(setup);
+            }
+            let setup_link_token = app_state.setup_token.clone();
             let router = build_router(app_state);
+            let host = host
+                .or_else(|| setting("HOST"))
+                .unwrap_or_else(|| "127.0.0.1".into());
+            let port = port
+                .or_else(|| setting("PORT").and_then(|p| p.parse().ok()))
+                .unwrap_or(8080);
             let addr: SocketAddr = format!("{host}:{port}").parse()?;
 
             // Démarrage du Planificateur Éditorial Souverain en tâche asynchrone Tokio
             rustforge_core::scheduler::start_scheduler(pool.clone(), 30);
 
             println!("✨ RustForge écoute sur http://{addr}");
+            let browser_host = if addr.ip().is_unspecified() {
+                "127.0.0.1".to_string()
+            } else {
+                addr.ip().to_string()
+            };
+            let admin_url = format!("http://{browser_host}:{port}/admin/");
+            if let Some(token) = setup_link_token {
+                println!("👉 Installer RustForge CMS : {admin_url}#setup={token}");
+            } else {
+                println!("👉 Administration : {admin_url}");
+            }
             println!("👉 API REST : http://{addr}/api/v1");
             println!("👉 Outils IA / MCP : http://{addr}/api/v1/ai/tools");
             println!("🕒 Planificateur Éditorial : actif (vérification auto toutes les 30s)");
 
             let listener = tokio::net::TcpListener::bind(&addr).await?;
-            axum::serve(listener, router).await?;
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(async {
+                let _ = tokio::signal::ctrl_c().await;
+            })
+            .await?;
         }
         Commands::ImportWxr { file } => {
             println!("🚀 Lancement du moteur DataMorph sur l'export : {:?}", file);
@@ -246,10 +312,17 @@ async fn main() -> anyhow::Result<()> {
             }
             let f = std::fs::File::open(&file)?;
             let reader = std::io::BufReader::new(f);
-            let doc = rustforge_core::migration::WxrImporter::parse(reader)?;
+            let doc = if file.extension().is_some_and(|e| e == "json") {
+                serde_json::from_reader(reader)?
+            } else {
+                rustforge_core::migration::WxrImporter::parse(reader)?
+            };
 
             println!("📦 Document TMIR analysé avec succès :");
-            println!("   • Source : {}", doc.source_site_url.as_deref().unwrap_or("Non spécifiée"));
+            println!(
+                "   • Source : {}",
+                doc.source_site_url.as_deref().unwrap_or("Non spécifiée")
+            );
             println!("   • Entrées trouvées : {}", doc.entries.len());
             println!("   • Termes/Taxonomies : {}", doc.terms.len());
             println!("   • Médias référencés : {}", doc.media.len());
@@ -257,31 +330,35 @@ async fn main() -> anyhow::Result<()> {
             println!("💾 Application en base PostgreSQL...");
             let pool = rustforge_core::connect(&database_url).await?;
 
-            let author_id: Option<uuid::Uuid> = sqlx::query_scalar("SELECT id FROM users ORDER BY created_at ASC LIMIT 1")
-                .fetch_optional(&pool)
-                .await?;
+            let author_id: Option<uuid::Uuid> =
+                sqlx::query_scalar("SELECT id FROM users ORDER BY created_at ASC LIMIT 1")
+                    .fetch_optional(&pool)
+                    .await?;
 
             let admin_id = match author_id {
                 Some(id) => id,
-                None => {
-                    let user = rustforge_core::users::create(&pool, rustforge_core::users::NewUser {
-                        email: "admin@rustforge.local".into(),
-                        username: "admin".into(),
-                        password: "DefaultSecurePassword2026!".into(),
-                        display_name: Some("Importateur DataMorph".into()),
-                        role: Role::Admin,
-                    }).await?;
-                    user.id
-                }
+                None => anyhow::bail!(
+                    "Créez explicitement un administrateur avant cet import : rustforge create-admin"
+                ),
             };
 
-            let report = rustforge_core::migration::DataMorphImporter::apply(&pool, &doc, admin_id).await?;
+            let report =
+                rustforge_core::migration::DataMorphImporter::apply(&pool, &doc, admin_id).await?;
             println!("\n✨ Rapport d'importation DataMorph :");
             println!("   ✅ Entrées importées : {}", report.entries_imported);
-            println!("   ⏭️  Entrées ignorées / doublons : {}", report.entries_skipped);
+            println!(
+                "   ⏭️  Entrées ignorées / doublons : {}",
+                report.entries_skipped
+            );
             println!("   🏷️  Termes créés : {}", report.terms_imported);
-            println!("   🖼️  Médias ingérés dans la base : {} (sur {} détectés)", report.media_imported, report.media_detected);
-            println!("   🔒 Champs spécifiques préservés dans le coffre-fort _rf_vault : {}", report.legacy_fields_stored_in_vault);
+            println!(
+                "   🖼️  Médias ingérés dans la base : {} (sur {} détectés)",
+                report.media_imported, report.media_detected
+            );
+            println!(
+                "   🔒 Champs spécifiques préservés dans le coffre-fort _rf_vault : {}",
+                report.legacy_fields_stored_in_vault
+            );
             println!("   ⏱️  Temps d'exécution : {} ms", report.execution_time_ms);
         }
         Commands::ScanWp { target } => {
@@ -305,11 +382,17 @@ async fn main() -> anyhow::Result<()> {
                 println!("🖼️  Fichiers médias détectés : {}", result.media_count);
             }
 
-            println!("\n🧩 EXTENSIONS DÉTECTÉES & ÉQUIVALENCE NATIVE ({} trouvées) :", result.plugins.len());
+            println!(
+                "\n🧩 EXTENSIONS DÉTECTÉES & ÉQUIVALENCE NATIVE ({} trouvées) :",
+                result.plugins.len()
+            );
             for p in &result.plugins {
                 let badge = match p.strategy {
                     rustforge_core::converter::ConversionStrategyKind::NativeReuse => {
-                        format!("✅ Remplacé nativement par RustForge [{}]", p.native_module.as_deref().unwrap_or("natif"))
+                        format!(
+                            "✅ Remplacé nativement par RustForge [{}]",
+                            p.native_module.as_deref().unwrap_or("natif")
+                        )
                     }
                     rustforge_core::converter::ConversionStrategyKind::Declarative => {
                         "🔄 Transmutation déclarative (schéma sans code)".to_string()
@@ -337,14 +420,21 @@ async fn main() -> anyhow::Result<()> {
             }
 
             println!("\n📊 COUVERTURE DES CAPACITÉS NATIVES :");
-            println!("   • Taux de remplacement immédiat : {:.1} %", result.native_coverage_pct);
-            println!("   • Accélération mesurée / projetée : {}", result.estimated_speedup);
+            println!(
+                "   • Correspondances théoriques à vérifier : {:.1} %",
+                result.native_coverage_pct
+            );
+            println!("   • Performances : {}", result.estimated_speedup);
 
             println!("\n⚠️  DIAGNOSTIC CYBERSÉCURITÉ RUNTIME :");
-            println!("   • Vulnérabilité PHP2Shell (CVE-2026-109618 / 19) : {}", result.php2shell_threat_level);
-            println!("   • Immunité RustForge CMS : Garantie mémoire Rust, Zéro PHP en production, Zéro RCE.");
+            println!("   • État de sécurité : {}", result.php2shell_threat_level);
+            println!(
+                "   • Rust et l’absence de PHP ne constituent pas une preuve d’absence de vulnérabilité."
+            );
 
-            println!("\n💡 Pour exécuter l'ingestion de données : lancez `rustforge import-content <export.xml>` ou glissez l'archive dans le Studio /admin.");
+            println!(
+                "\n💡 Pour exécuter l'ingestion de données : lancez `rustforge import-content --file <export.xml>` ou glissez l'archive dans le Studio /admin."
+            );
         }
         Commands::ExportContent { format, output } => {
             println!("🚀 Extraction souveraine des données depuis PostgreSQL...");
@@ -369,7 +459,10 @@ async fn main() -> anyhow::Result<()> {
                     println!("   • Taille : {} octets", content.len());
                 }
                 None => {
-                    println!("\n--- DÉBUT DE L'EXPORT SOUVERAIN (Format: {}) ---", format.to_uppercase());
+                    println!(
+                        "\n--- DÉBUT DE L'EXPORT SOUVERAIN (Format: {}) ---",
+                        format.to_uppercase()
+                    );
                     println!("{}", content);
                     println!("--- FIN DE L'EXPORT SOUVERAIN ---");
                 }
@@ -378,56 +471,106 @@ async fn main() -> anyhow::Result<()> {
         Commands::PackCapsule { output, site_url } => {
             println!("📦 Création de la Capsule RustForge complète...");
             let pool = rustforge_core::connect(&database_url).await?;
-            let uploads_dir = std::env::var("UPLOADS_DIR")
+            let uploads_dir = setting("UPLOADS_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("uploads"));
+                .unwrap_or_else(|| PathBuf::from("uploads"));
 
-            let report = rustforge_core::migration::CapsuleManager::pack(&pool, &uploads_dir, &output, site_url).await?;
+            let storage = rustforge_core::migration::capsule::StoragePaths {
+                uploads: uploads_dir.clone(),
+                themes: setting("THEMES_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("themes")),
+                plugins: setting("PLUGINS_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("plugins")),
+                protected: setting("PROTECTED_DOWNLOADS_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("protected_downloads")),
+            };
+            let report =
+                rustforge_core::migration::CapsuleManager::pack(&pool, &storage, &output, site_url)
+                    .await?;
             println!("\n✨ Capsule créée avec succès !");
             println!("   📁 Fichier : {:?}", report.capsule_path);
             println!("   📦 Entrées sauvegardées : {}", report.entries_packed);
-            println!("   🖼️  Fichiers médias empaquetés : {}", report.media_files_packed);
-            println!("   ⚖️  Taille de l'archive : {:.2} Ko", (report.file_size_bytes as f64) / 1024.0);
+            println!(
+                "   🖼️  Fichiers médias empaquetés : {}",
+                report.media_files_packed
+            );
+            println!(
+                "   ⚖️  Taille de l'archive : {:.2} Ko",
+                (report.file_size_bytes as f64) / 1024.0
+            );
             println!("   ⏱️  Temps d'exécution : {} ms", report.execution_time_ms);
         }
         Commands::UnpackCapsule { file, new_site_url } => {
-            println!("🚀 Décapsulation et restauration du site depuis : {:?}", file);
+            println!(
+                "🚀 Décapsulation et restauration du site depuis : {:?}",
+                file
+            );
             if !file.exists() {
                 anyhow::bail!("Fichier capsule introuvable : {:?}", file);
             }
             let pool = rustforge_core::connect(&database_url).await?;
             rustforge_core::migrate(&pool).await?;
 
-            let uploads_dir = std::env::var("UPLOADS_DIR")
+            let uploads_dir = setting("UPLOADS_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("uploads"));
+                .unwrap_or_else(|| PathBuf::from("uploads"));
 
-            let author_id: Option<uuid::Uuid> = sqlx::query_scalar("SELECT id FROM users ORDER BY created_at ASC LIMIT 1")
-                .fetch_optional(&pool)
-                .await?;
+            let storage = rustforge_core::migration::capsule::StoragePaths {
+                uploads: uploads_dir.clone(),
+                themes: setting("THEMES_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("themes")),
+                plugins: setting("PLUGINS_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("plugins")),
+                protected: setting("PROTECTED_DOWNLOADS_DIR")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("protected_downloads")),
+            };
+            let author_id: Option<uuid::Uuid> =
+                sqlx::query_scalar("SELECT id FROM users ORDER BY created_at ASC LIMIT 1")
+                    .fetch_optional(&pool)
+                    .await?;
 
             let admin_id = match author_id {
                 Some(id) => id,
-                None => {
-                    let user = rustforge_core::users::create(&pool, rustforge_core::users::NewUser {
-                        email: "admin@rustforge.local".into(),
-                        username: "admin".into(),
-                        password: "DefaultSecurePassword2026!".into(),
-                        display_name: Some("Restaurateur de Capsule".into()),
-                        role: Role::Admin,
-                    }).await?;
-                    user.id
-                }
+                None => uuid::Uuid::nil(),
             };
 
             let f = std::fs::File::open(&file)?;
-            let report = rustforge_core::migration::CapsuleManager::unpack(&pool, &uploads_dir, f, new_site_url, admin_id).await?;
+            let report = rustforge_core::migration::CapsuleManager::unpack(
+                &pool,
+                &storage,
+                f,
+                new_site_url,
+                admin_id,
+            )
+            .await?;
 
             println!("\n✨ Restauration de la Capsule achevée avec succès !");
-            println!("   🌐 Site source : {}", report.manifest.source_site_url.as_deref().unwrap_or("Non spécifié"));
-            println!("   ✅ Entrées restaurées : {}", report.import_report.entries_imported);
-            println!("   🏷️  Termes/Taxonomies créés : {}", report.import_report.terms_imported);
-            println!("   🖼️  Fichiers médias extraits : {}", report.media_files_extracted);
+            println!(
+                "   🌐 Site source : {}",
+                report
+                    .manifest
+                    .source_site_url
+                    .as_deref()
+                    .unwrap_or("Non spécifié")
+            );
+            println!(
+                "   ✅ Entrées restaurées : {}",
+                report.import_report.entries_imported
+            );
+            println!(
+                "   🏷️  Termes/Taxonomies créés : {}",
+                report.import_report.terms_imported
+            );
+            println!(
+                "   🖼️  Fichiers médias extraits : {}",
+                report.media_files_extracted
+            );
             println!("   ⏱️  Temps d'exécution : {} ms", report.execution_time_ms);
         }
     }

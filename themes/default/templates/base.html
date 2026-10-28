@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ site_title }}{% endblock %} — {{ site_tagline }}</title>
+    {% if blog_public == false %}
+    <meta name="robots" content="noindex, nofollow">
+    {% endif %}
+    <title>{% block title %}Accueil{% endblock %} — {{ site_title }}</title>
     
     <!-- SEO & GEO Optimization Schema.org JSON-LD -->
     {% if schema_org %}
@@ -23,6 +26,7 @@
             --tp-primary: {{ design_tokens.primary_color | default('#4f46e5') }};
             --tp-accent: {{ design_tokens.accent_color | default('#06b6d4') }};
             --tp-radius: {{ design_tokens.radius | default('12px') }};
+            --tp-container: {{ design_tokens.container_width | default('1100px') }};
             --tp-font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             --tp-font-body: 'Inter', system-ui, -apple-system, sans-serif;
         }
@@ -45,7 +49,12 @@
         a { color: var(--tp-primary); text-decoration: none; transition: color 0.2s; }
         a:hover { color: var(--tp-accent); }
 
-        .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+        .container { max-width: var(--tp-container); margin: 0 auto; padding: 0 1.5rem; }
+        /* Le menu reste entièrement accessible sans JavaScript sur petit écran. */
+        .rf-header-layout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; padding-top: 0.75rem; padding-bottom: 0.75rem; min-height: 70px; box-sizing: border-box; }
+        .rf-site-brand { min-width: 0; overflow-wrap: anywhere; }
+        .rf-site-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; min-width: 0; }
+        .rf-site-navigation a { max-width: 100%; overflow-wrap: anywhere; }
         .glass-nav {
             background: rgba(11, 15, 25, 0.85);
             backdrop-filter: blur(12px);
@@ -64,30 +73,31 @@
             transition: all 0.2s;
         }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+        {% if design_tokens.custom_css %}
+        {{ design_tokens.custom_css }}
+        {% endif %}
     </style>
 </head>
 <body class="antialiased">
     <!-- En-tête Navigation -->
     <header class="glass-nav">
-        <div class="container" style="display: flex; align-items: center; justify-content: space-between; height: 70px;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
+        <div class="container rf-header-layout">
+            <div class="rf-site-brand">
                 <a href="/{{ locale }}" style="font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">TrustPress</span>
+                    <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{ site_title }}</span>
                 </a>
             </div>
 
-            <!-- Sélecteur de langue & Navigation -->
-            <nav style="display: flex; align-items: center; gap: 1.5rem;">
-                <a href="/{{ locale }}">Accueil</a>
-                <a href="/{{ locale }}/articles">Articles</a>
-
-                <!-- Switcher multilingue dynamique -->
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.05); padding: 0.3rem 0.6rem; border-radius: 8px; font-size: 0.85rem;">
-                    <span style="color: #64748b;">Lang:</span>
-                    <a href="/fr" style="font-weight: {{ 'bold' if locale == 'fr' else 'normal' }}; color: {{ 'white' if locale == 'fr' else '#94a3b8' }};">FR</a>
-                    <span style="color: #475569;">|</span>
-                    <a href="/en" style="font-weight: {{ 'bold' if locale == 'en' else 'normal' }}; color: {{ 'white' if locale == 'en' else '#94a3b8' }};">EN</a>
-                </div>
+            <!-- Sélecteur de langue & Navigation (Emplacement header WP-46) -->
+            <nav class="rf-site-navigation" aria-label="Navigation principale">
+                {% if menus and menus.header and menus.header | length > 0 %}
+                    {% for item in menus.header %}
+                    <a href="{{ item.url }}" {% if item.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+                    {% endfor %}
+                {% else %}
+                    <a href="/{{ locale }}">Accueil</a>
+                    <a href="/{{ locale }}#publications">Publications</a>
+                {% endif %}
 
                 <a href="/admin" class="btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Studio Admin</a>
             </nav>
@@ -99,11 +109,18 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Pied de page -->
+    <!-- Pied de page (Emplacement footer WP-46) -->
     <footer style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 5rem; padding: 3rem 0; text-align: center; color: #64748b; font-size: 0.9rem;">
         <div class="container">
-            <p>{{ site_title }} — Propulsé par le moteur haute performance <strong>Rust & Axum</strong></p>
-            <p style="font-size: 0.8rem; margin-top: 0.5rem;">Zéro cookie GDPR · Rendu SSR L1 Moka &lt; 1ms · Tool Calling IA</p>
+            {% if menus and menus.footer and menus.footer | length > 0 %}
+            <nav style="display: flex; justify-content: center; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1rem;">
+                {% for item in menus.footer %}
+                <a href="{{ item.url }}" {% if item.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+                {% endfor %}
+            </nav>
+            {% endif %}
+            <p>{{ site_title }}</p>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem;">Créé avec RustForge CMS · Votre contenu, simplement.</p>
         </div>
     </footer>
 </body>

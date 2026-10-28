@@ -1,0 +1,2621 @@
+[
+  {
+    "id": "rf_dashboard",
+    "parent": null,
+    "label": "Tableau de bord",
+    "route": "dashboard",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author",
+      "subscriber"
+    ],
+    "state": "ready",
+    "design": "dashboard",
+    "features": [],
+    "tasks": [
+      "WP-14"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.dashboard"
+  },
+  {
+    "id": "rf_home",
+    "parent": "rf_dashboard",
+    "label": "Accueil",
+    "route": "dashboard",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author",
+      "subscriber"
+    ],
+    "state": "ready",
+    "design": "dashboard",
+    "features": [
+      "Compteurs",
+      "Raccourcis",
+      "Activité"
+    ],
+    "tasks": [
+      "WP-14"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.home"
+  },
+  {
+    "id": "rf_updates",
+    "parent": "rf_dashboard",
+    "label": "Mises à jour",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author",
+      "subscriber"
+    ],
+    "state": "planned",
+    "design": "diagnostic",
+    "features": [
+      "Versions",
+      "Compatibilité",
+      "Maintenance",
+      "Retour"
+    ],
+    "tasks": [
+      "WP-59"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.updates"
+  },
+  {
+    "id": "rf_posts",
+    "parent": null,
+    "label": "Articles",
+    "route": "entries:post",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "list",
+    "features": [],
+    "tasks": [
+      "WP-15"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.posts"
+  },
+  {
+    "id": "rf_post_list",
+    "parent": "rf_posts",
+    "label": "Tous les articles",
+    "route": "entries:post",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "list",
+    "features": [
+      "Recherche",
+      "Statuts",
+      "Pagination",
+      "Actions"
+    ],
+    "tasks": [
+      "WP-15",
+      "WP-16",
+      "WP-17"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.post_list"
+  },
+  {
+    "id": "rf_post_new",
+    "parent": "rf_posts",
+    "label": "Ajouter un article",
+    "route": "new:post",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "partial",
+    "design": "editor",
+    "features": [
+      "Titre",
+      "Contenu",
+      "Document",
+      "Aperçu",
+      "Publication",
+      "Révisions"
+    ],
+    "tasks": [
+      "WP-23",
+      "WP-24",
+      "WP-28",
+      "WP-32"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.post_new"
+  },
+  {
+    "id": "rf_categories",
+    "parent": "rf_posts",
+    "label": "Catégories",
+    "route": "taxonomy:category",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "partial",
+    "design": "taxonomy",
+    "features": [
+      "Hiérarchie",
+      "Slug",
+      "Réaffectation"
+    ],
+    "tasks": [
+      "WP-19"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.categories"
+  },
+  {
+    "id": "rf_tags",
+    "parent": "rf_posts",
+    "label": "Étiquettes",
+    "route": "taxonomy:tag",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "partial",
+    "design": "taxonomy",
+    "features": [
+      "Recherche",
+      "Slug",
+      "Fusion"
+    ],
+    "tasks": [
+      "WP-19"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.tags"
+  },
+  {
+    "id": "rf_media",
+    "parent": null,
+    "label": "Médias",
+    "route": "media",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "media",
+    "features": [],
+    "tasks": [
+      "WP-37"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.media"
+  },
+  {
+    "id": "rf_library",
+    "parent": "rf_media",
+    "label": "Bibliothèque",
+    "route": "media",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "media",
+    "features": [
+      "Grille",
+      "Recherche",
+      "Upload",
+      "Sélection"
+    ],
+    "tasks": [
+      "WP-37",
+      "WP-38"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/filebird-pro/includes/Controller/FolderController.php",
+    "label_key": "rf.admin.library"
+  },
+  {
+    "id": "rf_folders",
+    "parent": "rf_media",
+    "label": "Dossiers",
+    "route": "media",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "partial",
+    "design": "media",
+    "features": [
+      "Arbre",
+      "Déplacer",
+      "Couleur",
+      "Droits"
+    ],
+    "tasks": [
+      "MOD-MED-01",
+      "MOD-MED-02",
+      "MOD-MED-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/filebird-pro/includes/Controller/FolderController.php",
+    "label_key": "rf.admin.folders"
+  },
+  {
+    "id": "rf_optimize",
+    "parent": "rf_media",
+    "label": "Optimisation",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "planned",
+    "design": "jobs",
+    "features": [
+      "Formats",
+      "Qualité",
+      "Originaux",
+      "Lots",
+      "Diagnostic"
+    ],
+    "tasks": [
+      "MOD-IMG-01",
+      "MOD-IMG-02",
+      "MOD-IMG-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/thedock-media/readme.txt",
+    "label_key": "rf.admin.optimize"
+  },
+  {
+    "id": "rf_pages",
+    "parent": null,
+    "label": "Pages",
+    "route": "entries:page",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "list",
+    "features": [],
+    "tasks": [
+      "WP-20"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.pages"
+  },
+  {
+    "id": "rf_page_list",
+    "parent": "rf_pages",
+    "label": "Toutes les pages",
+    "route": "entries:page",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "ready",
+    "design": "list",
+    "features": [
+      "Recherche",
+      "Statut",
+      "Parent",
+      "Ordre"
+    ],
+    "tasks": [
+      "WP-15",
+      "WP-20"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.page_list"
+  },
+  {
+    "id": "rf_page_new",
+    "parent": "rf_pages",
+    "label": "Ajouter une page",
+    "route": "new:page",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author"
+    ],
+    "state": "partial",
+    "design": "editor",
+    "features": [
+      "Titre",
+      "Contenu",
+      "Modèle",
+      "Parent",
+      "Aperçu",
+      "Publication"
+    ],
+    "tasks": [
+      "WP-23",
+      "WP-32"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.page_new"
+  },
+  {
+    "id": "rf_comments",
+    "parent": null,
+    "label": "Commentaires",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [],
+    "tasks": [
+      "WP-42"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.comments"
+  },
+  {
+    "id": "rf_comment_list",
+    "parent": "rf_comments",
+    "label": "Tous les commentaires",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "moderation",
+    "features": [
+      "Attente",
+      "Approuver",
+      "Répondre",
+      "Spam",
+      "Corbeille"
+    ],
+    "tasks": [
+      "WP-42",
+      "WP-43"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.comment_list"
+  },
+  {
+    "id": "rf_comment_rules",
+    "parent": "rf_comments",
+    "label": "Règles de discussion",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Antispam",
+      "Notifications",
+      "Identité",
+      "Rétention"
+    ],
+    "tasks": [
+      "WP-44",
+      "WP-45"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.comment_rules"
+  },
+  {
+    "id": "rf_appearance",
+    "parent": null,
+    "label": "Apparence",
+    "route": "appearance",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "appearance",
+    "features": [],
+    "tasks": [
+      "WP-47"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.appearance"
+  },
+  {
+    "id": "rf_theme",
+    "parent": "rf_appearance",
+    "label": "Thèmes",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "appearance",
+    "features": [
+      "Activer",
+      "Aperçu",
+      "Retour",
+      "Thème dérivé"
+    ],
+    "tasks": [
+      "WP-47",
+      "TH-03",
+      "TH-05"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.theme"
+  },
+  {
+    "id": "rf_styles",
+    "parent": "rf_appearance",
+    "label": "Styles",
+    "route": "appearance",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "appearance",
+    "features": [
+      "Palette",
+      "Typographie",
+      "Espacement",
+      "Responsive"
+    ],
+    "tasks": [
+      "TH-12",
+      "TH-27",
+      "TH-28",
+      "TH-30"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.styles"
+  },
+  {
+    "id": "rf_site_editor",
+    "parent": "rf_appearance",
+    "label": "Éditeur du site",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "site_editor",
+    "features": [
+      "Templates",
+      "Parties",
+      "Motifs",
+      "Héritage"
+    ],
+    "tasks": [
+      "WP-48",
+      "TH-06",
+      "TH-07"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.site_editor"
+  },
+  {
+    "id": "rf_public_menus",
+    "parent": "rf_appearance",
+    "label": "Menus du site",
+    "route": "menus",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "tree",
+    "features": [
+      "Emplacements",
+      "Liens",
+      "Sous-menus",
+      "Mobile"
+    ],
+    "tasks": [
+      "WP-46",
+      "TH-15",
+      "TH-17"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.public_menus"
+  },
+  {
+    "id": "rf_palette",
+    "parent": "rf_styles",
+    "label": "Couleurs globales",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "appearance",
+    "features": [
+      "Palette",
+      "Contrastes",
+      "États"
+    ],
+    "tasks": [
+      "TH-27"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.palette"
+  },
+  {
+    "id": "rf_fonts",
+    "parent": "rf_styles",
+    "label": "Typographies",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "appearance",
+    "features": [
+      "Polices",
+      "Échelle",
+      "Formats locaux"
+    ],
+    "tasks": [
+      "TH-28",
+      "WP-104"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.fonts"
+  },
+  {
+    "id": "rf_header_footer",
+    "parent": "rf_styles",
+    "label": "En-tête et pied de page",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "site_editor",
+    "features": [
+      "Zones",
+      "Responsive",
+      "Navigation"
+    ],
+    "tasks": [
+      "TH-14",
+      "TH-22"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.header_footer"
+  },
+  {
+    "id": "rf_modules",
+    "parent": null,
+    "label": "Modules",
+    "route": "modules",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "ready",
+    "design": "modules",
+    "features": [],
+    "tasks": [
+      "WP-51"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.modules"
+  },
+  {
+    "id": "rf_native_modules",
+    "parent": "rf_modules",
+    "label": "Modules natifs",
+    "route": "modules",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "ready",
+    "design": "modules",
+    "features": [
+      "Activation",
+      "Désactivation",
+      "État réel",
+      "Données conservées"
+    ],
+    "tasks": [
+      "WP-51"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.native_modules"
+  },
+  {
+    "id": "rf_wasm",
+    "parent": "rf_modules",
+    "label": "Extensions WebAssembly",
+    "route": "plugins",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "list",
+    "features": [
+      "Liste",
+      "Activer",
+      "Désactiver",
+      "Versions"
+    ],
+    "tasks": [
+      "WP-97"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.wasm"
+  },
+  {
+    "id": "rf_module_options",
+    "parent": "rf_modules",
+    "label": "Dépendances et permissions",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Manifeste",
+      "Capacités",
+      "Migration",
+      "Désinstallation"
+    ],
+    "tasks": [
+      "WP-51",
+      "WP-97"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.module_options"
+  },
+  {
+    "id": "rf_users",
+    "parent": null,
+    "label": "Utilisateurs",
+    "route": "users",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author",
+      "subscriber"
+    ],
+    "state": "partial",
+    "design": "list",
+    "features": [],
+    "tasks": [
+      "WP-52"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.users"
+  },
+  {
+    "id": "rf_user_list",
+    "parent": "rf_users",
+    "label": "Tous les utilisateurs",
+    "route": "users",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "list",
+    "features": [
+      "Recherche",
+      "Rôle",
+      "Actions",
+      "Réattribution"
+    ],
+    "tasks": [
+      "WP-52",
+      "WP-54"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.user_list"
+  },
+  {
+    "id": "rf_user_new",
+    "parent": "rf_users",
+    "label": "Ajouter ou inviter",
+    "route": "users:new",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "editor",
+    "features": [
+      "Identité",
+      "Rôle",
+      "Invitation"
+    ],
+    "tasks": [
+      "WP-52"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.user_new"
+  },
+  {
+    "id": "rf_profile",
+    "parent": "rf_users",
+    "label": "Mon profil",
+    "route": "profile",
+    "module": null,
+    "roles": [
+      "admin",
+      "editor",
+      "author",
+      "subscriber"
+    ],
+    "state": "partial",
+    "design": "settings",
+    "features": [
+      "Nom public",
+      "Langue",
+      "Sessions",
+      "Mot de passe"
+    ],
+    "tasks": [
+      "WP-53",
+      "WP-55"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.profile"
+  },
+  {
+    "id": "rf_tools",
+    "parent": null,
+    "label": "Outils",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "ready",
+    "design": "list",
+    "features": [],
+    "tasks": [
+      "WP-56"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.tools"
+  },
+  {
+    "id": "rf_migration",
+    "parent": "rf_tools",
+    "label": "Migration WordPress",
+    "route": "migration",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "wizard",
+    "features": [
+      "Analyse",
+      "Confirmation",
+      "Rapport",
+      "Conservation"
+    ],
+    "tasks": [
+      "WP-61",
+      "WP-62",
+      "WP-63",
+      "WP-64"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.migration"
+  },
+  {
+    "id": "rf_backups",
+    "parent": "rf_tools",
+    "label": "Sauvegardes",
+    "route": "capsules",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "wizard",
+    "features": [
+      "Exporter",
+      "Inspecter",
+      "Restaurer"
+    ],
+    "tasks": [
+      "MOD-MIG-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/all-in-one-wp-migration/readme.txt",
+    "label_key": "rf.admin.backups"
+  },
+  {
+    "id": "rf_health",
+    "parent": "rf_tools",
+    "label": "Santé du site",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "diagnostic",
+    "features": [
+      "DB",
+      "Stockage",
+      "Email",
+      "Jobs",
+      "Cache"
+    ],
+    "tasks": [
+      "WP-56"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.health"
+  },
+  {
+    "id": "rf_content_types",
+    "parent": "rf_tools",
+    "label": "Types de contenu",
+    "route": "content-types",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "schema",
+    "features": [
+      "Types",
+      "Champs",
+      "Validation"
+    ],
+    "tasks": [
+      "WP-97"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.content_types"
+  },
+  {
+    "id": "rf_theme_converter",
+    "parent": "rf_tools",
+    "label": "Conversion de thèmes",
+    "route": "converter",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "wizard",
+    "features": [
+      "Analyse statique",
+      "Mapping",
+      "Aperçu",
+      "Limites"
+    ],
+    "tasks": [
+      "TH-51"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.theme_converter"
+  },
+  {
+    "id": "rf_admin_map",
+    "parent": "rf_tools",
+    "label": "Plan des écrans",
+    "route": "admin-map",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "ready",
+    "design": "catalog",
+    "features": [
+      "Menu N1/N2/N3",
+      "État",
+      "Design",
+      "Fonctions",
+      "Modules"
+    ],
+    "tasks": [
+      "WP-08"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.admin_map"
+  },
+  {
+    "id": "rf_privacy_tools",
+    "parent": "rf_tools",
+    "label": "Données personnelles",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "wizard",
+    "features": [
+      "Export",
+      "Effacement",
+      "Preuves",
+      "Rétention"
+    ],
+    "tasks": [
+      "WP-58"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.privacy_tools"
+  },
+  {
+    "id": "rf_settings",
+    "parent": null,
+    "label": "Réglages",
+    "route": "settings",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "settings",
+    "features": [],
+    "tasks": [
+      "WP-69"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.settings"
+  },
+  {
+    "id": "rf_general",
+    "parent": "rf_settings",
+    "label": "Général",
+    "route": "settings",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "settings",
+    "features": [
+      "Titre",
+      "Slogan",
+      "Identité"
+    ],
+    "tasks": [
+      "WP-69",
+      "WP-70",
+      "WP-71",
+      "WP-74"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.general"
+  },
+  {
+    "id": "rf_writing",
+    "parent": "rf_settings",
+    "label": "Écriture",
+    "route": "settings:writing",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "settings",
+    "features": [
+      "Défauts éditoriaux",
+      "Notifications"
+    ],
+    "tasks": [
+      "WP-75",
+      "WP-76",
+      "WP-77"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.writing"
+  },
+  {
+    "id": "rf_reading",
+    "parent": "rf_settings",
+    "label": "Lecture",
+    "route": "settings:reading",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "settings",
+    "features": [
+      "Accueil",
+      "Pagination",
+      "Flux",
+      "Indexation"
+    ],
+    "tasks": [
+      "WP-78",
+      "WP-79",
+      "WP-80",
+      "WP-81"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.reading"
+  },
+  {
+    "id": "rf_discussion",
+    "parent": "rf_settings",
+    "label": "Discussion",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Conditions",
+      "Réponses",
+      "Modération",
+      "Avatars"
+    ],
+    "tasks": [
+      "WP-82",
+      "WP-83",
+      "WP-84",
+      "WP-85",
+      "WP-86",
+      "WP-87"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.discussion"
+  },
+  {
+    "id": "rf_media_settings",
+    "parent": "rf_settings",
+    "label": "Médias",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Tailles",
+      "Variantes",
+      "Stockage"
+    ],
+    "tasks": [
+      "WP-88",
+      "WP-89"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.media_settings"
+  },
+  {
+    "id": "rf_permalinks",
+    "parent": "rf_settings",
+    "label": "Permaliens",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Structure",
+      "Bases",
+      "Redirections"
+    ],
+    "tasks": [
+      "WP-90",
+      "WP-91"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.permalinks"
+  },
+  {
+    "id": "rf_privacy_settings",
+    "parent": "rf_settings",
+    "label": "Confidentialité",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Page",
+      "Collecte",
+      "Consentement",
+      "Rétention"
+    ],
+    "tasks": [
+      "WP-92",
+      "WP-93"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.privacy_settings"
+  },
+  {
+    "id": "rf_security",
+    "parent": "rf_settings",
+    "label": "Sécurité",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Connexion",
+      "MFA",
+      "Audit",
+      "Fichiers",
+      "API"
+    ],
+    "tasks": [
+      "MOD-SEC-01",
+      "MOD-SEC-02",
+      "MOD-SEC-03",
+      "MOD-SEC-06"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/all-in-one-wp-security-and-firewall/readme.txt",
+    "label_key": "rf.admin.security"
+  },
+  {
+    "id": "rf_connectors",
+    "parent": "rf_settings",
+    "label": "Connecteurs",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Fournisseurs",
+      "Secrets",
+      "Permissions",
+      "Quotas"
+    ],
+    "tasks": [
+      "WP-94"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.connectors"
+  },
+  {
+    "id": "rf_admin_preferences",
+    "parent": "rf_settings",
+    "label": "Interface d’administration",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Ordre",
+      "Visibilité",
+      "Densité",
+      "Contraste",
+      "Raccourcis"
+    ],
+    "tasks": [
+      "WP-10",
+      "WP-13",
+      "MOD-COL-02"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.admin_preferences"
+  },
+  {
+    "id": "rf_nav_settings",
+    "parent": "rf_admin_preferences",
+    "label": "Organisation du menu",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "tree",
+    "features": [
+      "Ordre",
+      "Groupes",
+      "Sous-menus",
+      "Profils",
+      "Réinitialisation"
+    ],
+    "tasks": [
+      "WP-08",
+      "WP-10"
+    ],
+    "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
+    "label_key": "rf.admin.nav_settings"
+  },
+  {
+    "id": "rf_column_settings",
+    "parent": "rf_admin_preferences",
+    "label": "Colonnes et vues",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Choix",
+      "Ordre",
+      "Largeur",
+      "Vue partagée"
+    ],
+    "tasks": [
+      "MOD-COL-02",
+      "MOD-COL-03",
+      "MOD-COL-04"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/codepress-admin-columns/readme.txt",
+    "label_key": "rf.admin.column_settings"
+  },
+  {
+    "id": "rf_lms",
+    "parent": null,
+    "label": "Formation",
+    "route": "module:lms",
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-LMS-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms"
+  },
+  {
+    "id": "rf_lms_courses",
+    "parent": "rf_lms",
+    "label": "Cours",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Recherche",
+      "Statuts",
+      "Créer",
+      "Ordre"
+    ],
+    "tasks": [
+      "MOD-LMS-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_courses"
+  },
+  {
+    "id": "rf_lms_lessons",
+    "parent": "rf_lms",
+    "label": "Modules et leçons",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "editor",
+    "features": [
+      "Ordre",
+      "Prérequis",
+      "Blocs",
+      "Vidéos"
+    ],
+    "tasks": [
+      "MOD-LMS-02",
+      "MOD-LMS-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_lessons"
+  },
+  {
+    "id": "rf_lms_quizzes",
+    "parent": "rf_lms",
+    "label": "Quiz et questions",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "editor",
+    "features": [
+      "Banque",
+      "Types",
+      "Tentatives",
+      "Réponses"
+    ],
+    "tasks": [
+      "MOD-LMS-06",
+      "MOD-LMS-07"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_quizzes"
+  },
+  {
+    "id": "rf_lms_learners",
+    "parent": "rf_lms",
+    "label": "Apprenants",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Inscrire",
+      "Accès",
+      "Progression",
+      "Export"
+    ],
+    "tasks": [
+      "MOD-LMS-04",
+      "MOD-LMS-05",
+      "MOD-LMS-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_learners"
+  },
+  {
+    "id": "rf_lms_grades",
+    "parent": "rf_lms",
+    "label": "Corrections",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "moderation",
+    "features": [
+      "Notation",
+      "Feedback",
+      "Tentatives"
+    ],
+    "tasks": [
+      "MOD-LMS-07"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_grades"
+  },
+  {
+    "id": "rf_lms_reports",
+    "parent": "rf_lms",
+    "label": "Rapports",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "dashboard",
+    "features": [
+      "Progression",
+      "Résultats",
+      "Export"
+    ],
+    "tasks": [
+      "MOD-LMS-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_reports"
+  },
+  {
+    "id": "rf_lms_settings",
+    "parent": "rf_lms",
+    "label": "Réglages formation",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Accès",
+      "Groupes",
+      "Calendrier",
+      "Notifications"
+    ],
+    "tasks": [
+      "MOD-LMS-09",
+      "MOD-LMS-10",
+      "MOD-LMS-12"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/includes/class-sensei-admin.php",
+    "label_key": "rf.admin.lms_settings"
+  },
+  {
+    "id": "rf_lms_access",
+    "parent": "rf_lms_settings",
+    "label": "Accès et inscriptions",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Libre",
+      "Manuel",
+      "Achat",
+      "Expiration"
+    ],
+    "tasks": [
+      "MOD-LMS-04",
+      "MOD-LMS-10"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/readme.txt",
+    "label_key": "rf.admin.lms_access"
+  },
+  {
+    "id": "rf_lms_advanced",
+    "parent": "rf_lms_settings",
+    "label": "Options avancées à qualifier",
+    "route": null,
+    "module": "lms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Cohortes Pro",
+      "Contenu progressif Pro",
+      "Certificats add-on"
+    ],
+    "tasks": [
+      "MOD-LMS-09",
+      "MOD-LMS-10",
+      "MOD-LMS-12"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/sensei-lms/readme.txt",
+    "label_key": "rf.admin.lms_advanced"
+  },
+  {
+    "id": "rf_commerce",
+    "parent": null,
+    "label": "Boutique",
+    "route": "module:ecommerce",
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-COM-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.commerce"
+  },
+  {
+    "id": "rf_products",
+    "parent": "rf_commerce",
+    "label": "Produits numériques",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Prix",
+      "Fichiers",
+      "Versions",
+      "Catégories"
+    ],
+    "tasks": [
+      "MOD-COM-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.products"
+  },
+  {
+    "id": "rf_orders",
+    "parent": "rf_commerce",
+    "label": "Commandes",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "États",
+      "Paiements",
+      "Remboursements"
+    ],
+    "tasks": [
+      "MOD-COM-03",
+      "MOD-COM-04",
+      "MOD-COM-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.orders"
+  },
+  {
+    "id": "rf_customers",
+    "parent": "rf_commerce",
+    "label": "Clients",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Historique",
+      "Accès",
+      "Export"
+    ],
+    "tasks": [
+      "MOD-COM-05",
+      "MOD-COM-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.customers"
+  },
+  {
+    "id": "rf_discounts",
+    "parent": "rf_commerce",
+    "label": "Codes de réduction",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "editor",
+    "features": [
+      "Conditions",
+      "Dates",
+      "Quotas"
+    ],
+    "tasks": [
+      "MOD-COM-06"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.discounts"
+  },
+  {
+    "id": "rf_commerce_reports",
+    "parent": "rf_commerce",
+    "label": "Rapports de vente",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "dashboard",
+    "features": [
+      "Ventes",
+      "Taxes",
+      "Exports"
+    ],
+    "tasks": [
+      "MOD-COM-10"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.commerce_reports"
+  },
+  {
+    "id": "rf_commerce_settings",
+    "parent": "rf_commerce",
+    "label": "Réglages boutique",
+    "route": null,
+    "module": "ecommerce",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Passerelles",
+      "Taxes",
+      "Documents",
+      "Téléchargements"
+    ],
+    "tasks": [
+      "MOD-COM-04",
+      "MOD-COM-07",
+      "MOD-COM-09"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/easy-digital-downloads/readme.txt",
+    "label_key": "rf.admin.commerce_settings"
+  },
+  {
+    "id": "rf_forms",
+    "parent": null,
+    "label": "Formulaires",
+    "route": "module:forms",
+    "module": "forms",
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-FORM-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wpforms-lite/readme.txt",
+    "label_key": "rf.admin.forms"
+  },
+  {
+    "id": "rf_form_list",
+    "parent": "rf_forms",
+    "label": "Tous les formulaires",
+    "route": null,
+    "module": "forms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Créer",
+      "Dupliquer",
+      "Rechercher"
+    ],
+    "tasks": [
+      "MOD-FORM-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wpforms-lite/readme.txt",
+    "label_key": "rf.admin.form_list"
+  },
+  {
+    "id": "rf_submissions",
+    "parent": "rf_forms",
+    "label": "Soumissions",
+    "route": null,
+    "module": "forms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Lire",
+      "Filtrer",
+      "Exporter",
+      "Supprimer"
+    ],
+    "tasks": [
+      "MOD-FORM-06"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wpforms-lite/readme.txt",
+    "label_key": "rf.admin.submissions"
+  },
+  {
+    "id": "rf_form_settings",
+    "parent": "rf_forms",
+    "label": "Réglages formulaires",
+    "route": null,
+    "module": "forms",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Notifications",
+      "Anti-spam",
+      "Intégrations"
+    ],
+    "tasks": [
+      "MOD-FORM-04",
+      "MOD-FORM-05",
+      "MOD-FORM-10"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wpforms-lite/readme.txt",
+    "label_key": "rf.admin.form_settings"
+  },
+  {
+    "id": "rf_galleries",
+    "parent": null,
+    "label": "Galeries",
+    "route": "module:galleries",
+    "module": "galleries",
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "TH-37"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/filebird-pro/includes/Controller/FolderController.php",
+    "label_key": "rf.admin.galleries"
+  },
+  {
+    "id": "rf_gallery_list",
+    "parent": "rf_galleries",
+    "label": "Albums",
+    "route": null,
+    "module": "galleries",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "media",
+    "features": [
+      "Tri",
+      "Sélection",
+      "Légendes",
+      "Insertion"
+    ],
+    "tasks": [
+      "TH-37"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/filebird-pro/includes/Controller/FolderController.php",
+    "label_key": "rf.admin.gallery_list"
+  },
+  {
+    "id": "rf_mail",
+    "parent": null,
+    "label": "Campagnes",
+    "route": null,
+    "module": "mailing",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-MAIL-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/mailpoet/readme.txt",
+    "label_key": "rf.admin.mail"
+  },
+  {
+    "id": "rf_campaigns",
+    "parent": "rf_mail",
+    "label": "Campagnes",
+    "route": null,
+    "module": "mailing",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Modèles",
+      "Éditeur email",
+      "Planifier",
+      "Suspendre"
+    ],
+    "tasks": [
+      "MOD-MAIL-04",
+      "MOD-MAIL-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/mailpoet/readme.txt",
+    "label_key": "rf.admin.campaigns"
+  },
+  {
+    "id": "rf_subscribers",
+    "parent": "rf_mail",
+    "label": "Abonnés et listes",
+    "route": null,
+    "module": "mailing",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Consentement",
+      "Tags",
+      "Segments",
+      "Import"
+    ],
+    "tasks": [
+      "MOD-MAIL-02",
+      "MOD-MAIL-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/mailpoet/readme.txt",
+    "label_key": "rf.admin.subscribers"
+  },
+  {
+    "id": "rf_mail_automation",
+    "parent": "rf_mail",
+    "label": "Automatisations",
+    "route": null,
+    "module": "mailing",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "workflow",
+    "features": [
+      "Déclencheurs",
+      "Conditions",
+      "Délais",
+      "Actions"
+    ],
+    "tasks": [
+      "MOD-MAIL-06"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/mailpoet/readme.txt",
+    "label_key": "rf.admin.mail_automation"
+  },
+  {
+    "id": "rf_mail_settings",
+    "parent": "rf_mail",
+    "label": "Réglages email",
+    "route": null,
+    "module": "mailing",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Transport",
+      "Quotas",
+      "Délivrabilité",
+      "Suivi"
+    ],
+    "tasks": [
+      "MOD-MAIL-07",
+      "MOD-MAIL-09"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/mailpoet/readme.txt",
+    "label_key": "rf.admin.mail_settings"
+  },
+  {
+    "id": "rf_events",
+    "parent": null,
+    "label": "Agenda",
+    "route": null,
+    "module": "events",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-EVT-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/the-events-calendar/readme.txt",
+    "label_key": "rf.admin.events"
+  },
+  {
+    "id": "rf_event_list",
+    "parent": "rf_events",
+    "label": "Événements",
+    "route": null,
+    "module": "events",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Dates",
+      "Fuseaux",
+      "Recherche",
+      "Statuts"
+    ],
+    "tasks": [
+      "MOD-EVT-01",
+      "MOD-EVT-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/the-events-calendar/readme.txt",
+    "label_key": "rf.admin.event_list"
+  },
+  {
+    "id": "rf_event_calendar",
+    "parent": "rf_events",
+    "label": "Calendrier",
+    "route": null,
+    "module": "events",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "calendar",
+    "features": [
+      "Mois",
+      "Jour",
+      "Liste",
+      "Filtres"
+    ],
+    "tasks": [
+      "MOD-EVT-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/the-events-calendar/readme.txt",
+    "label_key": "rf.admin.event_calendar"
+  },
+  {
+    "id": "rf_venues",
+    "parent": "rf_events",
+    "label": "Lieux et organisateurs",
+    "route": null,
+    "module": "events",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Adresses",
+      "Réutilisation",
+      "Cartes"
+    ],
+    "tasks": [
+      "MOD-EVT-04"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/the-events-calendar/readme.txt",
+    "label_key": "rf.admin.venues"
+  },
+  {
+    "id": "rf_event_settings",
+    "parent": "rf_events",
+    "label": "Réglages agenda",
+    "route": null,
+    "module": "events",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Exports",
+      "Récurrence à qualifier",
+      "Intégrations"
+    ],
+    "tasks": [
+      "MOD-EVT-05",
+      "MOD-EVT-07",
+      "MOD-EVT-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/the-events-calendar/readme.txt",
+    "label_key": "rf.admin.event_settings"
+  },
+  {
+    "id": "rf_editorial",
+    "parent": null,
+    "label": "Éditorial",
+    "route": null,
+    "module": "editorial",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-EDIT-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/publishpress/readme.txt",
+    "label_key": "rf.admin.editorial"
+  },
+  {
+    "id": "rf_editorial_calendar",
+    "parent": "rf_editorial",
+    "label": "Calendrier éditorial",
+    "route": null,
+    "module": "editorial",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "calendar",
+    "features": [
+      "Dates",
+      "Auteurs",
+      "Statuts",
+      "Filtres"
+    ],
+    "tasks": [
+      "MOD-EDIT-02",
+      "MOD-EDIT-04"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/publishpress/readme.txt",
+    "label_key": "rf.admin.editorial_calendar"
+  },
+  {
+    "id": "rf_editorial_board",
+    "parent": "rf_editorial",
+    "label": "Tableau éditorial",
+    "route": null,
+    "module": "editorial",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "workflow",
+    "features": [
+      "Transitions",
+      "Validation",
+      "Commentaires"
+    ],
+    "tasks": [
+      "MOD-EDIT-03",
+      "MOD-EDIT-06"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/publishpress/readme.txt",
+    "label_key": "rf.admin.editorial_board"
+  },
+  {
+    "id": "rf_editorial_settings",
+    "parent": "rf_editorial",
+    "label": "Réglages éditoriaux",
+    "route": null,
+    "module": "editorial",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Notifications",
+      "Rappels",
+      "Canaux"
+    ],
+    "tasks": [
+      "MOD-EDIT-05",
+      "MOD-EDIT-07"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/publishpress/readme.txt",
+    "label_key": "rf.admin.editorial_settings"
+  },
+  {
+    "id": "rf_work",
+    "parent": null,
+    "label": "Équipe",
+    "route": null,
+    "module": "work",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-KAN-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/kanbanz/readme.txt",
+    "label_key": "rf.admin.work"
+  },
+  {
+    "id": "rf_boards",
+    "parent": "rf_work",
+    "label": "Tableaux",
+    "route": null,
+    "module": "work",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "workflow",
+    "features": [
+      "Colonnes",
+      "WIP",
+      "Cartes",
+      "Modèles"
+    ],
+    "tasks": [
+      "MOD-KAN-02",
+      "MOD-KAN-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/kanbanz/readme.txt",
+    "label_key": "rf.admin.boards"
+  },
+  {
+    "id": "rf_tasks",
+    "parent": "rf_work",
+    "label": "Tâches",
+    "route": null,
+    "module": "work",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "Assignation",
+      "Priorité",
+      "Échéance",
+      "Fichiers"
+    ],
+    "tasks": [
+      "MOD-KAN-04",
+      "MOD-KAN-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/kanbanz/readme.txt",
+    "label_key": "rf.admin.tasks"
+  },
+  {
+    "id": "rf_team_settings",
+    "parent": "rf_work",
+    "label": "Réglages équipe",
+    "route": null,
+    "module": "work",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Droits",
+      "Mentions",
+      "Notifications",
+      "Export"
+    ],
+    "tasks": [
+      "MOD-KAN-05",
+      "MOD-KAN-06",
+      "MOD-KAN-08"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/kanbanz/readme.txt",
+    "label_key": "rf.admin.team_settings"
+  },
+  {
+    "id": "rf_analytics",
+    "parent": null,
+    "label": "Statistiques",
+    "route": null,
+    "module": "analytics",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-STAT-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wp-statistics/readme.txt",
+    "label_key": "rf.admin.analytics"
+  },
+  {
+    "id": "rf_traffic",
+    "parent": "rf_analytics",
+    "label": "Trafic et contenus",
+    "route": null,
+    "module": "analytics",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "dashboard",
+    "features": [
+      "Visites",
+      "Pages",
+      "Sources",
+      "Filtres"
+    ],
+    "tasks": [
+      "MOD-STAT-02",
+      "MOD-STAT-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wp-statistics/readme.txt",
+    "label_key": "rf.admin.traffic"
+  },
+  {
+    "id": "rf_conversions",
+    "parent": "rf_analytics",
+    "label": "Objectifs et campagnes",
+    "route": null,
+    "module": "analytics",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "dashboard",
+    "features": [
+      "UTM",
+      "Conversions",
+      "Biais"
+    ],
+    "tasks": [
+      "MOD-STAT-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wp-statistics/readme.txt",
+    "label_key": "rf.admin.conversions"
+  },
+  {
+    "id": "rf_analytics_settings",
+    "parent": "rf_analytics",
+    "label": "Réglages de mesure",
+    "route": null,
+    "module": "analytics",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Collecte",
+      "Exclusions",
+      "Rétention",
+      "Exports"
+    ],
+    "tasks": [
+      "MOD-STAT-02",
+      "MOD-STAT-04",
+      "MOD-STAT-07"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wp-statistics/readme.txt",
+    "label_key": "rf.admin.analytics_settings"
+  },
+  {
+    "id": "rf_translations",
+    "parent": null,
+    "label": "Traductions",
+    "route": null,
+    "module": "translations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-I18N-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/loco-translate/readme.txt",
+    "label_key": "rf.admin.translations"
+  },
+  {
+    "id": "rf_catalogs",
+    "parent": "rf_translations",
+    "label": "Catalogues",
+    "route": null,
+    "module": "translations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "translation",
+    "features": [
+      "Chaînes",
+      "Contexte",
+      "Pluriels",
+      "Validation"
+    ],
+    "tasks": [
+      "MOD-I18N-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/loco-translate/readme.txt",
+    "label_key": "rf.admin.catalogs"
+  },
+  {
+    "id": "rf_localization",
+    "parent": "rf_translations",
+    "label": "Importer et synchroniser",
+    "route": null,
+    "module": "translations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "wizard",
+    "features": [
+      "Extraction",
+      "PO",
+      "MO",
+      "JSON",
+      "Sauvegarde"
+    ],
+    "tasks": [
+      "MOD-I18N-03",
+      "MOD-I18N-04",
+      "MOD-I18N-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/loco-translate/readme.txt",
+    "label_key": "rf.admin.localization"
+  },
+  {
+    "id": "rf_language_settings",
+    "parent": "rf_translations",
+    "label": "Réglages des langues",
+    "route": null,
+    "module": "translations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Contenus",
+      "Fallback",
+      "Hreflang",
+      "Traduction IA"
+    ],
+    "tasks": [
+      "MOD-I18N-06",
+      "MOD-I18N-07"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/loco-translate/readme.txt",
+    "label_key": "rf.admin.language_settings"
+  },
+  {
+    "id": "rf_ai",
+    "parent": null,
+    "label": "Assistant IA",
+    "route": "ai-studio",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [],
+    "tasks": [
+      "MOD-AIP-01"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/gpt3-ai-content-generator/readme.txt",
+    "label_key": "rf.admin.ai"
+  },
+  {
+    "id": "rf_ai_assistant",
+    "parent": "rf_ai",
+    "label": "Assistant",
+    "route": "ai-studio",
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "partial",
+    "design": "module",
+    "features": [
+      "Propositions",
+      "Approbation",
+      "Historique"
+    ],
+    "tasks": [
+      "MOD-AIP-03"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/ai-editor/readme.txt",
+    "label_key": "rf.admin.ai_assistant"
+  },
+  {
+    "id": "rf_ai_editor",
+    "parent": "rf_ai",
+    "label": "Aide à l’édition",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "editor",
+    "features": [
+      "Sélection",
+      "Blocs",
+      "Design",
+      "Retour"
+    ],
+    "tasks": [
+      "MOD-AIED-01",
+      "MOD-AIED-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/ai-editor/readme.txt",
+    "label_key": "rf.admin.ai_editor"
+  },
+  {
+    "id": "rf_ai_settings",
+    "parent": "rf_ai",
+    "label": "Fournisseurs et budgets",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Clés",
+      "Modèles",
+      "Quotas",
+      "Permissions"
+    ],
+    "tasks": [
+      "MOD-AIP-02"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/ai-editor/readme.txt",
+    "label_key": "rf.admin.ai_settings"
+  },
+  {
+    "id": "rf_cache",
+    "parent": "rf_tools",
+    "label": "Cache et diffusion",
+    "route": null,
+    "module": null,
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "diagnostic",
+    "features": [
+      "Purge",
+      "TTL",
+      "Préchargement",
+      "CDN",
+      "Mesures"
+    ],
+    "tasks": [
+      "MOD-CACHE-01",
+      "MOD-CACHE-02",
+      "MOD-CACHE-04",
+      "MOD-CACHE-05"
+    ],
+    "source": "wordpress-plugins-ref/plugins-ref/wp-super-cache/readme.txt",
+    "label_key": "rf.admin.cache"
+  },
+  {
+    "id": "rf_automations",
+    "parent": null,
+    "label": "Automatisations",
+    "route": null,
+    "module": "automations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "workflow",
+    "features": [
+      "Recettes partagées;Modules autorisés"
+    ],
+    "tasks": [
+      "MOD-AUTO-01"
+    ],
+    "source": "https://automatorwp.com/",
+    "label_key": "rf.admin.automations"
+  },
+  {
+    "id": "rf_automation_recipes",
+    "parent": "rf_automations",
+    "label": "Toutes les recettes",
+    "route": null,
+    "module": "automations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "list",
+    "features": [
+      "État;Recherche;Version;Dépendances"
+    ],
+    "tasks": [
+      "MOD-AUTO-01"
+    ],
+    "source": "https://automatorwp.com/",
+    "label_key": "rf.admin.automation_recipes"
+  },
+  {
+    "id": "rf_automation_new",
+    "parent": "rf_automations",
+    "label": "Créer une recette",
+    "route": null,
+    "module": "automations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "workflow",
+    "features": [
+      "Déclencheur;Conditions;Actions;Simulation"
+    ],
+    "tasks": [
+      "MOD-AUTO-01"
+    ],
+    "source": "https://automatorwp.com/",
+    "label_key": "rf.admin.automation_new"
+  },
+  {
+    "id": "rf_automation_runs",
+    "parent": "rf_automations",
+    "label": "Exécutions",
+    "route": null,
+    "module": "automations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "jobs",
+    "features": [
+      "Historique;Étapes;Échecs;Reprise"
+    ],
+    "tasks": [
+      "MOD-AUTO-01"
+    ],
+    "source": "https://automatorwp.com/",
+    "label_key": "rf.admin.automation_runs"
+  },
+  {
+    "id": "rf_automation_settings",
+    "parent": "rf_automations",
+    "label": "Réglages automatisations",
+    "route": null,
+    "module": "automations",
+    "roles": [
+      "admin"
+    ],
+    "state": "planned",
+    "design": "settings",
+    "features": [
+      "Droits;Limites;Connecteurs;Secrets"
+    ],
+    "tasks": [
+      "MOD-AUTO-01"
+    ],
+    "source": "https://automatorwp.com/",
+    "label_key": "rf.admin.automation_settings"
+  }
+]

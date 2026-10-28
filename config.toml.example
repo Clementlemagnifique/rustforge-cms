@@ -6,10 +6,11 @@
 # Les variables d'environnement ont priorité sur ce fichier si définies.
 
 [server]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8080
 # Clé secrète de signature des sessions JWT (à modifier impérativement en production)
-jwt_secret = "rustforge-super-secret-production-key-changez-moi-2026"
+# jwt_secret = "" # Obligatoire : secret aléatoire personnel, au moins 32 caractères.
+# setup_token : facultatif ; sinon un jeton temporaire est affiché au premier lancement.
 
 [database]
 # Chaîne de connexion PostgreSQL
@@ -26,6 +27,8 @@ plugins_dir = "plugins"
 themes_dir = "themes"
 # Répertoire de distribution du Studio d'administration web
 admin_dist = "admin/dist"
+# Fichiers payants, hors du dossier public uploads
+protected_downloads_dir = "protected_downloads"
 
 [theme]
 active = "default"

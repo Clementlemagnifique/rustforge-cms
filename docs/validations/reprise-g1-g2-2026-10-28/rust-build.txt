@@ -1,0 +1,11 @@
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_core-21aqs34x0t721\s-hnmvbq2301-1l7pu3c-working`
+
+warning: `rustforge-core` (lib) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_plugins-2tf4v8hcx5gdk\s-hnmvbr3uti-1r8x923-working`
+
+warning: `rustforge-plugins` (lib) generated 1 warning
+   Compiling rustforge v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge-2fmspuk5gdeu3\s-hnmvr0raab-0o0076a-working`
+
+warning: `rustforge` (bin "rustforge") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.79s

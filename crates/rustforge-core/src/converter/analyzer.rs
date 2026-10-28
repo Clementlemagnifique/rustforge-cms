@@ -1,8 +1,8 @@
 //! Analyseur sécurisé d'archives WordPress (ZIP).
 //! Traite les packages sans aucune exécution PHP et génère le manifeste TPM-1.0.
 
-use std::io::{Cursor, Read};
 use chrono::Utc;
+use std::io::{Cursor, Read};
 use zip::ZipArchive;
 
 use super::manifest::{
@@ -13,8 +13,8 @@ use crate::error::CoreError;
 
 /// Limites de sécurité strictes contre les attaques Zip-Bomb et déni de service.
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 250 * 1024 * 1024; // 250 Mo max décompressé
-const MAX_FILES_COUNT: usize = 2_000;                       // 2000 fichiers max
-const MAX_SINGLE_FILE_BYTES: u64 = 50 * 1024 * 1024;        // 50 Mo max par fichier
+const MAX_FILES_COUNT: usize = 2_000; // 2000 fichiers max
+const MAX_SINGLE_FILE_BYTES: u64 = 50 * 1024 * 1024; // 50 Mo max par fichier
 
 pub struct PackageAnalyzer;
 
@@ -26,6 +26,7 @@ impl PackageAnalyzer {
             CoreError::Validation(format!("Archive ZIP invalide ou corrompue: {}", e))
         })?;
 
+        crate::archive::validate(&mut archive)?;
         let file_count = archive.len();
         if file_count > MAX_FILES_COUNT {
             return Err(CoreError::Validation(format!(
@@ -53,7 +54,8 @@ impl PackageAnalyzer {
             // Rejet des chemins malveillants (Directory Traversal)
             if name.contains("..") || name.starts_with('/') || name.starts_with('\\') {
                 return Err(CoreError::Validation(
-                    "Sécurité : Chemin suspect détecté dans l'archive (Directory Traversal)".to_string(),
+                    "Sécurité : Chemin suspect détecté dans l'archive (Directory Traversal)"
+                        .to_string(),
                 ));
             }
 
@@ -68,7 +70,8 @@ impl PackageAnalyzer {
             total_uncompressed += uncompressed_size;
             if total_uncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(CoreError::Validation(
-                    "Sécurité : Dépassement du quota total de décompression (risque Zip-Bomb)".to_string(),
+                    "Sécurité : Dépassement du quota total de décompression (risque Zip-Bomb)"
+                        .to_string(),
                 ));
             }
 
@@ -91,25 +94,27 @@ impl PackageAnalyzer {
             let name_lower = name.to_lowercase();
 
             // Lecture de style.css pour thèmes
-            if (name_lower == "style.css" || name_lower.ends_with("/style.css")) && style_css_content.is_none() {
-                if let Ok(mut file) = archive.by_name(name) {
-                    let mut content = String::new();
-                    if file.read_to_string(&mut content).is_ok() {
-                        style_css_content = Some(content);
-                    }
+            if (name_lower == "style.css" || name_lower.ends_with("/style.css"))
+                && style_css_content.is_none()
+                && let Ok(mut file) = archive.by_name(name)
+            {
+                let content = crate::archive::read_text(&mut file)?;
+                {
+                    style_css_content = Some(content);
                 }
             }
 
             // Candidats PHP principaux (racine ou 1er niveau)
             let depth = name.split('/').filter(|s| !s.is_empty()).count();
-            if name_lower.ends_with(".php") && (depth == 1 || depth == 2) {
-                if let Ok(mut file) = archive.by_name(name) {
-                    // Limiter la lecture aux premiers 32 Ko pour les en-têtes
-                    let mut buffer = vec![0u8; 32768];
-                    if let Ok(n) = file.read(&mut buffer) {
-                        let content = String::from_utf8_lossy(&buffer[..n]).to_string();
-                        main_php_candidates.push((name.clone(), content));
-                    }
+            if name_lower.ends_with(".php")
+                && (depth == 1 || depth == 2)
+                && let Ok(mut file) = archive.by_name(name)
+            {
+                // Limiter la lecture aux premiers 32 Ko pour les en-têtes
+                let mut buffer = vec![0u8; 32768];
+                if let Ok(n) = file.read(&mut buffer) {
+                    let content = String::from_utf8_lossy(&buffer[..n]).to_string();
+                    main_php_candidates.push((name.clone(), content));
                 }
             }
         }
@@ -123,18 +128,18 @@ impl PackageAnalyzer {
         let mut entry_point = None;
 
         // Vérification Thème
-        if let Some(ref css) = style_css_content {
-            if let Some(theme_name) = extract_header(css, "Theme Name:") {
-                name = theme_name;
-                version = extract_header(css, "Version:").unwrap_or_else(|| "1.0.0".to_string());
-                author = extract_header(css, "Author:").unwrap_or_else(|| "Auteur inconnu".to_string());
-                description = extract_header(css, "Description:").unwrap_or_default();
-                
-                if has_theme_json || has_block_templates {
-                    kind = PackageKind::ThemeFse;
-                } else {
-                    kind = PackageKind::ThemeClassic;
-                }
+        if let Some(ref css) = style_css_content
+            && let Some(theme_name) = extract_header(css, "Theme Name:")
+        {
+            name = theme_name;
+            version = extract_header(css, "Version:").unwrap_or_else(|| "1.0.0".to_string());
+            author = extract_header(css, "Author:").unwrap_or_else(|| "Auteur inconnu".to_string());
+            description = extract_header(css, "Description:").unwrap_or_default();
+
+            if has_theme_json || has_block_templates {
+                kind = PackageKind::ThemeFse;
+            } else {
+                kind = PackageKind::ThemeClassic;
             }
         }
 
@@ -143,8 +148,10 @@ impl PackageAnalyzer {
             for (path, content) in &main_php_candidates {
                 if let Some(plugin_name) = extract_header(content, "Plugin Name:") {
                     name = plugin_name;
-                    version = extract_header(content, "Version:").unwrap_or_else(|| "1.0.0".to_string());
-                    author = extract_header(content, "Author:").unwrap_or_else(|| "Auteur inconnu".to_string());
+                    version =
+                        extract_header(content, "Version:").unwrap_or_else(|| "1.0.0".to_string());
+                    author = extract_header(content, "Author:")
+                        .unwrap_or_else(|| "Auteur inconnu".to_string());
                     description = extract_header(content, "Description:").unwrap_or_default();
                     entry_point = Some(path.clone());
                     kind = PackageKind::Plugin;
@@ -175,58 +182,58 @@ impl PackageAnalyzer {
                 let line_num = line_idx + 1;
 
                 // Actions : add_action( '...', ... )
-                if line.contains("add_action") {
-                    if let Some(hook) = extract_function_arg(line, "add_action") {
-                        detected_hook_names.push(hook.clone());
-                        detected_hooks.push(DetectedHook {
-                            hook_type: "action".to_string(),
-                            name: hook,
-                            handler: extract_second_arg(line),
-                            file_path: path.clone(),
-                            line_number: line_num,
-                        });
-                    }
+                if line.contains("add_action")
+                    && let Some(hook) = extract_function_arg(line, "add_action")
+                {
+                    detected_hook_names.push(hook.clone());
+                    detected_hooks.push(DetectedHook {
+                        hook_type: "action".to_string(),
+                        name: hook,
+                        handler: extract_second_arg(line),
+                        file_path: path.clone(),
+                        line_number: line_num,
+                    });
                 }
 
                 // Filtres : add_filter( '...', ... )
-                if line.contains("add_filter") {
-                    if let Some(hook) = extract_function_arg(line, "add_filter") {
-                        detected_hook_names.push(hook.clone());
-                        detected_hooks.push(DetectedHook {
-                            hook_type: "filter".to_string(),
-                            name: hook,
-                            handler: extract_second_arg(line),
-                            file_path: path.clone(),
-                            line_number: line_num,
-                        });
-                    }
+                if line.contains("add_filter")
+                    && let Some(hook) = extract_function_arg(line, "add_filter")
+                {
+                    detected_hook_names.push(hook.clone());
+                    detected_hooks.push(DetectedHook {
+                        hook_type: "filter".to_string(),
+                        name: hook,
+                        handler: extract_second_arg(line),
+                        file_path: path.clone(),
+                        line_number: line_num,
+                    });
                 }
 
                 // Shortcodes : add_shortcode( '...', ... )
-                if line.contains("add_shortcode") {
-                    if let Some(sc) = extract_function_arg(line, "add_shortcode") {
-                        detected_shortcodes.push(sc.clone());
-                        detected_hooks.push(DetectedHook {
-                            hook_type: "shortcode".to_string(),
-                            name: sc,
-                            handler: extract_second_arg(line),
-                            file_path: path.clone(),
-                            line_number: line_num,
-                        });
-                    }
+                if line.contains("add_shortcode")
+                    && let Some(sc) = extract_function_arg(line, "add_shortcode")
+                {
+                    detected_shortcodes.push(sc.clone());
+                    detected_hooks.push(DetectedHook {
+                        hook_type: "shortcode".to_string(),
+                        name: sc,
+                        handler: extract_second_arg(line),
+                        file_path: path.clone(),
+                        line_number: line_num,
+                    });
                 }
 
                 // Post Types : register_post_type( '...', ... )
-                if line.contains("register_post_type") {
-                    if let Some(cpt) = extract_function_arg(line, "register_post_type") {
-                        detected_hooks.push(DetectedHook {
-                            hook_type: "post_type".to_string(),
-                            name: cpt,
-                            handler: None,
-                            file_path: path.clone(),
-                            line_number: line_num,
-                        });
-                    }
+                if line.contains("register_post_type")
+                    && let Some(cpt) = extract_function_arg(line, "register_post_type")
+                {
+                    detected_hooks.push(DetectedHook {
+                        hook_type: "post_type".to_string(),
+                        name: cpt,
+                        handler: None,
+                        file_path: path.clone(),
+                        line_number: line_num,
+                    });
                 }
             }
         }
@@ -245,11 +252,17 @@ impl PackageAnalyzer {
         if let Some(ref m) = target_module {
             activation_plan.enable_modules.push(m.clone());
             if m == "forms" {
-                activation_plan.register_blocks.push("form_embed".to_string());
+                activation_plan
+                    .register_blocks
+                    .push("form_embed".to_string());
             } else if m == "ecommerce" {
-                activation_plan.register_blocks.push("product_card".to_string());
+                activation_plan
+                    .register_blocks
+                    .push("product_card".to_string());
             } else if m == "lms" {
-                activation_plan.register_blocks.push("course_card".to_string());
+                activation_plan
+                    .register_blocks
+                    .push("course_card".to_string());
             }
         }
         if kind == PackageKind::ThemeFse {

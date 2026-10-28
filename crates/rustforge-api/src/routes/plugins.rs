@@ -10,10 +10,7 @@ use crate::{
 };
 use rustforge_plugins::PluginInfo;
 
-pub async fn list(
-    State(state): State<AppState>,
-    _auth: AuthUser,
-) -> Json<Vec<PluginInfo>> {
+pub async fn list(State(state): State<AppState>, _auth: AuthUser) -> Json<Vec<PluginInfo>> {
     Json(state.plugins.list())
 }
 
@@ -24,7 +21,7 @@ pub async fn rescan(
     if !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
-    let list = state.plugins.rescan().await.map_err(|e| ApiError::Internal(e))?;
+    let list = state.plugins.rescan().await.map_err(ApiError::Internal)?;
     Ok(Json(list))
 }
 
@@ -36,7 +33,11 @@ pub async fn enable(
     if !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
-    let info = state.plugins.enable(&id).await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let info = state
+        .plugins
+        .enable(&id)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     match info {
         Some(plugin) => Ok(Json(serde_json::to_value(plugin).unwrap())),
         None => Err(ApiError::NotFound),
@@ -51,7 +52,11 @@ pub async fn disable(
     if !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
-    let info = state.plugins.disable(&id).await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let info = state
+        .plugins
+        .disable(&id)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     match info {
         Some(plugin) => Ok(Json(serde_json::to_value(plugin).unwrap())),
         None => Err(ApiError::NotFound),

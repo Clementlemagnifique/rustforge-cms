@@ -7,9 +7,9 @@
 //! - Mappage en temps réel avec le `CapabilityRegistry` natif de RustForge
 //! - Évaluation de la couverture native et de l'exposition critique à la crise PHP2Shell.
 
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 
 use super::manifest::ConversionStrategyKind;
 use super::registry::CapabilityRegistry;
@@ -108,10 +108,10 @@ impl WordPressScanner {
                 None
             };
 
-            if let Some(cfg) = config_to_read {
-                if let Ok(content) = fs::read_to_string(cfg) {
-                    db_prefix = Self::extract_php_variable(&content, "$table_prefix");
-                }
+            if let Some(cfg) = config_to_read
+                && let Ok(content) = fs::read_to_string(cfg)
+            {
+                db_prefix = Self::extract_php_variable(&content, "$table_prefix");
             }
 
             // Plugins WordPress
@@ -131,10 +131,18 @@ impl WordPressScanner {
             if uploads_dir.is_dir() {
                 media_count = Self::count_files_recursive(&uploads_dir);
             }
-        } else if dir.file_name().map(|n| n == "plugins" || n == "plugins-ref").unwrap_or(false) {
+        } else if dir
+            .file_name()
+            .map(|n| n == "plugins" || n == "plugins-ref")
+            .unwrap_or(false)
+        {
             target_type = "plugins_directory".to_string();
             plugins = Self::scan_plugins_directory(dir);
-        } else if dir.file_name().map(|n| n == "themes" || n == "theme-ref").unwrap_or(false) {
+        } else if dir
+            .file_name()
+            .map(|n| n == "themes" || n == "theme-ref")
+            .unwrap_or(false)
+        {
             target_type = "themes_directory".to_string();
             themes = Self::scan_themes_directory(dir);
         } else {
@@ -156,12 +164,12 @@ impl WordPressScanner {
             .filter(|p| p.strategy == ConversionStrategyKind::NativeReuse)
             .count();
         let native_coverage_pct = if plugins.is_empty() {
-            100.0
+            0.0
         } else {
             (native_count as f64 / plugins.len() as f64) * 100.0
         };
 
-        let active_theme = themes.first().map(|t| t.name.clone());
+        let active_theme = None; // A directory listing cannot identify the active theme.
 
         Ok(WpScanResult {
             target: dir.to_string_lossy().to_string(),
@@ -173,15 +181,19 @@ impl WordPressScanner {
             themes,
             media_count,
             native_coverage_pct,
-            php2shell_threat_level: "CRITIQUE (CVE-2026-109618 / 19 — RCE Zend Engine non patché)".to_string(),
-            estimated_speedup: "x2 400 plus rapide (< 0.5 ms Rendu MiniJinja + Moka L1)",
+            php2shell_threat_level:
+                "Non évalué : cet inventaire ne prouve ni vulnérabilité ni absence de vulnérabilité"
+                    .to_string(),
+            estimated_speedup: "Non mesuré : benchmark avant/après requis",
         })
     }
 
     /// Scanne un dossier contenant plusieurs plugins.
     pub fn scan_plugins_directory(plugins_dir: &Path) -> Vec<PluginScanItem> {
         let mut list = Vec::new();
-        let Ok(entries) = fs::read_dir(plugins_dir) else { return list };
+        let Ok(entries) = fs::read_dir(plugins_dir) else {
+            return list;
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -190,11 +202,15 @@ impl WordPressScanner {
                     list.push(item);
                 }
             } else if path.extension().map(|e| e == "php").unwrap_or(false) {
-                let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                if file_name != "index.php" {
-                    if let Some(item) = Self::scan_single_plugin_file(&path) {
-                        list.push(item);
-                    }
+                let file_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                if file_name != "index.php"
+                    && let Some(item) = Self::scan_single_plugin_file(&path)
+                {
+                    list.push(item);
                 }
             }
         }
@@ -206,7 +222,9 @@ impl WordPressScanner {
     /// Scanne un plugin individuel dans son propre dossier.
     fn scan_single_plugin_dir(dir: &Path) -> Option<PluginScanItem> {
         let slug = dir.file_name()?.to_string_lossy().to_string();
-        let Ok(files) = fs::read_dir(dir) else { return None };
+        let Ok(files) = fs::read_dir(dir) else {
+            return None;
+        };
 
         let mut php_files = Vec::new();
         for file in files.flatten() {
@@ -218,10 +236,10 @@ impl WordPressScanner {
 
         // Tenter d'abord slug.php
         let exact_candidate = dir.join(format!("{}.php", slug));
-        if exact_candidate.exists() {
-            if let Some(item) = Self::parse_plugin_header_file(&exact_candidate, &slug) {
-                return Some(item);
-            }
+        if exact_candidate.exists()
+            && let Some(item) = Self::parse_plugin_header_file(&exact_candidate, &slug)
+        {
+            return Some(item);
         }
 
         // Tenter les autres fichiers PHP du répertoire
@@ -252,12 +270,19 @@ impl WordPressScanner {
 
     /// Analyse l'en-tête standard WordPress d'un fichier PHP.
     fn parse_plugin_header_file(file: &Path, slug: &str) -> Option<PluginScanItem> {
-        let Ok(bytes) = fs::read(file) else { return None };
-        let slice = if bytes.len() > 8192 { &bytes[..8192] } else { &bytes };
+        let Ok(bytes) = fs::read(file) else {
+            return None;
+        };
+        let slice = if bytes.len() > 8192 {
+            &bytes[..8192]
+        } else {
+            &bytes
+        };
         let content = String::from_utf8_lossy(slice);
 
         let name = Self::extract_header(&content, "Plugin Name")?;
-        let version = Self::extract_header(&content, "Version").unwrap_or_else(|| "1.0.0".to_string());
+        let version =
+            Self::extract_header(&content, "Version").unwrap_or_else(|| "1.0.0".to_string());
         let description = Self::extract_header(&content, "Description").unwrap_or_default();
 
         let (native_module, strategy, capabilities) = Self::match_capabilities(slug, &name);
@@ -276,14 +301,16 @@ impl WordPressScanner {
     /// Scanne un dossier de thèmes WordPress.
     pub fn scan_themes_directory(themes_dir: &Path) -> Vec<ThemeScanItem> {
         let mut list = Vec::new();
-        let Ok(entries) = fs::read_dir(themes_dir) else { return list };
+        let Ok(entries) = fs::read_dir(themes_dir) else {
+            return list;
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() {
-                if let Some(item) = Self::scan_single_theme_dir(&path) {
-                    list.push(item);
-                }
+            if path.is_dir()
+                && let Some(item) = Self::scan_single_theme_dir(&path)
+            {
+                list.push(item);
             }
         }
 
@@ -301,7 +328,8 @@ impl WordPressScanner {
         let (name, version) = if style_css.exists() {
             let content = fs::read_to_string(&style_css).unwrap_or_default();
             let n = Self::extract_header(&content, "Theme Name").unwrap_or_else(|| slug.clone());
-            let v = Self::extract_header(&content, "Version").unwrap_or_else(|| "1.0.0".to_string());
+            let v =
+                Self::extract_header(&content, "Version").unwrap_or_else(|| "1.0.0".to_string());
             (n, v)
         } else {
             (slug.clone(), "1.0.0".to_string())
@@ -317,7 +345,10 @@ impl WordPressScanner {
     }
 
     /// Mappe un plugin contre le `CapabilityRegistry` pour déterminer le remplacement natif RustForge.
-    fn match_capabilities(slug: &str, name: &str) -> (Option<String>, ConversionStrategyKind, Vec<String>) {
+    fn match_capabilities(
+        slug: &str,
+        name: &str,
+    ) -> (Option<String>, ConversionStrategyKind, Vec<String>) {
         let slug_lower = slug.to_lowercase();
         let name_lower = name.to_lowercase();
 
@@ -326,9 +357,10 @@ impl WordPressScanner {
         let mut native_module = None;
 
         for cap in all_caps {
-            let matches_plugin = cap.matching_plugins.iter().any(|&p| {
-                slug_lower.contains(p) || name_lower.contains(p)
-            });
+            let matches_plugin = cap
+                .matching_plugins
+                .iter()
+                .any(|&p| slug_lower.contains(p) || name_lower.contains(p));
 
             if matches_plugin {
                 matched_caps.push(cap.id.to_string());
@@ -343,13 +375,22 @@ impl WordPressScanner {
             if slug_lower.contains("form") || name_lower.contains("form") {
                 native_module = Some("forms".to_string());
                 matched_caps.push("forms.builder_and_submission".to_string());
-            } else if slug_lower.contains("shop") || slug_lower.contains("commerce") || slug_lower.contains("download") {
+            } else if slug_lower.contains("shop")
+                || slug_lower.contains("commerce")
+                || slug_lower.contains("download")
+            {
                 native_module = Some("ecommerce".to_string());
                 matched_caps.push("commerce.digital_downloads".to_string());
-            } else if slug_lower.contains("lms") || slug_lower.contains("course") || slug_lower.contains("learn") {
+            } else if slug_lower.contains("lms")
+                || slug_lower.contains("course")
+                || slug_lower.contains("learn")
+            {
                 native_module = Some("lms".to_string());
                 matched_caps.push("lms.courses_and_lessons".to_string());
-            } else if slug_lower.contains("media") || slug_lower.contains("image") || slug_lower.contains("smush") {
+            } else if slug_lower.contains("media")
+                || slug_lower.contains("image")
+                || slug_lower.contains("smush")
+            {
                 native_module = Some("media".to_string());
                 matched_caps.push("media.folders_and_webp".to_string());
             } else if slug_lower.contains("seo") || slug_lower.contains("sitemap") {
@@ -364,7 +405,10 @@ impl WordPressScanner {
             } else if slug_lower.contains("translate") || slug_lower.contains("lang") {
                 native_module = Some("i18n".to_string());
                 matched_caps.push("i18n.multilingual".to_string());
-            } else if slug_lower.contains("publishpress") || slug_lower.contains("editorial") || slug_lower.contains("schedule") {
+            } else if slug_lower.contains("publishpress")
+                || slug_lower.contains("editorial")
+                || slug_lower.contains("schedule")
+            {
                 native_module = Some("scheduler".to_string());
                 matched_caps.push("editorial.scheduler".to_string());
             } else if slug_lower.contains("mail") || slug_lower.contains("newsletter") {
@@ -407,7 +451,8 @@ impl WordPressScanner {
                 });
             }
             super::manifest::PackageKind::Plugin => {
-                let (native_mod, strategy, caps) = Self::match_capabilities(&manifest.package.slug, &manifest.package.name);
+                let (native_mod, strategy, caps) =
+                    Self::match_capabilities(&manifest.package.slug, &manifest.package.name);
                 plugins.push(PluginScanItem {
                     slug: manifest.package.slug.clone(),
                     name: manifest.package.name.clone(),
@@ -425,20 +470,26 @@ impl WordPressScanner {
             .iter()
             .filter(|p| p.strategy == ConversionStrategyKind::NativeReuse)
             .count();
-        let native_coverage_pct = if plugins.is_empty() { 100.0 } else { (native_count as f64 / plugins.len() as f64) * 100.0 };
+        let native_coverage_pct = if plugins.is_empty() {
+            0.0
+        } else {
+            (native_count as f64 / plugins.len() as f64) * 100.0
+        };
 
         Ok(WpScanResult {
             target: zip_path.to_string_lossy().to_string(),
             target_type: "zip_archive".to_string(),
             wp_version: None,
             db_prefix: None,
-            active_theme: themes.first().map(|t| t.name.clone()),
+            active_theme: None,
             plugins,
             themes,
             media_count: 0,
             native_coverage_pct,
-            php2shell_threat_level: "SÉCURISÉ (Analysé en mémoire vive sans aucune exécution PHP)".to_string(),
-            estimated_speedup: "x2 400 plus rapide (MiniJinja 3 natif)",
+            php2shell_threat_level:
+                "Non évalué : cet inventaire ne prouve ni vulnérabilité ni absence de vulnérabilité"
+                    .to_string(),
+            estimated_speedup: "Non mesuré : benchmark avant/après requis",
         })
     }
 
@@ -451,10 +502,15 @@ impl WordPressScanner {
 
         let res = client
             .get(url)
-            .header("User-Agent", "RustForge-Scanner/2027 (+https://rustforge.dev)")
+            .header(
+                "User-Agent",
+                "RustForge-Scanner/2027 (+https://rustforge.dev)",
+            )
             .send()
             .await
-            .map_err(|e| CoreError::Validation(format!("Échec de connexion vers {} : {}", url, e)))?;
+            .map_err(|e| {
+                CoreError::Validation(format!("Échec de connexion vers {} : {}", url, e))
+            })?;
 
         let text = res.text().await.unwrap_or_default();
 
@@ -478,17 +534,20 @@ impl WordPressScanner {
         for line in text.split(&['"', '\''][..]) {
             if let Some(pos) = line.find("/wp-content/plugins/") {
                 let rest = &line[pos + "/wp-content/plugins/".len()..];
-                if let Some(slug) = rest.split('/').next() {
-                    if !slug.is_empty() && !slug.contains('?') {
-                        plugins_found.insert(slug.to_string());
-                    }
+                if let Some(slug) = rest.split('/').next()
+                    && !slug.is_empty()
+                    && !slug.contains('?')
+                {
+                    plugins_found.insert(slug.to_string());
                 }
             } else if let Some(pos) = line.find("/wp-content/themes/") {
                 let rest = &line[pos + "/wp-content/themes/".len()..];
-                if let Some(slug) = rest.split('/').next() {
-                    if !slug.is_empty() && !slug.contains('?') && theme_found.is_none() {
-                        theme_found = Some(slug.to_string());
-                    }
+                if let Some(slug) = rest.split('/').next()
+                    && !slug.is_empty()
+                    && !slug.contains('?')
+                    && theme_found.is_none()
+                {
+                    theme_found = Some(slug.to_string());
                 }
             }
         }
@@ -522,20 +581,26 @@ impl WordPressScanner {
             .iter()
             .filter(|p| p.strategy == ConversionStrategyKind::NativeReuse)
             .count();
-        let native_coverage_pct = if plugins.is_empty() { 100.0 } else { (native_count as f64 / plugins.len() as f64) * 100.0 };
+        let native_coverage_pct = if plugins.is_empty() {
+            0.0
+        } else {
+            (native_count as f64 / plugins.len() as f64) * 100.0
+        };
 
         Ok(WpScanResult {
             target: url.to_string(),
             target_type: "remote_url".to_string(),
             wp_version,
             db_prefix: None,
-            active_theme: themes.first().map(|t| t.name.clone()),
+            active_theme: None,
             plugins,
             themes,
             media_count: 0,
             native_coverage_pct,
-            php2shell_threat_level: "EXPOSITION EN LIGNE (CVE-2026-109618 / 19 — Risque RCE Zend)".to_string(),
-            estimated_speedup: "x2 400 plus rapide (< 0.5 ms Rendu MiniJinja + Moka L1)",
+            php2shell_threat_level:
+                "Non évalué : cet inventaire ne prouve ni vulnérabilité ni absence de vulnérabilité"
+                    .to_string(),
+            estimated_speedup: "Non mesuré : benchmark avant/après requis",
         })
     }
 
@@ -543,13 +608,13 @@ impl WordPressScanner {
     fn extract_php_variable(content: &str, var_name: &str) -> Option<String> {
         for line in content.lines() {
             let trimmed = line.trim();
-            if trimmed.starts_with(var_name) {
-                if let Some(eq_pos) = trimmed.find('=') {
-                    let val_part = trimmed[eq_pos + 1..].trim().trim_end_matches(';');
-                    let clean = val_part.trim_matches(|c| c == '\'' || c == '"' || c == ' ');
-                    if !clean.is_empty() {
-                        return Some(clean.to_string());
-                    }
+            if trimmed.starts_with(var_name)
+                && let Some(eq_pos) = trimmed.find('=')
+            {
+                let val_part = trimmed[eq_pos + 1..].trim().trim_end_matches(';');
+                let clean = val_part.trim_matches(|c| c == '\'' || c == '"' || c == ' ');
+                if !clean.is_empty() {
+                    return Some(clean.to_string());
                 }
             }
         }
@@ -559,7 +624,7 @@ impl WordPressScanner {
     /// Extrait une valeur d'en-tête PHP (ex: `Plugin Name: ...`).
     fn extract_header(content: &str, header_name: &str) -> Option<String> {
         for line in content.lines() {
-            let trimmed = line.trim_start_matches(|c| c == '*' || c == '/' || c == '#' || c == ' ');
+            let trimmed = line.trim_start_matches(['*', '/', '#', ' ']);
             if let Some(colon_pos) = trimmed.find(':') {
                 let key = trimmed[..colon_pos].trim();
                 if key.eq_ignore_ascii_case(header_name) {
@@ -576,7 +641,9 @@ impl WordPressScanner {
     /// Compte les fichiers de manière récursive.
     fn count_files_recursive(dir: &Path) -> usize {
         let mut count = 0;
-        let Ok(entries) = fs::read_dir(dir) else { return 0 };
+        let Ok(entries) = fs::read_dir(dir) else {
+            return 0;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -596,16 +663,31 @@ mod tests {
     #[test]
     fn test_extract_php_variable() {
         let php = "<?php\n$wp_version = '7.1.3';\n$table_prefix = 'wp_';\n";
-        assert_eq!(WordPressScanner::extract_php_variable(php, "$wp_version"), Some("7.1.3".to_string()));
-        assert_eq!(WordPressScanner::extract_php_variable(php, "$table_prefix"), Some("wp_".to_string()));
+        assert_eq!(
+            WordPressScanner::extract_php_variable(php, "$wp_version"),
+            Some("7.1.3".to_string())
+        );
+        assert_eq!(
+            WordPressScanner::extract_php_variable(php, "$table_prefix"),
+            Some("wp_".to_string())
+        );
     }
 
     #[test]
     fn test_extract_header() {
         let header = "/*\nPlugin Name: WPForms Lite\nVersion: 2.0.3\nDescription: Form builder\n*/";
-        assert_eq!(WordPressScanner::extract_header(header, "Plugin Name"), Some("WPForms Lite".to_string()));
-        assert_eq!(WordPressScanner::extract_header(header, "Version"), Some("2.0.3".to_string()));
-        assert_eq!(WordPressScanner::extract_header(header, "Description"), Some("Form builder".to_string()));
+        assert_eq!(
+            WordPressScanner::extract_header(header, "Plugin Name"),
+            Some("WPForms Lite".to_string())
+        );
+        assert_eq!(
+            WordPressScanner::extract_header(header, "Version"),
+            Some("2.0.3".to_string())
+        );
+        assert_eq!(
+            WordPressScanner::extract_header(header, "Description"),
+            Some("Form builder".to_string())
+        );
     }
 
     #[tokio::test]
@@ -619,7 +701,9 @@ mod tests {
         )
         .await;
 
-        let res = WordPressScanner::scan(temp_dir.to_str().unwrap()).await.unwrap();
+        let res = WordPressScanner::scan(temp_dir.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(res.wp_version, Some("7.1.3".to_string()));
         assert_eq!(res.target_type, "wordpress_root");
 

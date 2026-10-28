@@ -1,28 +1,22 @@
-//! Système d'Encapsulation Universelle RustForge (Capsule Engine).
-//! Inspiré par la simplicité de l'outil All-in-One WP Migration :
-//! Permet d'encapsuler et de décapsuler un site RustForge complet dans un fichier unique `.rfcapsule` (archive ZIP compressée).
-//! 
-//! Contenu d'une capsule :
-//! - `capsule.json` : Métadonnées du site, version, date, URL d'origine
-//! - `database.rfir.json` : Exportation intégrale de la base de données au format pivot RFIR
-//! - `uploads/` : Fichiers physiques de la médiathèque (images WebP, SVG, documents)
-
+//! Version 2 native snapshots with bounded files, checksums and empty-target restoration.
+use super::{
+    RFIRImportReport,
+    native_backup::{self, NativeSnapshot},
+};
+use crate::{CoreError, CoreResult, archive, security};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
-use std::fs::File;
-use std::io::{Read, Seek, Write};
-use std::path::Path;
+use std::{
+    collections::BTreeMap,
+    fs::{self, OpenOptions},
+    io::{Read, Seek, Write},
+    path::{Path, PathBuf},
+};
 use uuid::Uuid;
-use zip::write::SimpleFileOptions;
-use zip::{ZipArchive, ZipWriter};
+use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
-use crate::CoreError;
-use super::exporter::DataMorphExporter;
-use super::importer::DataMorphImporter;
-use super::tmir::{RFIRDocument, RFIRImportReport};
-
-/// Métadonnées d'une capsule RustForge.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapsuleManifest {
     pub version: String,
@@ -33,8 +27,6 @@ pub struct CapsuleManifest {
     pub term_count: usize,
     pub media_count: usize,
 }
-
-/// Rapport de création d'une capsule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapsulePackReport {
     pub capsule_path: String,
@@ -43,8 +35,6 @@ pub struct CapsulePackReport {
     pub media_files_packed: usize,
     pub execution_time_ms: u128,
 }
-
-/// Rapport de restauration d'une capsule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapsuleUnpackReport {
     pub manifest: CapsuleManifest,
@@ -53,266 +43,363 @@ pub struct CapsuleUnpackReport {
     pub execution_time_ms: u128,
 }
 
+#[derive(Debug, Clone)]
+pub struct StoragePaths {
+    pub uploads: PathBuf,
+    pub themes: PathBuf,
+    pub plugins: PathBuf,
+    pub protected: PathBuf,
+}
+impl StoragePaths {
+    fn roots(&self) -> [(&'static str, &Path); 4] {
+        [
+            ("uploads", &self.uploads),
+            ("themes", &self.themes),
+            ("plugins", &self.plugins),
+            ("protected_downloads", &self.protected),
+        ]
+    }
+}
+
 pub struct CapsuleManager;
+fn bad(e: impl std::fmt::Display) -> CoreError {
+    CoreError::validation(e.to_string())
+}
+fn checksum(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
+}
+
+fn collect(
+    root: &Path,
+    folder: &Path,
+    prefix: &str,
+    files: &mut BTreeMap<String, Vec<u8>>,
+    total: &mut u64,
+) -> CoreResult<()> {
+    if !folder.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(folder).map_err(bad)? {
+        let entry = entry.map_err(bad)?;
+        let path = entry.path();
+        let kind = entry.file_type().map_err(bad)?;
+        if kind.is_symlink() {
+            return Err(bad("Sauvegarde : liens symboliques non pris en charge"));
+        }
+        if kind.is_dir() {
+            if prefix == "plugins" {
+                continue;
+            }
+            collect(root, &path, prefix, files, total)?;
+        } else if kind.is_file() {
+            if prefix == "plugins" && path.extension().is_none_or(|e| e != "wasm") {
+                continue;
+            }
+            let rel = path
+                .strip_prefix(root)
+                .map_err(bad)?
+                .to_string_lossy()
+                .replace('\\', "/");
+            security::confined_path(root, &rel)?;
+            if entry.metadata().map_err(bad)?.len() > archive::MAX_FILE_BYTES {
+                return Err(bad("Fichier trop volumineux"));
+            }
+            let data = fs::read(path).map_err(bad)?;
+            *total += data.len() as u64;
+            if *total > archive::MAX_TOTAL_BYTES || files.len() + 4 >= archive::MAX_FILES {
+                return Err(bad("Quota de sauvegarde dépassé"));
+            }
+            files.insert(format!("{prefix}/{rel}"), data);
+        }
+    }
+    Ok(())
+}
+
+fn validate<R: Read + Seek>(
+    zip: &mut ZipArchive<R>,
+) -> CoreResult<(CapsuleManifest, NativeSnapshot)> {
+    archive::validate(zip)?;
+    let manifest: CapsuleManifest =
+        serde_json::from_slice(&archive::read_entry(zip, "capsule.json")?).map_err(bad)?;
+    if manifest.version != "2.0" {
+        return Err(bad(
+            "Cette capsule est un ancien export partiel. Une sauvegarde native v2 est requise.",
+        ));
+    }
+    let hashes: BTreeMap<String, String> =
+        serde_json::from_slice(&archive::read_entry(zip, "files.json")?).map_err(bad)?;
+    if !hashes.contains_key("database.native.json")
+        || !hashes.contains_key("capsule.json")
+        || hashes.len() + 1 != zip.len()
+    {
+        return Err(bad("Inventaire de capsule incomplet"));
+    }
+    for i in 0..zip.len() {
+        let name = zip.by_index(i).map_err(bad)?.name().to_string();
+        if name == "files.json" {
+            continue;
+        }
+        let digest = hashes
+            .get(&name)
+            .ok_or_else(|| bad("Fichier non déclaré"))?;
+        if name != "database.native.json"
+            && name != "capsule.json"
+            && !["uploads/", "themes/", "plugins/", "protected_downloads/"]
+                .iter()
+                .any(|p| name.starts_with(p))
+        {
+            return Err(bad("Racine de fichier inconnue"));
+        }
+        if checksum(&archive::read_entry(zip, &name)?) != *digest {
+            return Err(bad("Somme de contrôle invalide"));
+        }
+    }
+    let snapshot: NativeSnapshot =
+        serde_json::from_slice(&archive::read_entry(zip, "database.native.json")?).map_err(bad)?;
+    snapshot.validate()?;
+    if snapshot.tables["entries"].len() != manifest.entry_count
+        || snapshot.tables["terms"].len() != manifest.term_count
+        || snapshot.tables["media"].len() != manifest.media_count
+    {
+        return Err(bad("Compteurs du manifeste incohérents"));
+    }
+    Ok((manifest, snapshot))
+}
 
 impl CapsuleManager {
-    /// Encapsule l'ensemble du site (Base de données + Fichiers médias) directement dans un flux binaire (Write + Seek).
     pub async fn pack_to_writer<W: Write + Seek>(
         pool: &PgPool,
-        uploads_dir: &Path,
+        storage: &StoragePaths,
         writer: W,
         site_url: Option<String>,
-    ) -> Result<(CapsuleManifest, usize), CoreError> {
-        // 1. Extraction de la base de données sous forme de document pivot RFIR
-        let mut doc = DataMorphExporter::dump_database(pool).await?;
-        if site_url.is_some() {
-            doc.source_site_url = site_url.clone();
-        }
-
-        let entry_count = doc.entries.len();
-        let term_count = doc.terms.len();
-        let media_count = doc.media.len();
-
+    ) -> CoreResult<(CapsuleManifest, usize)> {
+        let snapshot = native_backup::dump(pool).await?;
+        snapshot.validate()?;
         let manifest = CapsuleManifest {
-            version: "1.0".to_string(),
-            generator: "RustForge Capsule Engine 1.0".to_string(),
+            version: "2.0".into(),
+            generator: "RustForge native backup".into(),
             created_at: Utc::now(),
             source_site_url: site_url,
-            entry_count,
-            term_count,
-            media_count,
+            entry_count: snapshot.tables["entries"].len(),
+            term_count: snapshot.tables["terms"].len(),
+            media_count: snapshot.tables["media"].len(),
         };
-
-        // 2. Création de l'archive ZIP
-        let mut zip = ZipWriter::new(writer);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated)
-            .unix_permissions(0o755);
-
-        // A. Écriture du manifest
-        zip.start_file("capsule.json", options)
-            .map_err(|e| CoreError::Validation(format!("Erreur ZIP manifest: {}", e)))?;
-        let manifest_bytes = serde_json::to_vec_pretty(&manifest)
-            .map_err(|e| CoreError::Validation(format!("Erreur sérialisation manifest: {}", e)))?;
-        zip.write_all(&manifest_bytes)
-            .map_err(|e| CoreError::Validation(format!("Erreur écriture manifest: {}", e)))?;
-
-        // B. Écriture de la base de données
-        zip.start_file("database.rfir.json", options)
-            .map_err(|e| CoreError::Validation(format!("Erreur ZIP database: {}", e)))?;
-        let db_bytes = serde_json::to_vec_pretty(&doc)
-            .map_err(|e| CoreError::Validation(format!("Erreur sérialisation BDD: {}", e)))?;
-        zip.write_all(&db_bytes)
-            .map_err(|e| CoreError::Validation(format!("Erreur écriture BDD: {}", e)))?;
-
-        // C. Écriture des fichiers de la médiathèque (uploads/)
-        let mut media_files_packed = 0;
-        if uploads_dir.exists() && uploads_dir.is_dir() {
-            media_files_packed = Self::zip_directory_recursive(&mut zip, uploads_dir, uploads_dir, options)?;
+        let mut files = BTreeMap::new();
+        let database = serde_json::to_vec(&snapshot).map_err(bad)?;
+        if database.len() as u64 > archive::MAX_FILE_BYTES {
+            return Err(bad(
+                "Sauvegarde native trop volumineuse pour ce format borné",
+            ));
         }
-
-        zip.finish().map_err(|e| {
-            CoreError::Validation(format!("Erreur finalisation capsule ZIP: {}", e))
-        })?;
-
-        Ok((manifest, media_files_packed))
+        let mut total = database.len() as u64;
+        files.insert("database.native.json".into(), database);
+        for (prefix, root) in storage.roots() {
+            collect(root, root, prefix, &mut files, &mut total)?;
+        }
+        // A physical file referenced by the database must be present; no silent missing media.
+        for media in &snapshot.tables["media"] {
+            for column in ["path", "webp_path"] {
+                if let Some(path) = media[column].as_str()
+                    && !files.contains_key(&format!("uploads/{path}"))
+                {
+                    return Err(bad(format!("Média physique absent : {path}")));
+                }
+            }
+        }
+        let media_files = files.keys().filter(|p| p.starts_with("uploads/")).count();
+        files.insert(
+            "capsule.json".into(),
+            serde_json::to_vec(&manifest).map_err(bad)?,
+        );
+        let hashes: BTreeMap<_, _> = files
+            .iter()
+            .map(|(p, b)| (p.clone(), checksum(b)))
+            .collect();
+        files.insert(
+            "files.json".into(),
+            serde_json::to_vec(&hashes).map_err(bad)?,
+        );
+        if files.len() > archive::MAX_FILES
+            || files
+                .values()
+                .any(|b| b.len() as u64 > archive::MAX_FILE_BYTES)
+            || files.values().map(|b| b.len() as u64).sum::<u64>() > archive::MAX_TOTAL_BYTES
+        {
+            return Err(bad("Inventaire compris : quota de sauvegarde dépassé"));
+        }
+        let mut zip = ZipWriter::new(writer);
+        for (path, data) in files {
+            zip.start_file(
+                path,
+                SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated)
+                    .unix_permissions(0o600),
+            )
+            .map_err(bad)?;
+            zip.write_all(&data).map_err(bad)?;
+        }
+        zip.finish().map_err(bad)?;
+        Ok((manifest, media_files))
     }
 
-    /// Encapsule l'ensemble du site (Base de données + Fichiers médias) dans une archive .rfcapsule sur disque.
     pub async fn pack(
         pool: &PgPool,
-        uploads_dir: &Path,
-        output_path: &Path,
-        site_url: Option<String>,
-    ) -> Result<CapsulePackReport, CoreError> {
-        let start = std::time::Instant::now();
-
-        if let Some(parent) = output_path.parent() {
-            if !parent.as_os_str().is_empty() {
-                let _ = std::fs::create_dir_all(parent);
-            }
+        storage: &StoragePaths,
+        output: &Path,
+        url: Option<String>,
+    ) -> CoreResult<CapsulePackReport> {
+        let started = std::time::Instant::now();
+        if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs::create_dir_all(parent).map_err(bad)?;
         }
-
-        let file = File::create(output_path).map_err(|e| {
-            CoreError::Validation(format!("Impossible de créer le fichier capsule {:?}: {}", output_path, e))
-        })?;
-
-        let (manifest, media_files_packed) = Self::pack_to_writer(pool, uploads_dir, file, site_url).await?;
-
-        let file_size_bytes = std::fs::metadata(output_path).map(|m| m.len()).unwrap_or(0);
-
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(output)
+            .map_err(bad)?;
+        let result = Self::pack_to_writer(pool, storage, file, url).await;
+        let (manifest, count) = match result {
+            Ok(value) => value,
+            Err(e) => {
+                let _ = fs::remove_file(output);
+                return Err(e);
+            }
+        };
         Ok(CapsulePackReport {
-            capsule_path: output_path.to_string_lossy().to_string(),
-            file_size_bytes,
+            capsule_path: output.to_string_lossy().into(),
+            file_size_bytes: fs::metadata(output).map_err(bad)?.len(),
             entries_packed: manifest.entry_count,
-            media_files_packed,
-            execution_time_ms: start.elapsed().as_millis(),
+            media_files_packed: count,
+            execution_time_ms: started.elapsed().as_millis(),
         })
     }
 
-    /// Inspecte les métadonnées d'une capsule sans la décompresser ni modifier la base de données.
-    pub fn inspect<R: Read + Seek>(reader: R) -> Result<CapsuleManifest, CoreError> {
-        let mut archive = ZipArchive::new(reader).map_err(|e| {
-            CoreError::Validation(format!("Fichier capsule invalide ou corrompu: {}", e))
-        })?;
-
-        let mut file = archive.by_name("capsule.json").map_err(|_| {
-            CoreError::Validation("Fichier 'capsule.json' manquant dans l'archive".to_string())
-        })?;
-        let mut content = String::new();
-        file.read_to_string(&mut content).map_err(|e| {
-            CoreError::Validation(format!("Erreur lecture manifest: {}", e))
-        })?;
-        serde_json::from_str(&content).map_err(|e| {
-            CoreError::Validation(format!("Manifest de capsule invalide: {}", e))
-        })
+    pub fn inspect<R: Read + Seek>(reader: R) -> CoreResult<CapsuleManifest> {
+        let mut zip = ZipArchive::new(reader).map_err(bad)?;
+        Ok(validate(&mut zip)?.0)
     }
 
-    /// Décapsule et restaure un site complet depuis une archive .rfcapsule.
     pub async fn unpack<R: Read + Seek>(
         pool: &PgPool,
-        uploads_dir: &Path,
+        storage: &StoragePaths,
         reader: R,
-        new_site_url: Option<String>,
-        author_id: Uuid,
-    ) -> Result<CapsuleUnpackReport, CoreError> {
-        let start = std::time::Instant::now();
-
-        let mut archive = ZipArchive::new(reader).map_err(|e| {
-            CoreError::Validation(format!("Fichier capsule invalide ou corrompu: {}", e))
-        })?;
-
-        // 1. Lecture du manifest
-        let manifest: CapsuleManifest = {
-            let mut file = archive.by_name("capsule.json").map_err(|_| {
-                CoreError::Validation("Fichier 'capsule.json' manquant dans l'archive".to_string())
-            })?;
-            let mut content = String::new();
-            file.read_to_string(&mut content).map_err(|e| {
-                CoreError::Validation(format!("Erreur lecture manifest: {}", e))
-            })?;
-            serde_json::from_str(&content).map_err(|e| {
-                CoreError::Validation(format!("Manifest de capsule invalide: {}", e))
-            })?
-        };
-
-        // 2. Lecture et ré-écriture d'URL de la base de données
-        let doc: RFIRDocument = {
-            let mut file = archive.by_name("database.rfir.json").map_err(|_| {
-                CoreError::Validation("Fichier 'database.rfir.json' manquant dans l'archive".to_string())
-            })?;
-            let mut content = String::new();
-            file.read_to_string(&mut content).map_err(|e| {
-                CoreError::Validation(format!("Erreur lecture database: {}", e))
-            })?;
-
-            // Remplacement d'URL intelligent si un nouveau domaine cible est spécifié (comme All-in-One WP Migration)
-            if let (Some(old_url), Some(new_url)) = (&manifest.source_site_url, &new_site_url) {
-                if old_url != new_url {
-                    content = content.replace(old_url, new_url);
+        new_url: Option<String>,
+        _author: Uuid,
+    ) -> CoreResult<CapsuleUnpackReport> {
+        let started = std::time::Instant::now();
+        let mut zip = ZipArchive::new(reader).map_err(bad)?;
+        let (manifest, mut snapshot) = validate(&mut zip)?;
+        if let Some(new) = new_url {
+            let parsed = reqwest::Url::parse(&new).map_err(bad)?;
+            if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+                return Err(bad("URL cible invalide"));
+            }
+            if let Some(old) = &manifest.source_site_url {
+                fn rewrite(value: &mut serde_json::Value, old: &str, new: &str) {
+                    match value {
+                        serde_json::Value::String(s) => *s = s.replace(old, new),
+                        serde_json::Value::Array(a) => {
+                            for v in a {
+                                rewrite(v, old, new)
+                            }
+                        }
+                        serde_json::Value::Object(o) => {
+                            for v in o.values_mut() {
+                                rewrite(v, old, new)
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if old.is_empty() {
+                    return Err(bad("URL source vide"));
+                }
+                for rows in snapshot.tables.values_mut() {
+                    for row in rows {
+                        rewrite(row, old.trim_end_matches('/'), new.trim_end_matches('/'));
+                    }
                 }
             }
-
-            serde_json::from_str(&content).map_err(|e| {
-                CoreError::Validation(format!("Erreur parsing document RFIR: {}", e))
-            })?
-        };
-
-        // 3. Extraction physique des fichiers médias dans uploads_dir
-        let mut media_files_extracted = 0;
-        tokio::fs::create_dir_all(uploads_dir).await.map_err(|e| {
-            CoreError::Validation(format!("Impossible de créer le dossier uploads {:?}: {}", uploads_dir, e))
-        })?;
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).map_err(|e| {
-                CoreError::Validation(format!("Erreur lecture fichier index {}: {}", i, e))
-            })?;
-
-            let name = file.name().to_string();
-            if name.starts_with("uploads/") && !name.ends_with('/') {
-                let rel_path = name.trim_start_matches("uploads/");
-                let rel_path_obj = Path::new(rel_path);
-
-                // Sécurité anti-Zip Slip : rejet de tout composant parent (..), racine absolue ou préfixe
-                let is_safe = !rel_path_obj.components().any(|c| {
-                    matches!(
-                        c,
-                        std::path::Component::ParentDir
-                            | std::path::Component::RootDir
-                            | std::path::Component::Prefix(_)
-                    )
-                });
-
-                if !is_safe {
-                    tracing::warn!("⚠️ Tentative d'extraction de chemin suspect ignorée (anti-Zip Slip) : {}", rel_path);
-                    continue;
+            for row in snapshot.tables.get_mut("settings").expect("validated") {
+                if row["key"] == "site.url" {
+                    row["value"] = serde_json::json!(new);
                 }
-
-                let dest_path = uploads_dir.join(rel_path);
-
-                if let Some(parent) = dest_path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-
-                let mut out = File::create(&dest_path).map_err(|e| {
-                    CoreError::Validation(format!("Impossible d'extraire {:?}: {}", dest_path, e))
-                })?;
-                std::io::copy(&mut file, &mut out).map_err(|e| {
-                    CoreError::Validation(format!("Erreur écriture {:?}: {}", dest_path, e))
-                })?;
-                media_files_extracted += 1;
             }
         }
-
-        // 4. Ingestion des données dans PostgreSQL via le moteur DataMorph
-        let import_report = DataMorphImporter::apply(pool, &doc, author_id).await?;
-
+        // Validate every destination and hold bounded bytes before modifying either database or files.
+        let mut pending = Vec::new();
+        for i in 0..zip.len() {
+            let name = zip.by_index(i).map_err(bad)?.name().to_string();
+            if name == "capsule.json" || name == "files.json" || name == "database.native.json" {
+                continue;
+            }
+            let (prefix, relative) = name
+                .split_once('/')
+                .ok_or_else(|| bad("Chemin capsule invalide"))?;
+            let roots = storage.roots();
+            let root = roots
+                .iter()
+                .find(|(p, _)| *p == prefix)
+                .ok_or_else(|| bad("Racine inconnue"))?
+                .1;
+            fs::create_dir_all(root).map_err(bad)?;
+            let destination = security::confined_path(root, relative)?;
+            let data = archive::read_entry(&mut zip, &name)?;
+            if destination.exists() {
+                if fs::read(&destination).map_err(bad)? != data {
+                    return Err(CoreError::Conflict(format!(
+                        "Fichier cible existant différent : {name}"
+                    )));
+                }
+            } else {
+                pending.push((destination, data));
+            }
+        }
+        let mut tx = pool.begin().await?;
+        native_backup::restore(&mut tx, &snapshot).await?;
+        let mut created = Vec::new();
+        let files_result = (|| -> CoreResult<()> {
+            for (path, data) in &pending {
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent).map_err(bad)?;
+                }
+                let mut out = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(path)
+                    .map_err(bad)?;
+                created.push(path.clone());
+                out.write_all(data).map_err(bad)?;
+            }
+            Ok(())
+        })();
+        if let Err(e) = files_result {
+            for path in created {
+                let _ = fs::remove_file(path);
+            }
+            return Err(e);
+        }
+        if let Err(e) = tx.commit().await {
+            return Err(CoreError::Internal(anyhow::anyhow!(
+                "La confirmation de restauration a échoué ; les fichiers sont conservés. Vérifiez l'état de la base avant reprise : {e}"
+            )));
+        }
+        let uploads = storage.uploads.canonicalize().map_err(bad)?;
+        let count = pending
+            .iter()
+            .filter(|(p, _)| p.starts_with(&uploads))
+            .count();
         Ok(CapsuleUnpackReport {
-            manifest,
-            import_report,
-            media_files_extracted,
-            execution_time_ms: start.elapsed().as_millis(),
+            manifest: manifest.clone(),
+            import_report: RFIRImportReport {
+                entries_imported: manifest.entry_count,
+                terms_imported: manifest.term_count,
+                media_detected: manifest.media_count,
+                media_imported: manifest.media_count,
+                ..Default::default()
+            },
+            media_files_extracted: count,
+            execution_time_ms: started.elapsed().as_millis(),
         })
-    }
-
-    fn zip_directory_recursive<W: Write + Seek>(
-        zip: &mut ZipWriter<W>,
-        base_dir: &Path,
-        current_dir: &Path,
-        options: SimpleFileOptions,
-    ) -> Result<usize, CoreError> {
-        let mut count = 0;
-        let entries = std::fs::read_dir(current_dir).map_err(|e| {
-            CoreError::Validation(format!("Erreur lecture dossier {:?}: {}", current_dir, e))
-        })?;
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                count += Self::zip_directory_recursive(zip, base_dir, &path, options)?;
-            } else if path.is_file() {
-                let rel = path.strip_prefix(base_dir).unwrap_or(&path);
-                let zip_path = format!("uploads/{}", rel.to_string_lossy().replace('\\', "/"));
-
-                zip.start_file(&zip_path, options).map_err(|e| {
-                    CoreError::Validation(format!("Erreur ajout fichier ZIP {}: {}", zip_path, e))
-                })?;
-
-                let mut f = File::open(&path).map_err(|e| {
-                    CoreError::Validation(format!("Erreur ouverture {:?}: {}", path, e))
-                })?;
-                let mut buf = Vec::new();
-                f.read_to_end(&mut buf).map_err(|e| {
-                    CoreError::Validation(format!("Erreur lecture {:?}: {}", path, e))
-                })?;
-                zip.write_all(&buf).map_err(|e| {
-                    CoreError::Validation(format!("Erreur écriture fichier ZIP: {}", e))
-                })?;
-                count += 1;
-            }
-        }
-
-        Ok(count)
     }
 }

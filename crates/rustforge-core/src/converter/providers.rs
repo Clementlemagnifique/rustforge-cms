@@ -128,7 +128,10 @@ impl AnalysisProvider for JavaScriptStaticProvider {
         let content_lower = target.content.to_lowercase();
 
         // Détection d'appels d'API REST ou fetch
-        if content_lower.contains("fetch(") || content_lower.contains("ajax") || content_lower.contains("axios") {
+        if content_lower.contains("fetch(")
+            || content_lower.contains("ajax")
+            || content_lower.contains("axios")
+        {
             evidences.push(AnalysisEvidence {
                 provider_name: self.name().to_string(),
                 file_reference: target.file_path.clone(),
@@ -203,9 +206,9 @@ impl AnalysisProvider for ReaAnalysisProvider {
                 provider_name: self.name().to_string(),
                 file_reference: target.file_path.clone(),
                 line_or_offset: None,
-                snippet_or_signature: "bundle.min.js AST inspection via REA forensic pipeline".to_string(),
-                raw_finding: "Déobfuscation de bundle minifié : cartographie des points d'API et hooks front-end".to_string(),
-                confidence_score: 80,
+                snippet_or_signature: "Extension de fichier uniquement ; REA non exécuté".to_string(),
+                raw_finding: "Analyse manuelle ou connecteur REA réel requis ; aucune déobfuscation effectuée".to_string(),
+                confidence_score: 0,
             });
         }
 

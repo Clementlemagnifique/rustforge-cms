@@ -3,6 +3,7 @@ name = "rustforge-core"
 description = "Domaine RustForge CMS : modèles, accès aux données, services et hooks."
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
@@ -17,6 +18,7 @@ async-trait.workspace = true
 tracing.workspace = true
 argon2.workspace = true
 sha2.workspace = true
+hmac.workspace = true
 hex.workspace = true
 pulldown-cmark.workspace = true
 ammonia.workspace = true
@@ -30,3 +32,4 @@ zip.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+minijinja.workspace = true

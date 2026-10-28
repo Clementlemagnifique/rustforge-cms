@@ -8,8 +8,8 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
-  const [login, setLogin] = useState('admin');
-  const [password, setPassword] = useState('admin123456');
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,10 +37,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
       <div className="w-full max-w-sm relative z-10 space-y-6">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-xl shadow-indigo-600/20 text-white font-black text-xl mx-auto">
-            RF
+            TP
           </div>
-          <h2 className="text-xl font-bold text-white tracking-tight">RustForge Studio</h2>
-          <p className="text-xs text-slate-400">Le CMS Souverain AI-Native propulsé par Rust</p>
+          <h2 className="text-xl font-bold text-white tracking-tight">RustForge CMS</h2>
+          <p className="text-xs text-slate-400">Vos contenus, votre site, votre espace.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 shadow-2xl space-y-4">

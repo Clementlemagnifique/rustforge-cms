@@ -50,8 +50,18 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub entry_count: i64,
     #[serde(skip)]
     pub password_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct UserSession {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
 }
 
 // ---------------------------------------------------------------------------
@@ -127,9 +137,24 @@ pub struct Entry {
     pub terms: Vec<TermRef>,
 }
 
+impl Entry {
+    /// The public API never serializes raw bodies, archived metadata or private fields.
+    pub fn public_view(self) -> Value {
+        serde_json::json!({
+            "id": self.id, "content_type": self.content_type, "slug": self.slug,
+            "title": self.title, "excerpt": self.excerpt, "body_html": self.body_html,
+            "author_name": self.author_name, "published_at": self.published_at,
+            "featured_media_url": self.featured_media_url, "terms": self.terms,
+            "updated_at": self.updated_at
+        })
+    }
+}
+
 /// Données d'écriture d'une entrée (création et mise à jour).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntryInput {
+    #[serde(default)]
+    pub expected_updated_at: Option<DateTime<Utc>>,
     pub title: String,
     #[serde(default)]
     pub slug: Option<String>,
@@ -159,6 +184,46 @@ pub struct EntryInput {
     pub term_ids: Option<Vec<Uuid>>,
 }
 
+impl EntryInput {
+    /// Only keys actually provided are replaced. JSON null explicitly clears nullable relations.
+    pub fn from_patch(entry: &Entry, patch: serde_json::Value) -> crate::CoreResult<Self> {
+        crate::document::validate_source_patch(&entry.blocks, &entry.body, &patch)?;
+        let mut base = serde_json::json!({
+            "expected_updated_at": entry.updated_at,
+            "title": entry.title, "slug": entry.slug, "excerpt": entry.excerpt,
+            "body": entry.body, "blocks": entry.blocks, "intent": entry.intent,
+            "design_tokens": entry.design_tokens, "status": entry.status, "fields": entry.fields,
+            "parent_id": entry.parent_id, "featured_media_id": entry.featured_media_id,
+            "published_at": entry.published_at, "scheduled_unpublish_at": entry.scheduled_unpublish_at,
+            "term_ids": entry.terms.iter().map(|t| t.id).collect::<Vec<_>>()
+        });
+        let patch = patch
+            .as_object()
+            .ok_or_else(|| crate::CoreError::validation("un objet de modification est requis"))?;
+        if let Some(expected) = patch.get("expected_updated_at").and_then(|v| v.as_str()) {
+            let expected = chrono::DateTime::parse_from_rfc3339(expected)
+                .map_err(|_| crate::CoreError::validation("version de contenu invalide"))?;
+            if expected.with_timezone(&chrono::Utc) != entry.updated_at {
+                return Err(crate::CoreError::Conflict(
+                    "Ce contenu a changé. Rechargez-le avant de réessayer.".into(),
+                ));
+            }
+        }
+        for (key, value) in patch {
+            if key == "expected_updated_at" {
+                continue;
+            }
+            if !base.as_object().expect("object").contains_key(key) {
+                return Err(crate::CoreError::validation(format!(
+                    "champ de modification inconnu : {key}"
+                )));
+            }
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).map_err(|e| crate::CoreError::validation(e.to_string()))
+    }
+}
+
 fn empty_array() -> Value {
     Value::Array(Vec::new())
 }
@@ -180,6 +245,7 @@ pub struct Revision {
     pub excerpt: String,
     pub body: String,
     pub fields: Value,
+    pub snapshot: Option<Value>,
     pub created_at: DateTime<Utc>,
 }
 

@@ -43,8 +43,15 @@ pub fn validate_schema(defs: &[FieldDef]) -> CoreResult<()> {
     for def in defs {
         let valid_key = !def.key.is_empty()
             && def.key.len() <= 64
-            && def.key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-            && def.key.chars().next().is_some_and(|c| c.is_ascii_lowercase());
+            && def
+                .key
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            && def
+                .key
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_lowercase());
         if !valid_key {
             return Err(CoreError::validation(format!(
                 "clé de champ invalide « {} » (minuscules, chiffres et _ uniquement)",
@@ -52,10 +59,16 @@ pub fn validate_schema(defs: &[FieldDef]) -> CoreResult<()> {
             )));
         }
         if !seen.insert(def.key.as_str()) {
-            return Err(CoreError::validation(format!("clé de champ dupliquée « {} »", def.key)));
+            return Err(CoreError::validation(format!(
+                "clé de champ dupliquée « {} »",
+                def.key
+            )));
         }
         if def.label.trim().is_empty() {
-            return Err(CoreError::validation(format!("le champ « {} » doit avoir un libellé", def.key)));
+            return Err(CoreError::validation(format!(
+                "le champ « {} » doit avoir un libellé",
+                def.key
+            )));
         }
         if def.kind == FieldKind::Select && def.options.is_empty() {
             return Err(CoreError::validation(format!(
@@ -67,16 +80,20 @@ pub fn validate_schema(defs: &[FieldDef]) -> CoreResult<()> {
     Ok(())
 }
 
-/// Valide et normalise des valeurs selon le schéma. Les clés inconnues sont ignorées.
+/// Valide les champs déclarés sans détruire les métadonnées inconnues conservées.
 pub fn validate_values(defs: &[FieldDef], input: &Value) -> CoreResult<Value> {
     let empty = Map::new();
     let obj = match input {
         Value::Object(m) => m,
         Value::Null => &empty,
-        _ => return Err(CoreError::validation("les champs personnalisés doivent être un objet")),
+        _ => {
+            return Err(CoreError::validation(
+                "les champs personnalisés doivent être un objet",
+            ));
+        }
     };
 
-    let mut out = Map::new();
+    let mut out = obj.clone();
     for def in defs {
         let value = obj.get(&def.key).cloned().unwrap_or(Value::Null);
         let is_empty = match &value {
@@ -86,12 +103,17 @@ pub fn validate_values(defs: &[FieldDef], input: &Value) -> CoreResult<Value> {
         };
         if is_empty {
             if def.required {
-                return Err(CoreError::validation(format!("le champ « {} » est obligatoire", def.label)));
+                return Err(CoreError::validation(format!(
+                    "le champ « {} » est obligatoire",
+                    def.label
+                )));
             }
             continue;
         }
 
-        let err = |what: &str| CoreError::validation(format!("le champ « {} » doit être {what}", def.label));
+        let err = |what: &str| {
+            CoreError::validation(format!("le champ « {} » doit être {what}", def.label))
+        };
         let normalized = match def.kind {
             FieldKind::Text | FieldKind::Textarea => {
                 Value::String(value.as_str().ok_or_else(|| err("un texte"))?.to_string())
@@ -110,7 +132,8 @@ pub fn validate_values(defs: &[FieldDef], input: &Value) -> CoreResult<Value> {
             FieldKind::Boolean => Value::Bool(value.as_bool().ok_or_else(|| err("un booléen"))?),
             FieldKind::Date => {
                 let s = value.as_str().ok_or_else(|| err("une date"))?;
-                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| err("une date AAAA-MM-JJ"))?;
+                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map_err(|_| err("une date AAAA-MM-JJ"))?;
                 Value::String(s.to_string())
             }
             FieldKind::Url => {
@@ -144,7 +167,14 @@ mod tests {
     use serde_json::json;
 
     fn def(key: &str, kind: FieldKind, required: bool) -> FieldDef {
-        FieldDef { key: key.into(), label: key.into(), kind, required, help: None, options: vec![] }
+        FieldDef {
+            key: key.into(),
+            label: key.into(),
+            kind,
+            required,
+            help: None,
+            options: vec![],
+        }
     }
 
     #[test]
@@ -154,8 +184,12 @@ mod tests {
             def("featured", FieldKind::Boolean, false),
             def("date", FieldKind::Date, false),
         ];
-        let out = validate_values(&defs, &json!({"price": "12.5", "featured": true, "junk": 1})).unwrap();
-        assert_eq!(out, json!({"price": 12.5, "featured": true}));
+        let out = validate_values(
+            &defs,
+            &json!({"price": "12.5", "featured": true, "junk": 1}),
+        )
+        .unwrap();
+        assert_eq!(out, json!({"price": 12.5, "featured": true, "junk": 1}));
     }
 
     #[test]
@@ -168,7 +202,13 @@ mod tests {
     #[test]
     fn schema_rules() {
         assert!(validate_schema(&[def("Bad Key", FieldKind::Text, false)]).is_err());
-        assert!(validate_schema(&[def("a", FieldKind::Text, false), def("a", FieldKind::Text, false)]).is_err());
+        assert!(
+            validate_schema(&[
+                def("a", FieldKind::Text, false),
+                def("a", FieldKind::Text, false)
+            ])
+            .is_err()
+        );
         assert!(validate_schema(&[def("select_me", FieldKind::Select, false)]).is_err());
         assert!(validate_schema(&[def("subtitle", FieldKind::Text, false)]).is_ok());
     }

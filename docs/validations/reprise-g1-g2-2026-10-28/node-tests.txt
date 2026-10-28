@@ -1,0 +1,16 @@
+✔ le document natif se recharge sans traduire les données ni modifier les identifiants (7.586ms)
+✔ déplacer et insérer des blocs conserve textes et identifiants; les déplacements hors limites ne changent rien (0.2301ms)
+✔ l’historique local undo/redo restaure les états successifs et réinitialise le futur après nouvelle modification (0.2757ms)
+✔ l’autosauvegarde locale valide le brouillon et ignore les brouillons plus anciens que la version serveur (0.2042ms)
+✔ le parseur refuse formats futurs et champs inconnus au lieu de les tronquer (0.1714ms)
+✔ la route de liste sélectionne une seule entrée précise (1.6576ms)
+✔ rouvrir une page existante garde son contexte de navigation (0.1726ms)
+✔ le fil de navigation conserve les trois niveaux sans confondre les menus du site et du Studio (0.1572ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 116.3342

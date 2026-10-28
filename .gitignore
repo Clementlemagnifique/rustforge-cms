@@ -35,6 +35,7 @@ releases/
 *.tar.gz
 
 # Références historiques WordPress & Quarantaine
+/wordpress-plugins-ref/
 /wordpress/
 /plugins-ref/
 /theme-ref/

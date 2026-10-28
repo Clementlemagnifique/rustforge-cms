@@ -116,7 +116,9 @@ impl GapAnalysisEngine {
             let id_lower = node.id.to_lowercase();
             let desc_lower = node.description.to_lowercase();
 
-            if id_lower.contains("link_order_to_course") || desc_lower.contains("inscription post-achat") {
+            if id_lower.contains("link_order_to_course")
+                || desc_lower.contains("inscription post-achat")
+            {
                 decisions.push(FeatureGapDecision {
                     feature_id: node.id.clone(),
                     resolution: GapResolutionKind::Composable,
@@ -127,22 +129,35 @@ impl GapAnalysisEngine {
                 decisions.push(FeatureGapDecision {
                     feature_id: node.id.clone(),
                     resolution: GapResolutionKind::Native,
-                    matched_capabilities: vec!["forms.submit".to_string(), "forms.builder".to_string()],
-                    rationale: "Remplacé nativement par le module RustForge Forms (JSON Schema + Honeypot)".to_string(),
+                    matched_capabilities: vec![
+                        "forms.submit".to_string(),
+                        "forms.builder".to_string(),
+                    ],
+                    rationale:
+                        "Remplacé nativement par le module RustForge Forms (JSON Schema + Honeypot)"
+                            .to_string(),
                 });
-            } else if id_lower.contains("order") || id_lower.contains("checkout") || desc_lower.contains("téléchargement") {
+            } else if id_lower.contains("order")
+                || id_lower.contains("checkout")
+                || desc_lower.contains("téléchargement")
+            {
                 decisions.push(FeatureGapDecision {
                     feature_id: node.id.clone(),
                     resolution: GapResolutionKind::Native,
                     matched_capabilities: vec!["commerce.order_flow".to_string(), "commerce.signed_downloads".to_string()],
                     rationale: "Pris en charge nativement par le module E-Commerce dématérialisé (HMAC-SHA256)".to_string(),
                 });
-            } else if id_lower.contains("course") || id_lower.contains("lesson") || desc_lower.contains("formation") {
+            } else if id_lower.contains("course")
+                || id_lower.contains("lesson")
+                || desc_lower.contains("formation")
+            {
                 decisions.push(FeatureGapDecision {
                     feature_id: node.id.clone(),
                     resolution: GapResolutionKind::Native,
                     matched_capabilities: vec!["lms.course_enrollment".to_string()],
-                    rationale: "Pris en charge nativement par le module LMS avec inscription atomique".to_string(),
+                    rationale:
+                        "Pris en charge nativement par le module LMS avec inscription atomique"
+                            .to_string(),
                 });
             } else if id_lower.contains("reading_time") || desc_lower.contains("temps de lecture") {
                 decisions.push(FeatureGapDecision {
@@ -156,7 +171,9 @@ impl GapAnalysisEngine {
                     feature_id: node.id.clone(),
                     resolution: GapResolutionKind::Configurable,
                     matched_capabilities: vec!["content.crud".to_string()],
-                    rationale: "Adaptable via types de contenus personnalisés et stockage extensible".to_string(),
+                    rationale:
+                        "Adaptable via types de contenus personnalisés et stockage extensible"
+                            .to_string(),
                 });
             }
         }
@@ -196,16 +213,14 @@ impl CapabilityComposer {
             id: "ecommerce_to_lms_auto_enroll".to_string(),
             name: "Liaison automatique Commande ➔ Inscription Formation".to_string(),
             trigger_event: "commerce.order.completed".to_string(),
-            pipeline: vec![
-                CompositionStep {
-                    step: 1,
-                    capability: "lms.enroll_user".to_string(),
-                    input_mapping: serde_json::json!({
-                        "user_id": "$event.customer_id",
-                        "course_id": "$event.course_id"
-                    }),
-                },
-            ],
+            pipeline: vec![CompositionStep {
+                step: 1,
+                capability: "lms.enroll_user".to_string(),
+                input_mapping: serde_json::json!({
+                    "user_id": "$event.customer_id",
+                    "course_id": "$event.course_id"
+                }),
+            }],
             created_at: Utc::now().to_rfc3339(),
         }
     }
@@ -393,7 +408,9 @@ impl ValidationEngine {
         let has_wit = package.files.iter().any(|f| f.path.contains(".wit"));
 
         if has_cargo && has_manifest && has_wit {
-            passed.push("Arborescence du SDK WASM complète (Cargo.toml, manifest.toml, wit)".to_string());
+            passed.push(
+                "Arborescence du SDK WASM complète (Cargo.toml, manifest.toml, wit)".to_string(),
+            );
         } else {
             warnings.push("Fichiers de contrat manquants dans l'extension générée".to_string());
         }
@@ -401,20 +418,26 @@ impl ValidationEngine {
         // 2. Contrôle de sécurité du code Rust
         let mut unsafe_found = false;
         for file in &package.files {
-            if file.content.contains("unsafe ") || file.content.contains("std::fs") || file.content.contains("std::net") {
+            if file.content.contains("unsafe ")
+                || file.content.contains("std::fs")
+                || file.content.contains("std::net")
+            {
                 unsafe_found = true;
                 break;
             }
         }
 
         if !unsafe_found {
-            passed.push("Code 100% sûr : absence d'unsafe, de réseau et d'accès système direct".to_string());
+            passed.push("Contrôle textuel : aucun motif unsafe, std::fs ou std::net détecté ; compilation et tests requis".to_string());
         } else {
-            warnings.push("Avertissement : utilisation de blocs unsafe ou appels système non sandboxés".to_string());
+            warnings.push(
+                "Avertissement : utilisation de blocs unsafe ou appels système non sandboxés"
+                    .to_string(),
+            );
         }
 
         let is_valid = warnings.is_empty();
-        let security_score = if is_valid { 100 } else { 70 };
+        let security_score = if is_valid { 30 } else { 0 }; // Heuristic only, never a security certification.
 
         ValidationResult {
             is_valid,

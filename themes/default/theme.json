@@ -1,8 +1,8 @@
 {
-  "name": "TrustPress Sovereign",
+  "name": "RustForge Base — prototype",
   "version": "1.0.0",
-  "author": "TrustPress Core Team",
-  "description": "Thème officiel TrustPress : minimaliste, ultra-rapide (< 1ms), SEO international et mode Zen intégré.",
+  "author": "RustForge CMS",
+  "description": "Thème HTML actuel de RustForge CMS; base de consolidation vers le contrat rf-base.",
   "tokens": {
     "primary_color": "#4f46e5",
     "accent_color": "#06b6d4",

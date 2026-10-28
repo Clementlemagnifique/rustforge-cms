@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 
-export const ConverterView: React.FC = () => {
+export const ConverterView: React.FC<{ onOpenMigration?: () => void }> = ({ onOpenMigration }) => {
   const [activeTab, setActiveTab] = useState<'packages' | 'datamorph'>('packages');
 
   // État onglet Extensions & Thèmes (.zip)
@@ -31,6 +31,7 @@ export const ConverterView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [convertingTheme, setConvertingTheme] = useState(false);
   const [convertedThemeResult, setConvertedThemeResult] = useState<any | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [applyingPlan, setApplyingPlan] = useState(false);
   const [appliedResult, setAppliedResult] = useState<any | null>(null);
 
@@ -200,7 +201,7 @@ export const ConverterView: React.FC = () => {
             <span>Extensions & Thèmes (.zip)</span>
           </button>
           <button
-            onClick={() => setActiveTab('datamorph')}
+            onClick={() => onOpenMigration?.()}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'datamorph'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -218,6 +219,10 @@ export const ConverterView: React.FC = () => {
       {/* ============================================================== */}
       {activeTab === 'packages' && (
         <div className="space-y-6">
+          {previewHtml !== null && <section className="space-y-2">
+            <button onClick={() => setPreviewHtml(null)}>Fermer l’aperçu</button>
+            <iframe title="Aperçu isolé du thème" sandbox="" srcDoc={previewHtml} className="w-full h-[600px] bg-white rounded-xl" />
+          </section>}
           {/* Erreur */}
           {error && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-3">
@@ -335,7 +340,7 @@ export const ConverterView: React.FC = () => {
                       {manifest.target_native_module
                         ? `Module Natif : ${manifest.target_native_module}`
                         : manifest.package.kind === 'theme_fse'
-                        ? 'Moteur SSR MiniJinja 3'
+                        ? 'Moteur SSR MiniJinja'
                         : 'Coffre-fort _rf_vault'}
                     </div>
                   </div>
@@ -434,13 +439,18 @@ export const ConverterView: React.FC = () => {
                         ) : (
                           <Palette className="w-4 h-4" />
                         )}
-                        <span>Transmuter vers MiniJinja 3</span>
+                        <span>Transmuter vers MiniJinja</span>
                       </button>
                     )}
 
                     {convertedThemeResult && (
                       <a
-                        href={convertedThemeResult.preview_url}
+                        href="#" onClick={async e => {
+                          e.preventDefault();
+                          const response=await fetch(convertedThemeResult.preview_url,{headers:{Authorization:`Bearer ${localStorage.getItem('rustforge_token') || localStorage.getItem('trustpress_token') || ''}`}});
+                          if(!response.ok){alert('Aperçu indisponible');return;}
+                          setPreviewHtml(await response.text());
+                        }}
                         target="_blank"
                         rel="noreferrer"
                         className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all"

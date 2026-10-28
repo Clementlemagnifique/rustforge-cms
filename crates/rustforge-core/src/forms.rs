@@ -57,9 +57,11 @@ pub struct SubmitFormPayload {
 }
 
 pub async fn list_forms(db: &PgPool) -> CoreResult<Vec<Form>> {
-    Ok(sqlx::query_as("SELECT * FROM forms ORDER BY created_at DESC")
-        .fetch_all(db)
-        .await?)
+    Ok(
+        sqlx::query_as("SELECT * FROM forms ORDER BY created_at DESC")
+            .fetch_all(db)
+            .await?,
+    )
 }
 
 pub async fn get_form(db: &PgPool, id: Uuid) -> CoreResult<Form> {
@@ -77,6 +79,7 @@ pub async fn get_form_by_slug(db: &PgPool, slug: &str) -> CoreResult<Form> {
 }
 
 pub async fn create_form(db: &PgPool, author_id: Uuid, input: FormInput) -> CoreResult<Form> {
+    crate::form_validation::schema(&input.fields, 0)?;
     let slug = input.slug.unwrap_or_else(|| crate::slugify(&input.name));
     Ok(sqlx::query_as(
         "INSERT INTO forms (name, slug, description, fields, settings, is_active, created_by)
@@ -94,6 +97,7 @@ pub async fn create_form(db: &PgPool, author_id: Uuid, input: FormInput) -> Core
 }
 
 pub async fn update_form(db: &PgPool, id: Uuid, input: FormInput) -> CoreResult<Form> {
+    crate::form_validation::schema(&input.fields, 0)?;
     let current = get_form(db, id).await?;
     let slug = input.slug.unwrap_or(current.slug);
     Ok(sqlx::query_as(
@@ -112,7 +116,10 @@ pub async fn update_form(db: &PgPool, id: Uuid, input: FormInput) -> CoreResult<
 }
 
 pub async fn delete_form(db: &PgPool, id: Uuid) -> CoreResult<()> {
-    sqlx::query("DELETE FROM forms WHERE id = $1").bind(id).execute(db).await?;
+    sqlx::query("DELETE FROM forms WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
     Ok(())
 }
 
@@ -120,20 +127,24 @@ pub async fn delete_form(db: &PgPool, id: Uuid) -> CoreResult<()> {
 // Soumissions & Interaction Dashboard
 // ---------------------------------------------------------------------------
 
-pub async fn submit(db: &PgPool, form_id: Uuid, payload: SubmitFormPayload) -> CoreResult<FormSubmission> {
+pub async fn submit(
+    db: &PgPool,
+    form_id: Uuid,
+    payload: SubmitFormPayload,
+) -> CoreResult<FormSubmission> {
     let form = get_form(db, form_id).await?;
     if !form.is_active {
-        return Err(CoreError::validation("ce formulaire est actuellement désactivé"));
+        return Err(CoreError::validation(
+            "ce formulaire est actuellement désactivé",
+        ));
     }
+    crate::form_validation::validate(&form.fields, &payload.data)?;
 
     // Détection Honeypot anti-spam sans captcha intrusif
     let is_spam = payload._website.is_some_and(|w| !w.trim().is_empty());
 
-    // Anonymisation IP (SHA256) pour conformité RGPD
-    let raw_ip = payload.client_ip.unwrap_or_else(|| "127.0.0.1".into());
-    let mut hasher = sha2::Sha256::default();
-    sha2::Digest::update(&mut hasher, raw_ip.as_bytes());
-    let ip_hash = hex::encode(sha2::Digest::finalize(hasher));
+    // IP collection is disabled. Do not trust a client-supplied IP or claim anonymization.
+    let ip_hash = String::new();
 
     let sub: FormSubmission = sqlx::query_as(
         "INSERT INTO form_submissions (form_id, data, ip_hash, user_agent, is_spam)

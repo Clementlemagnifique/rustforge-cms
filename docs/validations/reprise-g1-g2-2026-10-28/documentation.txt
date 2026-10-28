@@ -1,0 +1,5 @@
+Contrôles finaux de reprise du 28 octobre 2026
+OK: 432 t�ches, 38 composants existants; IDs, d�pendances, sources et vues coh�rents.
+OK: 114 entr�es, 3 niveaux maximum, t�ches et sources coh�rentes.
+{"documents": 35, "liens_locaux": 1410, "archives_verifiees": 22, "candidats_sources": 16295, "erreurs": []}
+{"documents": 35, "liens_locaux": 1410, "archives_verifiees": 22, "candidats_sources": 16295, "erreurs": []}

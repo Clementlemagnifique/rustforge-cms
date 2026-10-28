@@ -41,6 +41,7 @@ pub struct MediaUpdate {
     pub alt: Option<String>,
     pub caption: Option<String>,
     pub folder_id: Option<Uuid>,
+    pub clear_folder: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -113,7 +114,11 @@ pub async fn list(db: &PgPool, q: &MediaQuery) -> CoreResult<Page<Media>> {
 
 pub async fn update(db: &PgPool, id: Uuid, input: MediaUpdate) -> CoreResult<Media> {
     let current = get(db, id).await?;
-    let folder_id = input.folder_id.or(current.folder_id);
+    let folder_id = if input.clear_folder == Some(true) {
+        None
+    } else {
+        input.folder_id.or(current.folder_id)
+    };
     sqlx::query("UPDATE media SET alt = $2, caption = $3, folder_id = $4 WHERE id = $1")
         .bind(id)
         .bind(input.alt.unwrap_or(current.alt).trim())
@@ -124,11 +129,49 @@ pub async fn update(db: &PgPool, id: Uuid, input: MediaUpdate) -> CoreResult<Med
     get(db, id).await
 }
 
+/// Compte le nombre d'entrées (articles/pages) qui utilisent ce média en image mise en avant
+/// ou dans leurs blocs (`rf_media_id` ou chemin d'upload) (`WP-40`).
+pub async fn usage_count(db: &PgPool, id: Uuid) -> CoreResult<i64> {
+    let current = get(db, id).await?;
+    let id_str = id.to_string();
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM entries
+         WHERE status <> 'trash'
+           AND (featured_media_id = $1
+                OR blocks::text LIKE '%' || $2 || '%'
+                OR body LIKE '%' || $3 || '%')",
+    )
+    .bind(id)
+    .bind(&id_str)
+    .bind(&current.path)
+    .fetch_one(db)
+    .await?;
+    Ok(count)
+}
+
 pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<(String, Option<String>)> {
-    let row: (String, Option<String>) = sqlx::query_as("DELETE FROM media WHERE id = $1 RETURNING path, webp_path")
-        .bind(id)
-        .fetch_one(db)
-        .await?;
+    delete_checked(db, id, false).await
+}
+
+/// Supprime un média après avoir vérifié qu'il n'est pas référencé par un contenu actif (sauf si `force = true`) (`WP-40`).
+pub async fn delete_checked(
+    db: &PgPool,
+    id: Uuid,
+    force: bool,
+) -> CoreResult<(String, Option<String>)> {
+    if !force {
+        let usages = usage_count(db, id).await?;
+        if usages > 0 {
+            return Err(crate::CoreError::Conflict(format!(
+                "Ce média est utilisé dans {usages} contenu(s) actif(s). Détachez-le d'abord ou confirmez la suppression forcée."
+            )));
+        }
+    }
+    let row: (String, Option<String>) =
+        sqlx::query_as("DELETE FROM media WHERE id = $1 RETURNING path, webp_path")
+            .bind(id)
+            .fetch_one(db)
+            .await?;
     Ok(row)
 }
 

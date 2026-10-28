@@ -3,15 +3,23 @@
 //! Assure un rendu HTML des pages publiques en < 1ms via cache mémoire,
 //! avec gestion native du multilinguisme (/fr/..., /en/...), pré-rendu et invalidation sélective.
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
 use minijinja::{Environment, Value};
 use moka::future::Cache;
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicI64, Ordering},
+    },
+    time::Duration,
+};
 
 use crate::error::{ApiError, ApiResult};
 
 /// Clé de cache pour une URL publique (ex: "fr:/", "en:/about", "fr:/post/puissance-rust").
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CacheKey {
+    pub revision: i64,
     pub locale: String,
     pub path: String,
 }
@@ -19,7 +27,9 @@ pub struct CacheKey {
 /// Moteur de rendu SSR dynamique et cache L1 en RAM.
 #[derive(Clone)]
 pub struct SsrEngine {
-    env: Arc<Environment<'static>>,
+    env: Arc<RwLock<Environment<'static>>>,
+    revision: Arc<AtomicI64>,
+    reload: Arc<tokio::sync::Mutex<()>>,
     cache: Cache<CacheKey, String>,
     pub themes_dir: PathBuf,
     pub active_theme: String,
@@ -52,20 +62,57 @@ impl SsrEngine {
             .build();
 
         Self {
-            env: Arc::new(env),
+            env: Arc::new(RwLock::new(env)),
+            revision: Arc::new(AtomicI64::new(-1)),
+            reload: Arc::new(tokio::sync::Mutex::new(())),
             cache,
             themes_dir,
             active_theme,
         }
     }
 
+    /// Database triggers version all public dependencies, including scheduler changes.
+    pub async fn synchronize(&self, db: &sqlx::PgPool) -> ApiResult<()> {
+        let _guard = self.reload.lock().await;
+        let (revision, theme): (i64, Option<String>) = sqlx::query_as("SELECT revision, (SELECT value #>> '{}' FROM settings WHERE key='site.active_theme') FROM runtime_revision WHERE singleton")
+            .fetch_one(db).await.map_err(rustforge_core::CoreError::from)?;
+        if revision != self.revision.load(Ordering::SeqCst) {
+            let theme = theme.as_deref().unwrap_or(&self.active_theme);
+            rustforge_core::security::safe_slug(theme)?;
+            if self.themes_dir.exists() {
+                let path = rustforge_core::security::confined_path(&self.themes_dir, theme)?
+                    .join("templates");
+                if !path.is_dir() {
+                    return Err(crate::error::ApiError::BadRequest(
+                        "Thème actif indisponible".into(),
+                    ));
+                }
+                let mut env = self
+                    .env
+                    .write()
+                    .map_err(|_| ApiError::Internal(anyhow::anyhow!("verrou de rendu")))?;
+                env.clear_templates();
+                env.set_loader(minijinja::path_loader(path));
+            }
+            self.cache.invalidate_all();
+            self.revision.store(revision, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
     /// Récupère le HTML depuis le cache L1 ou effectue le rendu via MiniJinja.
-    pub async fn render_page<F, Fut>(&self, locale: &str, path: &str, fetch_data: F) -> ApiResult<String>
+    pub async fn render_page<F, Fut>(
+        &self,
+        locale: &str,
+        path: &str,
+        fetch_data: F,
+    ) -> ApiResult<String>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = ApiResult<Value>>,
     {
         let key = CacheKey {
+            revision: self.revision.load(Ordering::SeqCst),
             locale: locale.to_string(),
             path: path.to_string(),
         };
@@ -80,16 +127,24 @@ impl SsrEngine {
         tracing::debug!(locale, path, "SSR Cache L1 MISS - Génération MiniJinja");
         let ctx = fetch_data().await?;
 
-        let template_name = ctx.get_attr("template")
+        let template_name = ctx
+            .get_attr("template")
             .ok()
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_else(|| "single.html".into());
 
-        let tmpl = self.env.get_template(&template_name)
-            .map_err(|e| ApiError::Internal(anyhow::anyhow!("erreur template : {e}")))?;
+        let html = {
+            let env = self
+                .env
+                .read()
+                .map_err(|_| ApiError::Internal(anyhow::anyhow!("verrou de rendu")))?;
+            let tmpl = env
+                .get_template(&template_name)
+                .map_err(|e| ApiError::Internal(anyhow::anyhow!("erreur template : {e}")))?;
 
-        let html = tmpl.render(ctx)
-            .map_err(|e| ApiError::Internal(anyhow::anyhow!("erreur rendu SSR : {e}")))?;
+            tmpl.render(ctx)
+                .map_err(|e| ApiError::Internal(anyhow::anyhow!("erreur rendu SSR : {e}")))?
+        };
 
         // 3. Stockage en cache mémoire
         self.cache.insert(key, html.clone()).await;
@@ -100,6 +155,7 @@ impl SsrEngine {
     /// Invalide une page précise (ex: après mise à jour).
     pub async fn invalidate(&self, locale: &str, path: &str) {
         let key = CacheKey {
+            revision: self.revision.load(Ordering::SeqCst),
             locale: locale.to_string(),
             path: path.to_string(),
         };

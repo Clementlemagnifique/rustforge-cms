@@ -32,6 +32,8 @@ pub struct PhpDeserializer<'a> {
 }
 
 const MAX_DEPTH: usize = 64;
+const MAX_ITEMS: usize = 100_000;
+const MAX_INPUT: usize = 16 * 1024 * 1024;
 
 impl<'a> PhpDeserializer<'a> {
     pub fn new(input: &'a str) -> Self {
@@ -45,8 +47,18 @@ impl<'a> PhpDeserializer<'a> {
     /// Désérialise une chaîne PHP en `serde_json::Value`.
     pub fn deserialize(input: &str) -> Result<Value, PhpParseError> {
         let trimmed = input.trim();
+        if trimmed.len() > MAX_INPUT {
+            return Err(PhpParseError::InvalidFormat(
+                "donnée trop volumineuse".into(),
+            ));
+        }
         let mut de = PhpDeserializer::new(trimmed);
         let val = de.parse_value()?;
+        if !de.remaining().is_empty() {
+            return Err(PhpParseError::InvalidFormat(
+                "données après la valeur".into(),
+            ));
+        }
         Ok(val)
     }
 
@@ -59,14 +71,21 @@ impl<'a> PhpDeserializer<'a> {
     }
 
     fn next_char(&mut self) -> Result<char, PhpParseError> {
-        let c = self.remaining().chars().next().ok_or(PhpParseError::UnexpectedEnd)?;
+        let c = self
+            .remaining()
+            .chars()
+            .next()
+            .ok_or(PhpParseError::UnexpectedEnd)?;
         self.pos += c.len_utf8();
         Ok(c)
     }
 
     #[allow(dead_code)]
     fn peek_char(&self) -> Result<char, PhpParseError> {
-        self.remaining().chars().next().ok_or(PhpParseError::UnexpectedEnd)
+        self.remaining()
+            .chars()
+            .next()
+            .ok_or(PhpParseError::UnexpectedEnd)
     }
 
     fn expect_char(&mut self, expected: char) -> Result<(), PhpParseError> {
@@ -108,7 +127,11 @@ impl<'a> PhpDeserializer<'a> {
             'b' => {
                 self.expect_char(':')?;
                 let val_str = self.read_until(';')?;
-                let b = val_str == "1";
+                let b = match val_str {
+                    "1" => true,
+                    "0" => false,
+                    _ => return Err(PhpParseError::InvalidFormat("booléen invalide".into())),
+                };
                 Ok(Value::Bool(b))
             }
             // Entier : i:123;
@@ -116,7 +139,10 @@ impl<'a> PhpDeserializer<'a> {
                 self.expect_char(':')?;
                 let val_str = self.read_until(';')?;
                 let n = i64::from_str(val_str).map_err(|e| {
-                    PhpParseError::InvalidFormat(format!("Entier PHP invalide '{}': {}", val_str, e))
+                    PhpParseError::InvalidFormat(format!(
+                        "Entier PHP invalide '{}': {}",
+                        val_str, e
+                    ))
                 })?;
                 Ok(Value::Number(Number::from(n)))
             }
@@ -138,7 +164,10 @@ impl<'a> PhpDeserializer<'a> {
                 self.expect_char(':')?;
                 let len_str = self.read_until(':')?;
                 let byte_len = usize::from_str(len_str).map_err(|e| {
-                    PhpParseError::InvalidFormat(format!("Longueur de chaîne invalide '{}': {}", len_str, e))
+                    PhpParseError::InvalidFormat(format!(
+                        "Longueur de chaîne invalide '{}': {}",
+                        len_str, e
+                    ))
                 })?;
                 self.expect_char('"')?;
 
@@ -148,7 +177,9 @@ impl<'a> PhpDeserializer<'a> {
                 }
 
                 // PHP sérialise la longueur en octets
-                let str_slice = &rem[..byte_len];
+                let str_slice = rem.get(..byte_len).ok_or_else(|| {
+                    PhpParseError::InvalidFormat("longueur UTF-8 invalide".into())
+                })?;
                 self.pos += byte_len;
 
                 self.expect_char('"')?;
@@ -160,9 +191,15 @@ impl<'a> PhpDeserializer<'a> {
                 self.expect_char(':')?;
                 let len_str = self.read_until(':')?;
                 let count = usize::from_str(len_str).map_err(|e| {
-                    PhpParseError::InvalidFormat(format!("Taille de tableau invalide '{}': {}", len_str, e))
+                    PhpParseError::InvalidFormat(format!(
+                        "Taille de tableau invalide '{}': {}",
+                        len_str, e
+                    ))
                 })?;
                 self.expect_char('{')?;
+                if count > MAX_ITEMS || count > self.remaining().len() / 4 {
+                    return Err(PhpParseError::InvalidFormat("tableau trop grand".into()));
+                }
 
                 self.depth += 1;
                 let mut map = Map::new();
@@ -214,7 +251,9 @@ impl<'a> PhpDeserializer<'a> {
                 if rem.len() < class_name_len {
                     return Err(PhpParseError::UnexpectedEnd);
                 }
-                let class_name = &rem[..class_name_len];
+                let class_name = rem.get(..class_name_len).ok_or_else(|| {
+                    PhpParseError::InvalidFormat("nom de classe UTF-8 invalide".into())
+                })?;
                 self.pos += class_name_len;
                 self.expect_char('"')?;
                 self.expect_char(':')?;
@@ -224,10 +263,16 @@ impl<'a> PhpDeserializer<'a> {
                     PhpParseError::InvalidFormat(format!("Nombre propriétés invalide: {}", e))
                 })?;
                 self.expect_char('{')?;
+                if props_count > MAX_ITEMS || props_count > self.remaining().len() / 4 {
+                    return Err(PhpParseError::InvalidFormat("objet trop grand".into()));
+                }
 
                 self.depth += 1;
                 let mut obj = Map::new();
-                obj.insert("__php_class".to_string(), Value::String(class_name.to_string()));
+                obj.insert(
+                    "__php_class".to_string(),
+                    Value::String(class_name.to_string()),
+                );
 
                 for _ in 0..props_count {
                     let prop_name = match self.parse_value()? {
@@ -255,10 +300,10 @@ impl<'a> PhpDeserializer<'a> {
 /// retourne la chaîne d'origine enveloppée dans `Value::String`.
 pub fn maybe_deserialize_php(input: &str) -> Value {
     let trimmed = input.trim();
-    if is_likely_php_serialized(trimmed) {
-        if let Ok(val) = PhpDeserializer::deserialize(trimmed) {
-            return val;
-        }
+    if is_likely_php_serialized(trimmed)
+        && let Ok(val) = PhpDeserializer::deserialize(trimmed)
+    {
+        return val;
     }
     Value::String(input.to_string())
 }
@@ -269,11 +314,10 @@ pub fn is_likely_php_serialized(s: &str) -> bool {
     if s.len() < 2 {
         return false;
     }
-    match &s[..2] {
-        "a:" | "O:" | "s:" | "i:" | "d:" | "b:" => true,
-        "N;" => true,
-        _ => false,
-    }
+    matches!(
+        s.as_bytes().get(..2),
+        Some(b"a:" | b"O:" | b"s:" | b"i:" | b"d:" | b"b:" | b"N;")
+    )
 }
 
 #[cfg(test)]
@@ -283,11 +327,26 @@ mod tests {
     #[test]
     fn test_deserialize_primitives() {
         assert_eq!(PhpDeserializer::deserialize("N;").unwrap(), Value::Null);
-        assert_eq!(PhpDeserializer::deserialize("b:1;").unwrap(), Value::Bool(true));
-        assert_eq!(PhpDeserializer::deserialize("b:0;").unwrap(), Value::Bool(false));
-        assert_eq!(PhpDeserializer::deserialize("i:42;").unwrap(), serde_json::json!(42));
-        assert_eq!(PhpDeserializer::deserialize("d:3.14;").unwrap(), serde_json::json!(3.14));
-        assert_eq!(PhpDeserializer::deserialize("s:5:\"hello\";").unwrap(), serde_json::json!("hello"));
+        assert_eq!(
+            PhpDeserializer::deserialize("b:1;").unwrap(),
+            Value::Bool(true)
+        );
+        assert_eq!(
+            PhpDeserializer::deserialize("b:0;").unwrap(),
+            Value::Bool(false)
+        );
+        assert_eq!(
+            PhpDeserializer::deserialize("i:42;").unwrap(),
+            serde_json::json!(42)
+        );
+        assert_eq!(
+            PhpDeserializer::deserialize("d:1.25;").unwrap(),
+            serde_json::json!(1.25)
+        );
+        assert_eq!(
+            PhpDeserializer::deserialize("s:5:\"hello\";").unwrap(),
+            serde_json::json!("hello")
+        );
     }
 
     #[test]
@@ -301,36 +360,49 @@ mod tests {
     fn test_deserialize_associative_array() {
         let input = "a:2:{s:4:\"name\";s:5:\"Alice\";s:3:\"age\";i:30;}";
         let res = PhpDeserializer::deserialize(input).unwrap();
-        assert_eq!(res, serde_json::json!({
-            "name": "Alice",
-            "age": 30
-        }));
+        assert_eq!(
+            res,
+            serde_json::json!({
+                "name": "Alice",
+                "age": 30
+            })
+        );
     }
 
     #[test]
     fn test_deserialize_nested_structures() {
-        let input = "a:2:{s:5:\"roles\";a:2:{i:0;s:5:\"admin\";i:1;s:6:\"editor\";}s:6:\"active\";b:1;}";
+        let input =
+            "a:2:{s:5:\"roles\";a:2:{i:0;s:5:\"admin\";i:1;s:6:\"editor\";}s:6:\"active\";b:1;}";
         let res = PhpDeserializer::deserialize(input).unwrap();
-        assert_eq!(res, serde_json::json!({
-            "roles": ["admin", "editor"],
-            "active": true
-        }));
+        assert_eq!(
+            res,
+            serde_json::json!({
+                "roles": ["admin", "editor"],
+                "active": true
+            })
+        );
     }
 
     #[test]
     fn test_deserialize_php_object() {
         let input = "O:8:\"stdClass\":2:{s:4:\"host\";s:9:\"localhost\";s:4:\"port\";i:5432;}";
         let res = PhpDeserializer::deserialize(input).unwrap();
-        assert_eq!(res, serde_json::json!({
-            "__php_class": "stdClass",
-            "host": "localhost",
-            "port": 5432
-        }));
+        assert_eq!(
+            res,
+            serde_json::json!({
+                "__php_class": "stdClass",
+                "host": "localhost",
+                "port": 5432
+            })
+        );
     }
 
     #[test]
     fn test_maybe_deserialize_fallback() {
         let normal_text = "Ceci est un texte brut non sérialisé.";
-        assert_eq!(maybe_deserialize_php(normal_text), Value::String(normal_text.to_string()));
+        assert_eq!(
+            maybe_deserialize_php(normal_text),
+            Value::String(normal_text.to_string())
+        );
     }
 }

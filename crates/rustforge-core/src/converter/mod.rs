@@ -14,7 +14,7 @@ pub mod theme_converter;
 pub use analyzer::PackageAnalyzer;
 pub use forms_converter::{FormsConversionResult, FormsConverter};
 pub use intelligence::{
-    CapabilityOperationalStatus, CapabilityComposer, CapabilityComposition, ConfidenceLevel,
+    CapabilityComposer, CapabilityComposition, CapabilityOperationalStatus, ConfidenceLevel,
     FeatureGapDecision, FeatureNode, FunctionalFeatureGraph, GapAnalysisEngine, GapResolutionKind,
     MicroPluginBuilder, MicroPluginPackage, ValidationEngine, ValidationResult,
 };
@@ -31,8 +31,8 @@ pub use theme_converter::{ConvertedTheme, FseThemeConverter};
 mod tests {
     use super::*;
     use std::io::Write;
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     /// Crée un ZIP en mémoire pour simuler un thème FSE WordPress (Cas A : Twenty Twenty-Five)
     fn build_mock_fse_theme_zip() -> Vec<u8> {
@@ -42,11 +42,13 @@ mod tests {
             let options = SimpleFileOptions::default();
 
             // style.css
-            zip.start_file("twentytwentyfive/style.css", options).unwrap();
+            zip.start_file("twentytwentyfive/style.css", options)
+                .unwrap();
             zip.write_all("/*\nTheme Name: Twenty Twenty-Five\nVersion: 1.0.0\nAuthor: WordPress.org\nDescription: Theme FSE par defaut 2026.\n*/".as_bytes()).unwrap();
 
             // theme.json
-            zip.start_file("twentytwentyfive/theme.json", options).unwrap();
+            zip.start_file("twentytwentyfive/theme.json", options)
+                .unwrap();
             let theme_json = r##"{
                 "version": 3,
                 "settings": {
@@ -68,7 +70,8 @@ mod tests {
             zip.write_all(theme_json.as_bytes()).unwrap();
 
             // templates/index.html
-            zip.start_file("twentytwentyfive/templates/index.html", options).unwrap();
+            zip.start_file("twentytwentyfive/templates/index.html", options)
+                .unwrap();
             let template_html = r#"<!-- wp:group {"layout":{"type":"constrained"}} -->
 <div class="wp-block-group">
   <!-- wp:site-title /-->
@@ -117,14 +120,18 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
         let zip_bytes = build_mock_fse_theme_zip();
 
         // 1. Analyse du package
-        let manifest = PackageAnalyzer::analyze_zip(&zip_bytes).expect("L'analyse du thème FSE doit réussir");
+        let manifest =
+            PackageAnalyzer::analyze_zip(&zip_bytes).expect("L'analyse du thème FSE doit réussir");
         assert_eq!(manifest.package.kind, PackageKind::ThemeFse);
         assert_eq!(manifest.package.name, "Twenty Twenty-Five");
         assert_eq!(manifest.package.version, "1.0.0");
         assert!(manifest.package.has_theme_json);
         assert!(manifest.package.has_block_templates);
         assert_eq!(manifest.strategy, ConversionStrategyKind::Declarative);
-        assert_eq!(manifest.compatibility.status, CompatibilityStatus::FullySupported);
+        assert_eq!(
+            manifest.compatibility.status,
+            CompatibilityStatus::PartiallySupported
+        );
         assert!(manifest.activation_plan.preview_available);
 
         // 2. Conversion déclarative FSE vers MiniJinja 3
@@ -139,8 +146,21 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
 
         let home_tpl = converted.templates.get("home.html").unwrap();
         assert!(home_tpl.contains("{{ entry.title }}"));
-        assert!(home_tpl.contains("{{ entry.rendered_content | safe }}"));
-        assert!(home_tpl.contains("{{ site.name }}"));
+        assert!(home_tpl.contains("{{ entry.body_html | safe }}"));
+        assert!(home_tpl.contains("{{ site_title }}"));
+        // Exercise MiniJinja's actual contract, not just string substitutions.
+        let mut env = minijinja::Environment::new();
+        for (name, template) in &converted.templates {
+            env.add_template(name, template).unwrap();
+        }
+        let context = serde_json::json!({"locale":"fr", "site_title":"Test site", "site_tagline":"Test", "entry":{"title":"Title","body_html":"<p>Visible body</p>"},"entries":[{"title":"Title","body_html":"<p>Visible body</p>"}]});
+        let rendered = env
+            .get_template("single.html")
+            .unwrap()
+            .render(&context)
+            .unwrap();
+        assert!(rendered.contains("Visible body"));
+        assert!(rendered.contains("Test site"));
         // Vérifie qu'aucun commentaire Gutenberg n'a pollué le rendu
         assert!(!home_tpl.contains("<!-- wp:group"));
     }
@@ -150,28 +170,51 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
         let zip_bytes = build_mock_forms_plugin_zip();
 
         // 1. Analyse du package
-        let manifest = PackageAnalyzer::analyze_zip(&zip_bytes).expect("L'analyse du plugin de formulaire doit réussir");
+        let manifest = PackageAnalyzer::analyze_zip(&zip_bytes)
+            .expect("L'analyse du plugin de formulaire doit réussir");
         assert_eq!(manifest.package.kind, PackageKind::Plugin);
         assert_eq!(manifest.package.name, "WPForms Lite");
         assert_eq!(manifest.package.version, "1.9.1");
         assert_eq!(manifest.strategy, ConversionStrategyKind::NativeReuse);
         assert_eq!(manifest.target_native_module, Some("forms".to_string()));
-        assert_eq!(manifest.compatibility.status, CompatibilityStatus::FullySupported);
-        assert!(manifest.activation_plan.enable_modules.contains(&"forms".to_string()));
-        assert!(manifest.activation_plan.register_blocks.contains(&"form_embed".to_string()));
+        assert_eq!(
+            manifest.compatibility.status,
+            CompatibilityStatus::PartiallySupported
+        );
+        assert!(
+            manifest
+                .activation_plan
+                .enable_modules
+                .contains(&"forms".to_string())
+        );
+        assert!(
+            manifest
+                .activation_plan
+                .register_blocks
+                .contains(&"form_embed".to_string())
+        );
 
         // Vérifie que les hooks et shortcodes ont été extraits
-        let hook_names: Vec<String> = manifest.detected_hooks.into_iter().map(|h| h.name).collect();
+        let hook_names: Vec<String> = manifest
+            .detected_hooks
+            .into_iter()
+            .map(|h| h.name)
+            .collect();
         assert!(hook_names.contains(&"init".to_string()));
         assert!(hook_names.contains(&"wp_ajax_wpforms_submit".to_string()));
         assert!(hook_names.contains(&"wpforms".to_string()));
 
         // 2. Remplacement déclaratif par RustForge Forms
-        let forms_plan = FormsConverter::plan_conversion(&manifest.package.slug, &manifest.package.author);
+        let forms_plan =
+            FormsConverter::plan_conversion(&manifest.package.slug, &manifest.package.author);
         assert_eq!(forms_plan.strategy, ConversionStrategyKind::NativeReuse);
-        assert!(forms_plan.code_disposition.contains("entièrement remplacé par le module natif RustForge Forms"));
+        assert!(
+            forms_plan
+                .code_disposition
+                .contains("entièrement remplacé par le module natif RustForge Forms")
+        );
         assert!(forms_plan.data_migration_guidance.contains("DataMorph"));
-        assert_eq!(forms_plan.proposed_form.honeypot_enabled, true);
+        assert!(forms_plan.proposed_form.honeypot_enabled);
     }
 
     #[test]
@@ -187,7 +230,10 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
         }
 
         let result = PackageAnalyzer::analyze_zip(&buffer);
-        assert!(result.is_err(), "L'archive avec Directory Traversal doit être rejetée");
+        assert!(
+            result.is_err(),
+            "L'archive avec Directory Traversal doit être rejetée"
+        );
     }
 
     #[tokio::test]
@@ -195,7 +241,8 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
         let php_target = AnalysisTarget {
             file_path: "plugin.php".to_string(),
             mime_type: "text/x-php".to_string(),
-            content: "add_action('init', 'setup');\nadd_shortcode('custom_view', 'render_view');".to_string(),
+            content: "add_action('init', 'setup');\nadd_shortcode('custom_view', 'render_view');"
+                .to_string(),
             is_minified_or_compiled: false,
         };
 
@@ -227,8 +274,10 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
 
     #[test]
     fn test_gap_analysis_and_capability_composer() {
-        let mut graph = FunctionalFeatureGraph::default();
-        graph.package_slug = "test-course-plugin".to_string();
+        let mut graph = FunctionalFeatureGraph {
+            package_slug: "test-course-plugin".into(),
+            ..Default::default()
+        };
         graph.nodes.push(FeatureNode {
             id: "contact_form".to_string(),
             name: "Formulaire".to_string(),
@@ -271,14 +320,28 @@ add_shortcode( 'wpforms', 'wpforms_shortcode_output' );
 
     #[test]
     fn test_micro_plugin_builder_and_validation_engine() {
-        let package = MicroPluginBuilder::build_skeleton("reading-time-pro", "Reading Time Pro", "content.filter.render");
+        let package = MicroPluginBuilder::build_skeleton(
+            "reading-time-pro",
+            "Reading Time Pro",
+            "content.filter.render",
+        );
         assert_eq!(package.extension_slug, "reading-time-pro");
         assert_eq!(package.files.len(), 4);
 
         let validation = ValidationEngine::validate(&package);
         assert!(validation.is_valid);
-        assert_eq!(validation.security_score, 100);
-        assert!(validation.passed_checks.iter().any(|c| c.contains("SDK WASM complète")));
-        assert!(validation.passed_checks.iter().any(|c| c.contains("100% sûr")));
+        assert_eq!(validation.security_score, 30);
+        assert!(
+            validation
+                .passed_checks
+                .iter()
+                .any(|c| c.contains("SDK WASM complète"))
+        );
+        assert!(
+            validation
+                .passed_checks
+                .iter()
+                .any(|c| c.contains("Contrôle textuel"))
+        );
     }
 }

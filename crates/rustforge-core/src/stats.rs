@@ -30,24 +30,56 @@ pub struct DashboardStats {
 }
 
 pub async fn dashboard(db: &PgPool) -> CoreResult<DashboardStats> {
+    dashboard_for(db, None).await
+}
+
+pub async fn dashboard_for(db: &PgPool, author: Option<uuid::Uuid>) -> CoreResult<DashboardStats> {
     let content_types = sqlx::query_as::<_, TypeStats>(
         "SELECT ct.slug, ct.name, ct.icon,
             count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at <= now()) AS published,
             count(e.id) FILTER (WHERE e.status = 'draft') AS drafts,
             count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at > now()) AS scheduled
-         FROM content_types ct LEFT JOIN entries e ON e.content_type_id = ct.id
+         FROM content_types ct LEFT JOIN entries e ON e.content_type_id = ct.id AND ($1::uuid IS NULL OR e.author_id=$1)
          GROUP BY ct.id ORDER BY ct.is_system DESC, ct.name",
     )
-    .fetch_all(db)
+    .bind(author).fetch_all(db)
     .await?;
 
     let (media, media_bytes): (i64, i64) =
-        sqlx::query_as("SELECT count(*), coalesce(sum(size_bytes), 0)::bigint FROM media")
-            .fetch_one(db)
+        sqlx::query_as("SELECT count(*), coalesce(sum(size_bytes), 0)::bigint FROM media WHERE ($1::uuid IS NULL OR uploaded_by=$1)")
+            .bind(author).fetch_one(db)
             .await?;
-    let users: i64 = sqlx::query_scalar("SELECT count(*) FROM users").fetch_one(db).await?;
-    let terms: i64 = sqlx::query_scalar("SELECT count(*) FROM terms").fetch_one(db).await?;
-    let recent = entries::list(db, &EntryQuery { per_page: Some(6), ..Default::default() }).await?.items;
+    let users: i64 = if author.is_none() {
+        sqlx::query_scalar("SELECT count(*) FROM users")
+            .fetch_one(db)
+            .await?
+    } else {
+        0
+    };
+    let terms: i64 = if author.is_none() {
+        sqlx::query_scalar("SELECT count(*) FROM terms")
+            .fetch_one(db)
+            .await?
+    } else {
+        0
+    };
+    let recent = entries::list(
+        db,
+        &EntryQuery {
+            per_page: Some(6),
+            author_id: author,
+            ..Default::default()
+        },
+    )
+    .await?
+    .items;
 
-    Ok(DashboardStats { content_types, media, media_bytes, users, terms, recent })
+    Ok(DashboardStats {
+        content_types,
+        media,
+        media_bytes,
+        users,
+        terms,
+        recent,
+    })
 }

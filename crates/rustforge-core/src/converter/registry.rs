@@ -29,12 +29,20 @@ impl CapabilityRegistry {
                 description: "Prise en charge native des formulaires sécurisés, validation de schéma JSON, honeypot anti-spam sans captcha et hachage IP RGPD.",
                 target_module: Some("forms"),
                 matching_plugins: &[
-                    "wpforms", "wpforms-lite", "contact-form-7", "gravityforms",
-                    "formidable", "ninja-forms", "fluentform",
+                    "wpforms",
+                    "wpforms-lite",
+                    "contact-form-7",
+                    "gravityforms",
+                    "formidable",
+                    "ninja-forms",
+                    "fluentform",
                 ],
                 matching_hooks: &[
-                    "wpforms_process", "wpcf7_before_send_mail", "gform_after_submission",
-                    "wp_ajax_wpforms_submit", "wp_ajax_nopriv_wpforms_submit",
+                    "wpforms_process",
+                    "wpcf7_before_send_mail",
+                    "gform_after_submission",
+                    "wp_ajax_wpforms_submit",
+                    "wp_ajax_nopriv_wpforms_submit",
                 ],
                 matching_shortcodes: &["wpforms", "contact-form-7", "gravityform", "ninja_form"],
             },
@@ -45,13 +53,23 @@ impl CapabilityRegistry {
                 description: "Vente de fichiers protégés, jetons cryptographiquement signés HMAC-SHA256 hors web root, codes promotionnels et quotas.",
                 target_module: Some("ecommerce"),
                 matching_plugins: &[
-                    "easy-digital-downloads", "woocommerce", "download-monitor", "wp-e-commerce",
+                    "easy-digital-downloads",
+                    "woocommerce",
+                    "download-monitor",
+                    "wp-e-commerce",
                 ],
                 matching_hooks: &[
-                    "edd_process_purchase", "woocommerce_checkout_order_processed",
-                    "edd_download_files", "woocommerce_payment_complete",
+                    "edd_process_purchase",
+                    "woocommerce_checkout_order_processed",
+                    "edd_download_files",
+                    "woocommerce_payment_complete",
                 ],
-                matching_shortcodes: &["downloads", "purchase_link", "woocommerce_checkout", "woocommerce_cart"],
+                matching_shortcodes: &[
+                    "downloads",
+                    "purchase_link",
+                    "woocommerce_checkout",
+                    "woocommerce_cart",
+                ],
             },
             // 3. LMS & FORMATIONS
             CapabilityDescriptor {
@@ -60,13 +78,23 @@ impl CapabilityRegistry {
                 description: "Gestion des cursus, chapitres, leçons vidéo/texte et déblocage atomique de l'inscription élève dès la commande e-commerce.",
                 target_module: Some("lms"),
                 matching_plugins: &[
-                    "sensei-lms", "learndash", "lifterlms", "tutor-lms", "masterstudy-lms",
+                    "sensei-lms",
+                    "learndash",
+                    "lifterlms",
+                    "tutor-lms",
+                    "masterstudy-lms",
                 ],
                 matching_hooks: &[
-                    "sensei_user_course_end", "learndash_course_completed",
-                    "sensei_course_enrolment", "lifterlms_course_completed",
+                    "sensei_user_course_end",
+                    "learndash_course_completed",
+                    "sensei_course_enrolment",
+                    "lifterlms_course_completed",
                 ],
-                matching_shortcodes: &["sensei_courses", "sensei_user_courses", "learndash_course_progress"],
+                matching_shortcodes: &[
+                    "sensei_courses",
+                    "sensei_user_courses",
+                    "learndash_course_progress",
+                ],
             },
             // 4. MÉDIATHÈQUE & DOSSIERS VIRTUELS
             CapabilityDescriptor {
@@ -75,11 +103,19 @@ impl CapabilityRegistry {
                 description: "Organisation en dossiers virtuels hiérarchiques, compression WebP 82 % native et désinfection XML/SVG stricte.",
                 target_module: Some("media"),
                 matching_plugins: &[
-                    "filebird", "filebird-pro", "real-media-library", "wp-media-folder",
-                    "smush", "imagify", "shortpixel", "safe-svg",
+                    "filebird",
+                    "filebird-pro",
+                    "real-media-library",
+                    "wp-media-folder",
+                    "smush",
+                    "imagify",
+                    "shortpixel",
+                    "safe-svg",
                 ],
                 matching_hooks: &[
-                    "wp_handle_upload", "image_make_intermediate_size", "wp_generate_attachment_metadata",
+                    "wp_handle_upload",
+                    "image_make_intermediate_size",
+                    "wp_generate_attachment_metadata",
                 ],
                 matching_shortcodes: &[],
             },
@@ -90,11 +126,13 @@ impl CapabilityRegistry {
                 description: "Albums photos locaux, vidéos MP4 hébergées et intégrations fluides YouTube / Vimeo.",
                 target_module: Some("galleries"),
                 matching_plugins: &[
-                    "thedock-media", "modula", "envira-gallery", "nextgen-gallery", "foogallery",
+                    "thedock-media",
+                    "modula",
+                    "envira-gallery",
+                    "nextgen-gallery",
+                    "foogallery",
                 ],
-                matching_hooks: &[
-                    "envira_gallery_output", "modula_shortcode",
-                ],
+                matching_hooks: &["envira_gallery_output", "modula_shortcode"],
                 matching_shortcodes: &["gallery", "modula", "envira-gallery", "video"],
             },
             // 6. THÈMES FSE & DESIGN TOKENS
@@ -104,9 +142,7 @@ impl CapabilityRegistry {
                 description: "Transposition directe des tokens de couleur, polices et marges de theme.json vers le système de thèmes CSS et templates MiniJinja 3.",
                 target_module: None, // Géré par le moteur SSR de thèmes
                 matching_plugins: &[],
-                matching_hooks: &[
-                    "after_setup_theme", "wp_enqueue_scripts",
-                ],
+                matching_hooks: &["after_setup_theme", "wp_enqueue_scripts"],
                 matching_shortcodes: &[],
             },
             // 7. SÉCURITÉ & FIREWALL
@@ -116,11 +152,12 @@ impl CapabilityRegistry {
                 description: "Protection anti-brute force en mémoire, limitation de débit, en-têtes HTTP de sécurité stricts et traçabilité d'audit.",
                 target_module: None, // Cœur Axum
                 matching_plugins: &[
-                    "all-in-one-wp-security-and-firewall", "wordfence", "better-wp-security", "ithemecurity",
+                    "all-in-one-wp-security-and-firewall",
+                    "wordfence",
+                    "better-wp-security",
+                    "ithemecurity",
                 ],
-                matching_hooks: &[
-                    "login_failed", "wp_login", "init",
-                ],
+                matching_hooks: &["login_failed", "wp_login", "init"],
                 matching_shortcodes: &[],
             },
         ]
@@ -148,7 +185,7 @@ impl CapabilityRegistry {
             matched_capabilities.push("theme.fse_design_tokens".to_string());
             let report = CompatibilityReport {
                 score: 95,
-                status: CompatibilityStatus::FullySupported,
+                status: CompatibilityStatus::PartiallySupported,
                 migrated_features: vec![
                     "Palette de couleurs déclarative transmutée en variables CSS RustForge".to_string(),
                     "Hiérarchie typographique (titres, corps) convertie en tokens de thème".to_string(),
@@ -177,10 +214,14 @@ impl CapabilityRegistry {
         for cap in Self::all_capabilities() {
             let matches_slug = cap.matching_plugins.iter().any(|&p| slug_lower.contains(p));
             let matches_hook = cap.matching_hooks.iter().any(|&h| {
-                detected_hooks.iter().any(|dh| dh.to_lowercase().contains(h))
+                detected_hooks
+                    .iter()
+                    .any(|dh| dh.to_lowercase().contains(h))
             });
             let matches_sc = cap.matching_shortcodes.iter().any(|&sc| {
-                detected_shortcodes.iter().any(|dsc| dsc.to_lowercase() == sc)
+                detected_shortcodes
+                    .iter()
+                    .any(|dsc| dsc.to_lowercase() == sc)
             });
 
             if matches_slug || matches_hook || matches_sc {
@@ -197,7 +238,7 @@ impl CapabilityRegistry {
                 "forms" => {
                     let report = CompatibilityReport {
                         score: 95,
-                        status: CompatibilityStatus::FullySupported,
+                        status: CompatibilityStatus::PartiallySupported,
                         migrated_features: vec![
                             "Soumissions de formulaires sécurisées avec validation JSON Schema".to_string(),
                             "Protection anti-spam par pot de miel (Honeypot) sans captcha".to_string(),
@@ -223,19 +264,23 @@ impl CapabilityRegistry {
                 "ecommerce" => {
                     let report = CompatibilityReport {
                         score: 90,
-                        status: CompatibilityStatus::FullySupported,
+                        status: CompatibilityStatus::PartiallySupported,
                         migrated_features: vec![
                             "Catalogue de produits dématérialisés et gestion des prix".to_string(),
-                            "Liens de téléchargement cryptographiquement signés HMAC-SHA256".to_string(),
+                            "Liens de téléchargement cryptographiquement signés HMAC-SHA256"
+                                .to_string(),
                             "Codes de réduction promotionnels et quotas par commande".to_string(),
                             "Tunnel de commande sécurisé et génération des tokens".to_string(),
                         ],
                         replaced_features: vec![
-                            "Remplacement de l'écosystème PHP EDD par le module natif SQLx/Rust".to_string(),
-                            "Protection des fichiers en dehors de la racine web publique".to_string(),
+                            "Remplacement de l'écosystème PHP EDD par le module natif SQLx/Rust"
+                                .to_string(),
+                            "Protection des fichiers en dehors de la racine web publique"
+                                .to_string(),
                         ],
                         partially_supported: vec![
-                            "Règles complexes de taxes par sous-régions géographiques spécifiques".to_string(),
+                            "Règles complexes de taxes par sous-régions géographiques spécifiques"
+                                .to_string(),
                         ],
                         incompatible_features: vec![
                             "Passerelles de paiement obscures sans API REST documentée".to_string(),
@@ -251,7 +296,7 @@ impl CapabilityRegistry {
                 "lms" => {
                     let report = CompatibilityReport {
                         score: 90,
-                        status: CompatibilityStatus::FullySupported,
+                        status: CompatibilityStatus::PartiallySupported,
                         migrated_features: vec![
                             "Hiérarchie complète : Cursus ➔ Modules ➔ Leçons vidéo/texte".to_string(),
                             "Inscription automatique atomique de l'acheteur dès la commande".to_string(),
@@ -277,14 +322,17 @@ impl CapabilityRegistry {
                 "media" => {
                     let report = CompatibilityReport {
                         score: 98,
-                        status: CompatibilityStatus::FullySupported,
+                        status: CompatibilityStatus::PartiallySupported,
                         migrated_features: vec![
-                            "Arborescence de dossiers virtuels hiérarchiques sans altération d'URL".to_string(),
+                            "Arborescence de dossiers virtuels hiérarchiques sans altération d'URL"
+                                .to_string(),
                             "Conversion automatique en WebP (qualité 82 % native Rust)".to_string(),
-                            "Désinfection XML/SVG stricte (quick-xml) contre les attaques XSS".to_string(),
+                            "Désinfection XML/SVG stricte (quick-xml) contre les attaques XSS"
+                                .to_string(),
                         ],
                         replaced_features: vec![
-                            "Élimination des plugins d'optimisation d'images payants à abonnements".to_string(),
+                            "Élimination des plugins d'optimisation d'images payants à abonnements"
+                                .to_string(),
                         ],
                         partially_supported: vec![],
                         incompatible_features: vec![],
@@ -299,13 +347,15 @@ impl CapabilityRegistry {
                 "galleries" => {
                     let report = CompatibilityReport {
                         score: 95,
-                        status: CompatibilityStatus::FullySupported,
+                        status: CompatibilityStatus::PartiallySupported,
                         migrated_features: vec![
                             "Albums photos locaux et galeries visuelles responsives".to_string(),
-                            "Intégrations fluides de vidéos YouTube / Vimeo avec lazy loading".to_string(),
+                            "Intégrations fluides de vidéos YouTube / Vimeo avec lazy loading"
+                                .to_string(),
                         ],
                         replaced_features: vec![
-                            "Remplacement des scripts lourds par un visualiseur HTML5/CSS natif".to_string(),
+                            "Remplacement des scripts lourds par un visualiseur HTML5/CSS natif"
+                                .to_string(),
                         ],
                         partially_supported: vec![],
                         incompatible_features: vec![],
@@ -323,8 +373,10 @@ impl CapabilityRegistry {
                     matched_capabilities,
                     CompatibilityReport {
                         score: 85,
-                        status: CompatibilityStatus::FullySupported,
-                        migrated_features: vec!["Capacités identifiées prises en charge par RustForge".to_string()],
+                        status: CompatibilityStatus::PartiallySupported,
+                        migrated_features: vec![
+                            "Capacités identifiées prises en charge par RustForge".to_string(),
+                        ],
                         replaced_features: vec![],
                         partially_supported: vec![],
                         incompatible_features: vec![],

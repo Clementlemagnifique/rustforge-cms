@@ -20,6 +20,8 @@ impl WxrImporter {
         xml_reader.config_mut().trim_text(true);
 
         let mut doc = TMIRDocument::default();
+        let mut document_json = String::new();
+        let mut in_document = false;
         let mut buf = Vec::new();
 
         let mut in_item = false;
@@ -60,6 +62,9 @@ impl WxrImporter {
                 Ok(Event::Start(ref e)) => {
                     let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                     current_tag = tag_name.clone();
+                    if tag_name == "rf:document" {
+                        in_document = true;
+                    }
 
                     if tag_name == "item" || tag_name == "rf:item" {
                         in_item = true;
@@ -76,11 +81,18 @@ impl WxrImporter {
                         item_tags.clear();
                         item_vault.clear();
                         item_attachment_url.clear();
-                    } else if tag_name == "wp:postmeta" || tag_name == "rf:postmeta" || tag_name == "rf:meta" {
+                    } else if tag_name == "wp:postmeta"
+                        || tag_name == "rf:postmeta"
+                        || tag_name == "rf:meta"
+                    {
                         in_postmeta = true;
                         current_meta_key.clear();
                         current_meta_val.clear();
-                    } else if (tag_name == "wp:category" || tag_name == "rf:category" || tag_name == "rf:term") && !in_item {
+                    } else if (tag_name == "wp:category"
+                        || tag_name == "rf:category"
+                        || tag_name == "rf:term")
+                        && !in_item
+                    {
                         in_category_term = true;
                         term_slug.clear();
                         term_name.clear();
@@ -104,7 +116,14 @@ impl WxrImporter {
                     }
                 }
                 Ok(Event::Text(ref e)) => {
-                    let text = String::from_utf8_lossy(e.as_ref()).to_string();
+                    let decoded = String::from_utf8_lossy(e.as_ref());
+                    let text = quick_xml::escape::unescape(&decoded)
+                        .map_err(|e| CoreError::validation(e.to_string()))?
+                        .into_owned();
+                    if in_document {
+                        document_json.push_str(&text);
+                        continue;
+                    }
                     Self::process_text_node(
                         &text,
                         &current_tag,
@@ -135,6 +154,10 @@ impl WxrImporter {
                 }
                 Ok(Event::CData(ref e)) => {
                     let text = String::from_utf8_lossy(e.as_ref()).to_string();
+                    if in_document {
+                        document_json.push_str(&text);
+                        continue;
+                    }
                     Self::process_text_node(
                         &text,
                         &current_tag,
@@ -166,7 +189,18 @@ impl WxrImporter {
                 Ok(Event::End(ref e)) => {
                     let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
 
-                    if tag_name == "wp:postmeta" || tag_name == "rf:postmeta" || tag_name == "rf:meta" {
+                    if tag_name == "rf:document" {
+                        let decoded: TMIRDocument = serde_json::from_str(&document_json)
+                            .map_err(|e| CoreError::validation(e.to_string()))?;
+                        if decoded.tmir_version != super::tmir::RFIR_CURRENT_VERSION {
+                            return Err(CoreError::validation("version RFIR non prise en charge"));
+                        }
+                        return Ok(decoded);
+                    }
+                    if tag_name == "wp:postmeta"
+                        || tag_name == "rf:postmeta"
+                        || tag_name == "rf:meta"
+                    {
                         in_postmeta = false;
                         if !current_meta_key.is_empty() {
                             // Désérialisation automatique des structures PHP en JSONB
@@ -213,7 +247,10 @@ impl WxrImporter {
                                 filename,
                                 mime_type,
                                 title: Some(item_title.clone()),
-                                alt_text: item_vault.get("_wp_attachment_image_alt").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                alt_text: item_vault
+                                    .get("_wp_attachment_image_alt")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string()),
                                 parent_entry_id: None,
                             });
                         } else {
@@ -224,7 +261,8 @@ impl WxrImporter {
                                 "pending" => TMIREntryStatus::Pending,
                                 "private" => TMIREntryStatus::Private,
                                 "trash" => TMIREntryStatus::Trash,
-                                _ => TMIREntryStatus::Published,
+                                "archived" => TMIREntryStatus::Archived,
+                                _ => TMIREntryStatus::Draft,
                             };
 
                             let slug = if item_slug.trim().is_empty() {
@@ -236,8 +274,11 @@ impl WxrImporter {
                             let published_at = DateTime::parse_from_rfc3339(item_date.trim())
                                 .map(|dt| dt.with_timezone(&Utc))
                                 .or_else(|_| {
-                                    DateTime::parse_from_str(&format!("{} +0000", item_date.trim()), "%Y-%m-%d %H:%M:%S %z")
-                                        .map(|dt| dt.with_timezone(&Utc))
+                                    DateTime::parse_from_str(
+                                        &format!("{} +0000", item_date.trim()),
+                                        "%Y-%m-%d %H:%M:%S %z",
+                                    )
+                                    .map(|dt| dt.with_timezone(&Utc))
                                 })
                                 .ok();
 
@@ -248,8 +289,16 @@ impl WxrImporter {
                                 content_type: item_type.clone(),
                                 status,
                                 raw_content: item_content.clone(),
-                                excerpt: if item_excerpt.is_empty() { None } else { Some(item_excerpt.clone()) },
-                                author_name: if item_creator.is_empty() { None } else { Some(item_creator.clone()) },
+                                excerpt: if item_excerpt.is_empty() {
+                                    None
+                                } else {
+                                    Some(item_excerpt.clone())
+                                },
+                                author_name: if item_creator.is_empty() {
+                                    None
+                                } else {
+                                    Some(item_creator.clone())
+                                },
                                 author_email: None,
                                 published_at,
                                 categories: item_categories.clone(),
@@ -258,16 +307,28 @@ impl WxrImporter {
                                 legacy_vault: item_vault.clone(),
                             });
                         }
-                    } else if (tag_name == "wp:category" || tag_name == "rf:category" || tag_name == "rf:term") && !in_item {
+                    } else if (tag_name == "wp:category"
+                        || tag_name == "rf:category"
+                        || tag_name == "rf:term")
+                        && !in_item
+                    {
                         in_category_term = false;
                         if !term_slug.is_empty() {
                             doc.terms.push(TMIRTerm {
                                 source_id: term_slug.clone(),
                                 taxonomy: "category".to_string(),
                                 slug: term_slug.clone(),
-                                name: if term_name.is_empty() { term_slug.clone() } else { term_name.clone() },
+                                name: if term_name.is_empty() {
+                                    term_slug.clone()
+                                } else {
+                                    term_name.clone()
+                                },
                                 description: None,
-                                parent_slug: if term_parent.is_empty() { None } else { Some(term_parent.clone()) },
+                                parent_slug: if term_parent.is_empty() {
+                                    None
+                                } else {
+                                    Some(term_parent.clone())
+                                },
                             });
                         }
                     } else if (tag_name == "wp:tag" || tag_name == "rf:tag") && !in_item {
@@ -277,7 +338,11 @@ impl WxrImporter {
                                 source_id: term_slug.clone(),
                                 taxonomy: "post_tag".to_string(),
                                 slug: term_slug.clone(),
-                                name: if term_name.is_empty() { term_slug.clone() } else { term_name.clone() },
+                                name: if term_name.is_empty() {
+                                    term_slug.clone()
+                                } else {
+                                    term_name.clone()
+                                },
                                 description: None,
                                 parent_slug: None,
                             });
@@ -325,9 +390,15 @@ impl WxrImporter {
     ) {
         if in_item {
             if in_postmeta {
-                if current_tag == "wp:meta_key" || current_tag == "rf:meta_key" || current_tag == "rf:key" {
+                if current_tag == "wp:meta_key"
+                    || current_tag == "rf:meta_key"
+                    || current_tag == "rf:key"
+                {
                     current_meta_key.push_str(text);
-                } else if current_tag == "wp:meta_value" || current_tag == "rf:meta_value" || current_tag == "rf:value" {
+                } else if current_tag == "wp:meta_value"
+                    || current_tag == "rf:meta_value"
+                    || current_tag == "rf:value"
+                {
                     current_meta_val.push_str(text);
                 }
             } else {
@@ -337,20 +408,33 @@ impl WxrImporter {
                     "content:encoded" | "rf:content" => item_content.push_str(text),
                     "excerpt:encoded" | "rf:excerpt" => item_excerpt.push_str(text),
                     "wp:post_id" | "rf:post_id" | "rf:entry_id" | "rf:id" => item_id.push_str(text),
-                    "wp:attachment_url" | "rf:attachment_url" | "rf:media_url" | "rf:featured_media_url" | "rf:url" => {
+                    "wp:attachment_url"
+                    | "rf:attachment_url"
+                    | "rf:media_url"
+                    | "rf:featured_media_url"
+                    | "rf:url" => {
                         item_attachment_url.push_str(text);
                     }
                     "guid" if item_attachment_url.is_empty() => item_attachment_url.push_str(text),
-                    "wp:post_date" | "wp:post_date_gmt" | "rf:post_date" | "rf:published_at" if item_date.is_empty() => {
+                    "wp:post_date" | "wp:post_date_gmt" | "rf:post_date" | "rf:published_at"
+                        if item_date.is_empty() =>
+                    {
                         item_date.push_str(text);
                     }
                     "wp:post_name" | "rf:post_name" | "rf:slug" => item_slug.push_str(text),
                     "wp:status" | "rf:status" => item_status.push_str(text),
-                    "wp:post_type" | "rf:post_type" | "rf:content_type" => *item_type = text.trim().to_string(),
+                    "wp:post_type" | "rf:post_type" | "rf:content_type" => {
+                        *item_type = text.trim().to_string()
+                    }
                     "category" => {
-                        if current_category_domain == "category" || current_category_domain == "rf_category" {
+                        if current_category_domain == "category"
+                            || current_category_domain == "rf_category"
+                        {
                             item_categories.push(text.trim().to_string());
-                        } else if current_category_domain == "post_tag" || current_category_domain == "tag" || current_category_domain == "rf_tag" {
+                        } else if current_category_domain == "post_tag"
+                            || current_category_domain == "tag"
+                            || current_category_domain == "rf_tag"
+                        {
                             item_tags.push(text.trim().to_string());
                         }
                     }
@@ -359,19 +443,21 @@ impl WxrImporter {
                             item_categories.push(text.trim().to_string());
                         }
                     }
-                    "rf:tag" => {
-                        if !text.trim().is_empty() {
-                            item_tags.push(text.trim().to_string());
-                        }
+                    "rf:tag" if !text.trim().is_empty() => {
+                        item_tags.push(text.trim().to_string());
                     }
                     _ => {}
                 }
             }
         } else if in_category_term {
             match current_tag {
-                "wp:category_nicename" | "rf:category_nicename" | "rf:slug" => term_slug.push_str(text),
+                "wp:category_nicename" | "rf:category_nicename" | "rf:slug" => {
+                    term_slug.push_str(text)
+                }
                 "wp:cat_name" | "rf:cat_name" | "rf:name" => term_name.push_str(text),
-                "wp:category_parent" | "rf:category_parent" | "rf:parent" => term_parent.push_str(text),
+                "wp:category_parent" | "rf:category_parent" | "rf:parent" => {
+                    term_parent.push_str(text)
+                }
                 _ => {}
             }
         } else if in_tag_term {
@@ -382,7 +468,10 @@ impl WxrImporter {
             }
         } else {
             // En-tête global channel
-            if (current_tag == "link" || current_tag == "rf:site_url") && source_site_url.is_none() && !text.trim().is_empty() {
+            if (current_tag == "link" || current_tag == "rf:site_url")
+                && source_site_url.is_none()
+                && !text.trim().is_empty()
+            {
                 *source_site_url = Some(text.trim().to_string());
             }
         }

@@ -169,15 +169,22 @@ pub async fn update(
     Ok(Json(m))
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct DeleteMediaQuery {
+    #[serde(default)]
+    pub force: bool,
+}
+
 pub async fn delete(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteMediaQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     if !auth.user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
-    let (rel_path, webp_path) = media::delete(&state.db, id).await?;
+    let (rel_path, webp_path) = media::delete_checked(&state.db, id, query.force).await?;
     let _ = tokio::fs::remove_file(state.uploads_dir.join(rel_path)).await;
     if let Some(wp) = webp_path {
         let _ = tokio::fs::remove_file(state.uploads_dir.join(wp)).await;

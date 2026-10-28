@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+  <channel>
+    <title>Site de démonstration WordPress</title>
+    <link>https://wordpress.example.test</link>
+    <wp:category><wp:term_id>7</wp:term_id><wp:category_nicename>actualites</wp:category_nicename><wp:cat_name>Actualités</wp:cat_name></wp:category>
+    <item>
+      <title>Article de démonstration</title><link>https://wordpress.example.test/article-demo/</link>
+      <dc:creator>auteur_demo</dc:creator><wp:post_id>72</wp:post_id><wp:post_date>2026-10-01 10:00:00</wp:post_date>
+      <wp:post_name>article-demo</wp:post_name><wp:status>publish</wp:status><wp:post_type>post</wp:post_type>
+      <content:encoded><![CDATA[<!-- wp:paragraph --><p>Un article <strong>importé depuis WordPress</strong>, à vérifier avant la mise en ligne.</p><!-- /wp:paragraph -->]]></content:encoded>
+      <category domain="category" nicename="actualites"><![CDATA[Actualités]]></category>
+      <wp:postmeta><wp:meta_key>demo_personnalisation</wp:meta_key><wp:meta_value><![CDATA[a:1:{s:5:"style";s:4:"calm";}]]></wp:meta_value></wp:postmeta>
+    </item>
+    <item>
+      <title>Présentation privée</title><link>https://wordpress.example.test/presentation/</link><dc:creator>auteur_demo</dc:creator>
+      <wp:post_id>73</wp:post_id><wp:post_date>2026-10-01 10:00:00</wp:post_date><wp:post_name>presentation</wp:post_name>
+      <wp:status>private</wp:status><wp:post_type>page</wp:post_type>
+      <content:encoded><![CDATA[<p>Cette page privée doit rester en brouillon après l’import.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

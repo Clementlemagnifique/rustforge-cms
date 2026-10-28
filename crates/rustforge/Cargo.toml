@@ -3,6 +3,7 @@ name = "rustforge"
 description = "Binaire principal et CLI du CMS RustForge (serve, migrate, create-admin, ai)."
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 [[bin]]
@@ -10,6 +11,7 @@ name = "rustforge"
 path = "src/main.rs"
 
 [dependencies]
+toml.workspace = true
 rustforge-core.workspace = true
 rustforge-plugins.workspace = true
 rustforge-api.workspace = true

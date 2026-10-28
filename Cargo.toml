@@ -10,10 +10,10 @@ members = [
 exclude = ["plugins"]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.85"
+rust-version = "1.97"
 
 [workspace.dependencies]
 rustforge-core = { path = "crates/rustforge-core" }
@@ -37,6 +37,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 jsonwebtoken = "9"
 argon2 = "0.5"
 sha2 = "0.10"
+hmac = "0.12"
+toml = "1"
 hex = "0.4"
 cookie = "0.18"
 pulldown-cmark = "0.13"

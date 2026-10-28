@@ -2598,7 +2598,7 @@ checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
 name = "rustforge"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2610,6 +2610,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -2617,21 +2618,25 @@ dependencies = [
 
 [[package]]
 name = "rustforge-api"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "axum",
  "chrono",
  "cookie",
+ "hex",
+ "hmac",
  "imagesize",
  "jsonwebtoken",
  "mime_guess",
  "minijinja",
  "moka",
+ "reqwest",
  "rustforge-core",
  "rustforge-plugins",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -2639,11 +2644,12 @@ dependencies = [
  "tower-http",
  "tracing",
  "uuid",
+ "zip",
 ]
 
 [[package]]
 name = "rustforge-core"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -2651,8 +2657,10 @@ dependencies = [
  "async-trait",
  "chrono",
  "hex",
+ "hmac",
  "image",
  "imagesize",
+ "minijinja",
  "pulldown-cmark",
  "quick-xml",
  "reqwest",
@@ -2671,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "rustforge-plugins"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",

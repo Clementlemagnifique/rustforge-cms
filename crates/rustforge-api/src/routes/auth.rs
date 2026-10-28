@@ -27,8 +27,16 @@ pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginPayload>,
 ) -> ApiResult<Json<LoginResponse>> {
-    let user = rustforge_core::users::authenticate(&state.db, &payload.login, &payload.password).await?;
-    let token = create_token(user.id, user.role, &state.jwt_secret).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let user =
+        rustforge_core::users::authenticate(&state.db, &payload.login, &payload.password).await?;
+    let token = create_token(user.id, user.role, &state.jwt_secret)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let _ = rustforge_core::users::issue_refresh_token(
+        &state.db,
+        user.id,
+        chrono::Duration::days(7),
+    )
+    .await;
 
     Ok(Json(LoginResponse { token, user }))
 }

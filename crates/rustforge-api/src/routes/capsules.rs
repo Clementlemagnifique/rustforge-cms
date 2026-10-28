@@ -3,11 +3,11 @@
 //! Permet d'exporter l'intégralité du site en 1 clic et de restaurer ou cloner sur n'importe quel domaine.
 
 use axum::{
+    Json,
     body::Body,
     extract::{Multipart, State},
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    Json,
 };
 use chrono::Utc;
 use serde_json::json;
@@ -18,18 +18,14 @@ use crate::{
     error::{ApiError, ApiResult},
     state::AppState,
 };
-use rustforge_core::{
-    migration::CapsuleManager,
-    models::Role,
-    settings,
-};
+use rustforge_core::{migration::CapsuleManager, models::Role, settings};
 
 /// Exporte l'intégralité du site (Base de données + Médias) au format souverain .rfcapsule
 pub async fn export_capsule(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Response, ApiError> {
-    if user.user.role != Role::Admin && user.user.role != Role::Editor {
+    if user.user.role != Role::Admin {
         return Err(ApiError::Forbidden);
     }
 
@@ -41,12 +37,16 @@ pub async fn export_capsule(
         .and_then(|v| v.as_str().map(|s| s.to_string()));
 
     let mut buffer = Cursor::new(Vec::new());
-    let _ = CapsuleManager::pack_to_writer(&state.db, &state.uploads_dir, &mut buffer, site_url)
-        .await
-        .map_err(|e| ApiError::Internal(anyhow::anyhow!("Erreur génération capsule: {}", e)))?;
+    let _ =
+        CapsuleManager::pack_to_writer(&state.db, &state.storage_paths(), &mut buffer, site_url)
+            .await
+            .map_err(|e| ApiError::Internal(anyhow::anyhow!("Erreur génération capsule: {}", e)))?;
 
     let bytes = buffer.into_inner();
-    let filename = format!("rustforge-capsule-{}.rfcapsule", Utc::now().format("%Y%m%d-%H%M%S"));
+    let filename = format!(
+        "rustforge-capsule-{}.rfcapsule",
+        Utc::now().format("%Y%m%d-%H%M%S")
+    );
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -55,8 +55,9 @@ pub async fn export_capsule(
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-            .unwrap_or_else(|_| HeaderValue::from_static("attachment; filename=\"site.rfcapsule\"")),
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).unwrap_or_else(
+            |_| HeaderValue::from_static("attachment; filename=\"site.rfcapsule\""),
+        ),
     );
     headers.insert(
         header::CONTENT_LENGTH,
@@ -78,15 +79,23 @@ pub async fn inspect_capsule(
 
     let mut capsule_bytes: Option<Vec<u8>> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "file" || name == "capsule" {
-            let data = field.bytes().await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::BadRequest(e.to_string()))?;
             capsule_bytes = Some(data.to_vec());
         }
     }
 
-    let bytes = capsule_bytes.ok_or_else(|| ApiError::BadRequest("Aucun fichier capsule fourni".to_string()))?;
+    let bytes = capsule_bytes
+        .ok_or_else(|| ApiError::BadRequest("Aucun fichier capsule fourni".to_string()))?;
     let manifest = CapsuleManager::inspect(Cursor::new(bytes))
         .map_err(|e| ApiError::BadRequest(format!("Archive capsule invalide: {}", e)))?;
 
@@ -109,22 +118,40 @@ pub async fn restore_capsule(
     let mut capsule_bytes: Option<Vec<u8>> = None;
     let mut new_site_url: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?
+    {
         let name = field.name().unwrap_or("").to_string();
         if name == "file" || name == "capsule" {
-            let data = field.bytes().await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::BadRequest(e.to_string()))?;
             capsule_bytes = Some(data.to_vec());
         } else if name == "new_site_url" {
-            let val = field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+            let val = field
+                .text()
+                .await
+                .map_err(|e| ApiError::BadRequest(e.to_string()))?;
             if !val.trim().is_empty() {
                 new_site_url = Some(val.trim().to_string());
             }
         }
     }
 
-    let bytes = capsule_bytes.ok_or_else(|| ApiError::BadRequest("Aucun fichier capsule fourni".to_string()))?;
+    let bytes = capsule_bytes
+        .ok_or_else(|| ApiError::BadRequest("Aucun fichier capsule fourni".to_string()))?;
     let cursor = Cursor::new(bytes);
-    let report = CapsuleManager::unpack(&state.db, &state.uploads_dir, cursor, new_site_url, user.user.id).await?;
+    let report = CapsuleManager::unpack(
+        &state.db,
+        &state.storage_paths(),
+        cursor,
+        new_site_url,
+        user.user.id,
+    )
+    .await?;
 
     Ok(Json(json!({
         "success": true,

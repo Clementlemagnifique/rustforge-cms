@@ -23,7 +23,7 @@ pub type RFIRImportReport = TMIRImportReport;
 pub struct TMIRDocument {
     pub tmir_version: String,
     pub generated_at: DateTime<Utc>,
-    pub source_generator: String,      // ex: "Legacy CMS / WXR 1.2"
+    pub source_generator: String, // ex: "Legacy CMS / WXR 1.2"
     pub source_site_url: Option<String>,
     pub entries: Vec<TMIREntry>,
     pub terms: Vec<TMIRTerm>,
@@ -55,6 +55,7 @@ pub enum TMIREntryStatus {
     Pending,
     Private,
     Trash,
+    Archived,
 }
 
 /// Entrée pivot de contenu (Article, Page, Produit, Cours, CPT).

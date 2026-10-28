@@ -11,11 +11,11 @@ use uuid::Uuid;
 use crate::{
     CoreError, CoreResult, HookRunner, Page, PageParams, content_types, fields,
     hooks::names,
-    markdown,
     models::{ContentType, Entry, EntryInput, EntryStatus, Revision, TermRef},
 };
 
-const SELECT: &str = "SELECT e.id, e.content_type_id, ct.slug AS content_type, e.parent_id, e.author_id,
+const SELECT: &str =
+    "SELECT e.id, e.content_type_id, ct.slug AS content_type, e.parent_id, e.author_id,
         u.display_name AS author_name, e.title, e.slug, e.excerpt, e.body, e.body_html,
         e.blocks, e.intent, e.design_tokens,
         e.status, e.fields,
@@ -104,7 +104,11 @@ pub async fn list(db: &PgPool, q: &EntryQuery) -> CoreResult<Page<Entry>> {
 
     let mut qb = QueryBuilder::new(SELECT);
     push_filters(&mut qb, q);
-    let default_order = if q.public_only { "published" } else { "updated" };
+    let default_order = if q.public_only {
+        "published"
+    } else {
+        "updated"
+    };
     let order = match q.order.as_deref().unwrap_or(default_order) {
         "title" => " ORDER BY e.title ASC",
         "created" => " ORDER BY e.created_at DESC",
@@ -142,6 +146,71 @@ pub async fn get_published(db: &PgPool, content_type: &str, slug: &str) -> CoreR
     Ok(entry)
 }
 
+/// Si un slug historique (`_rf_vault.rf_old_slugs`) correspond à une entrée publiée dont le slug
+/// canonique actuel est différent, retourne le slug canonique cible (résolution directe sans chaîne `A -> B -> C`).
+pub async fn resolve_slug_redirect(
+    db: &PgPool,
+    content_type: &str,
+    requested_slug: &str,
+) -> CoreResult<Option<String>> {
+    let target: Option<String> = sqlx::query_scalar(
+        "SELECT e.slug
+         FROM entries e
+         JOIN content_types ct ON ct.id = e.content_type_id
+         WHERE ct.slug = $1
+           AND e.status = 'published'
+           AND e.published_at <= now()
+           AND e.slug <> $2
+           AND COALESCE(e.fields->'_rf_vault'->'rf_old_slugs', '[]'::jsonb) ? $2
+         ORDER BY e.updated_at DESC
+         LIMIT 1",
+    )
+    .bind(content_type)
+    .bind(requested_slug)
+    .fetch_optional(db)
+    .await?;
+    Ok(target)
+}
+
+/// Enregistre l'ancien slug dans `fields._rf_vault.rf_old_slugs` lors d'un renommage et retire
+/// le nouveau slug de l'historique pour empêcher toute boucle de redirection (`A -> B -> A`).
+fn record_slug_history(fields: &mut serde_json::Value, old_slug: &str, new_slug: &str) {
+    if old_slug == new_slug || old_slug.is_empty() {
+        return;
+    }
+    if !fields.is_object() {
+        *fields = json!({});
+    }
+    let Some(root) = fields.as_object_mut() else {
+        return;
+    };
+    let vault = root
+        .entry("_rf_vault".to_string())
+        .or_insert_with(|| json!({}));
+    if !vault.is_object() {
+        *vault = json!({});
+    }
+    let Some(vault_obj) = vault.as_object_mut() else {
+        return;
+    };
+    let mut slugs: Vec<String> = vault_obj
+        .get("rf_old_slugs")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| item.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    slugs.retain(|s| s != new_slug && s != old_slug);
+    slugs.push(old_slug.to_string());
+    if slugs.len() > 32 {
+        let excess = slugs.len() - 32;
+        slugs.drain(0..excess);
+    }
+    vault_obj.insert("rf_old_slugs".to_string(), json!(slugs));
+}
+
 async fn attach_terms(db: &PgPool, entries: &mut [Entry]) -> CoreResult<()> {
     if entries.is_empty() {
         return Ok(());
@@ -172,14 +241,18 @@ async fn attach_terms(db: &PgPool, entries: &mut [Entry]) -> CoreResult<()> {
         by_entry.entry(row.entry_id).or_default().push(row.term);
     }
     for entry in entries.iter_mut() {
+        // Also neutralize unsafe HTML imported before the consolidation. Raw source stays in body/vault.
+        entry.body_html = ammonia::clean(&entry.body_html);
         entry.terms = by_entry.remove(&entry.id).unwrap_or_default();
     }
     Ok(())
 }
 
 /// Données validées et prêtes à l'écriture.
+#[derive(serde::Serialize)]
 struct Prepared {
     title: String,
+    #[serde(rename = "slug")]
     slug_base: String,
     excerpt: String,
     body: String,
@@ -204,11 +277,12 @@ pub fn merge_fields(base: &serde_json::Value, update: &serde_json::Value) -> ser
         (serde_json::Value::Object(base_map), serde_json::Value::Object(update_map)) => {
             let mut merged = base_map.clone();
             for (k, v) in update_map {
-                if let Some(base_val) = merged.get_mut(k) {
-                    if base_val.is_object() && v.is_object() {
-                        *base_val = merge_fields(base_val, v);
-                        continue;
-                    }
+                if let Some(base_val) = merged.get_mut(k)
+                    && base_val.is_object()
+                    && v.is_object()
+                {
+                    *base_val = merge_fields(base_val, v);
+                    continue;
                 }
                 merged.insert(k.clone(), v.clone());
             }
@@ -220,7 +294,9 @@ pub fn merge_fields(base: &serde_json::Value, update: &serde_json::Value) -> ser
 }
 
 async fn apply_before_save(hooks: &dyn HookRunner, input: EntryInput) -> EntryInput {
-    let Ok(payload) = serde_json::to_string(&input) else { return input };
+    let Ok(payload) = serde_json::to_string(&input) else {
+        return input;
+    };
     let filtered = hooks.filter(names::ENTRY_BEFORE_SAVE, payload).await;
     match serde_json::from_str::<EntryInput>(&filtered) {
         Ok(out) => out,
@@ -242,10 +318,18 @@ fn prepare(
         return Err(CoreError::validation("le titre est obligatoire"));
     }
     if title.chars().count() > 300 {
-        return Err(CoreError::validation("le titre ne doit pas dépasser 300 caractères"));
+        return Err(CoreError::validation(
+            "le titre ne doit pas dépasser 300 caractères",
+        ));
     }
-    let slug_base = crate::slugify(input.slug.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(&title));
-    
+    let slug_base = crate::slugify(
+        input
+            .slug
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(&title),
+    );
+
     // Si des champs existants existent (mise à jour), on fusionne pour ne jamais écraser _legacy_vault
     let combined_fields = match existing_fields {
         Some(base) => merge_fields(base, &input.fields),
@@ -261,15 +345,11 @@ fn prepare(
     // - Si statut Archived ou Trash : None.
     let now = Utc::now();
     let published_at = match input.status {
-        EntryStatus::Published => {
-            Some(input.published_at.or(existing_published_at).unwrap_or(now))
-        }
-        EntryStatus::Draft => {
-            match input.published_at {
-                Some(dt) if dt > now => Some(dt),
-                _ => None,
-            }
-        }
+        EntryStatus::Published => Some(input.published_at.or(existing_published_at).unwrap_or(now)),
+        EntryStatus::Draft => match input.published_at {
+            Some(dt) if dt > now => Some(dt),
+            _ => None,
+        },
         EntryStatus::Archived | EntryStatus::Trash => None,
     };
 
@@ -279,19 +359,24 @@ fn prepare(
         ids
     });
 
+    let (body, body_html) = crate::document::project(&input.body, &input.blocks)?;
     Ok(Prepared {
         title,
         slug_base,
         excerpt: input.excerpt.trim().to_string(),
-        body_html: markdown::render(&input.body),
-        body: input.body,
+        body_html,
+        body,
         blocks: input.blocks,
         intent: input.intent,
         design_tokens: input.design_tokens,
         status: input.status,
         fields,
         featured_media_id: input.featured_media_id,
-        parent_id: if ct.hierarchical { input.parent_id } else { None },
+        parent_id: if ct.hierarchical {
+            input.parent_id
+        } else {
+            None
+        },
         published_at,
         scheduled_unpublish_at: input.scheduled_unpublish_at,
         term_ids,
@@ -299,7 +384,12 @@ fn prepare(
 }
 
 /// Trouve un slug libre pour ce type (`mon-article`, `mon-article-2`, …).
-async fn unique_slug(db: &PgPool, content_type_id: Uuid, base: &str, exclude: Option<Uuid>) -> CoreResult<String> {
+async fn unique_slug(
+    db: &PgPool,
+    content_type_id: Uuid,
+    base: &str,
+    exclude: Option<Uuid>,
+) -> CoreResult<String> {
     let taken: Vec<String> = sqlx::query_scalar(
         "SELECT slug FROM entries
          WHERE content_type_id = $1 AND (slug = $2 OR slug LIKE $2 || '-%') AND ($3::uuid IS NULL OR id <> $3)",
@@ -322,8 +412,15 @@ async fn unique_slug(db: &PgPool, content_type_id: Uuid, base: &str, exclude: Op
     }
 }
 
-async fn write_terms(tx: &mut sqlx::PgConnection, entry_id: Uuid, term_ids: &[Uuid]) -> CoreResult<()> {
-    sqlx::query("DELETE FROM entry_terms WHERE entry_id = $1").bind(entry_id).execute(&mut *tx).await?;
+async fn write_terms(
+    tx: &mut sqlx::PgConnection,
+    entry_id: Uuid,
+    term_ids: &[Uuid],
+) -> CoreResult<()> {
+    sqlx::query("DELETE FROM entry_terms WHERE entry_id = $1")
+        .bind(entry_id)
+        .execute(&mut *tx)
+        .await?;
     if !term_ids.is_empty() {
         sqlx::query("INSERT INTO entry_terms (entry_id, term_id) SELECT $1, unnest($2::uuid[]) ON CONFLICT DO NOTHING")
             .bind(entry_id)
@@ -334,14 +431,20 @@ async fn write_terms(tx: &mut sqlx::PgConnection, entry_id: Uuid, term_ids: &[Uu
     Ok(())
 }
 
-async fn write_revision(tx: &mut sqlx::PgConnection, entry_id: Uuid, author_id: Uuid, p: &Prepared) -> CoreResult<()> {
-    sqlx::query("INSERT INTO revisions (entry_id, author_id, title, excerpt, body, fields) VALUES ($1, $2, $3, $4, $5, $6)")
+async fn write_revision(
+    tx: &mut sqlx::PgConnection,
+    entry_id: Uuid,
+    author_id: Uuid,
+    p: &Prepared,
+) -> CoreResult<()> {
+    sqlx::query("INSERT INTO revisions (entry_id, author_id, title, excerpt, body, fields, snapshot) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(entry_id)
         .bind(author_id)
         .bind(&p.title)
         .bind(&p.excerpt)
         .bind(&p.body)
         .bind(&p.fields)
+        .bind(serde_json::to_value(p).map_err(|e| CoreError::Internal(e.into()))?)
         .execute(&mut *tx)
         .await?;
     sqlx::query(
@@ -362,7 +465,56 @@ async fn notify_published(hooks: &dyn HookRunner, entry: &Entry) {
         "title": entry.title,
         "slug": entry.slug,
     });
-    hooks.action(names::ENTRY_PUBLISHED, payload.to_string()).await;
+    hooks
+        .action(names::ENTRY_PUBLISHED, payload.to_string())
+        .await;
+}
+
+async fn validate_parent_hierarchy(
+    db: &PgPool,
+    content_type_id: Uuid,
+    entry_id: Option<Uuid>,
+    parent_id: Option<Uuid>,
+) -> CoreResult<()> {
+    let Some(mut cursor) = parent_id else {
+        return Ok(());
+    };
+    if entry_id == Some(cursor) {
+        return Err(CoreError::validation(
+            "une entrée ne peut pas être son propre parent",
+        ));
+    }
+    let mut visited = std::collections::HashSet::new();
+    if let Some(self_id) = entry_id {
+        visited.insert(self_id);
+    }
+    for _ in 0..32 {
+        if !visited.insert(cursor) {
+            return Err(CoreError::validation(
+                "cycle détecté dans la hiérarchie des pages parentes",
+            ));
+        }
+        let row: Option<(Uuid, Option<Uuid>)> =
+            sqlx::query_as("SELECT content_type_id, parent_id FROM entries WHERE id = $1")
+                .bind(cursor)
+                .fetch_optional(db)
+                .await?;
+        let Some((parent_ct, next_parent)) = row else {
+            return Err(CoreError::validation("page parente introuvable"));
+        };
+        if parent_ct != content_type_id {
+            return Err(CoreError::validation(
+                "la page parente doit appartenir au même type de contenu",
+            ));
+        }
+        match next_parent {
+            Some(next) => cursor = next,
+            None => return Ok(()),
+        }
+    }
+    Err(CoreError::validation(
+        "profondeur maximale de hiérarchie dépassée",
+    ))
 }
 
 pub async fn create(
@@ -374,9 +526,11 @@ pub async fn create(
 ) -> CoreResult<Entry> {
     let ct = content_types::get_by_slug(db, content_type).await?;
     let input = apply_before_save(hooks, input).await;
-    let p = prepare(&ct, input, None, None)?;
+    let mut p = prepare(&ct, input, None, None)?;
+    validate_parent_hierarchy(db, ct.id, None, p.parent_id).await?;
     let slug = unique_slug(db, ct.id, &p.slug_base, None).await?;
 
+    p.slug_base = slug.clone();
     let mut tx = db.begin().await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO entries (content_type_id, parent_id, author_id, title, slug, excerpt, body, body_html,
@@ -424,21 +578,56 @@ pub async fn update(
     editor_id: Uuid,
     input: EntryInput,
 ) -> CoreResult<Entry> {
+    update_internal(db, hooks, id, editor_id, input, false).await
+}
+
+async fn update_internal(
+    db: &PgPool,
+    hooks: &dyn HookRunner,
+    id: Uuid,
+    editor_id: Uuid,
+    input: EntryInput,
+    replace_fields: bool,
+) -> CoreResult<Entry> {
     let current = get(db, id).await?;
+    if input
+        .expected_updated_at
+        .is_some_and(|expected| expected != current.updated_at)
+    {
+        return Err(CoreError::Conflict(
+            "Ce contenu a changé. Rechargez-le avant de réessayer.".into(),
+        ));
+    }
+    let actor = crate::users::get(db, editor_id).await?;
+    crate::security::require_entry_access(actor.role, actor.id, &current)?;
     let ct = content_types::get(db, current.content_type_id).await?;
     let input = apply_before_save(hooks, input).await;
-    let p = prepare(&ct, input, current.published_at, Some(&current.fields))?;
-    if p.parent_id == Some(id) {
-        return Err(CoreError::validation("une entrée ne peut pas être son propre parent"));
+    let mut p = prepare(
+        &ct,
+        input,
+        current.published_at,
+        if replace_fields {
+            None
+        } else {
+            Some(&current.fields)
+        },
+    )?;
+    if p.term_ids.is_none() {
+        p.term_ids = Some(current.terms.iter().map(|t| t.id).collect());
     }
+    validate_parent_hierarchy(db, ct.id, Some(id), p.parent_id).await?;
     let slug = unique_slug(db, ct.id, &p.slug_base, Some(id)).await?;
+    p.slug_base = slug.clone();
+    if current.slug != slug {
+        record_slug_history(&mut p.fields, &current.slug, &slug);
+    }
 
     let mut tx = db.begin().await?;
-    sqlx::query(
+    let changed = sqlx::query(
         "UPDATE entries SET parent_id = $2, title = $3, slug = $4, excerpt = $5, body = $6, body_html = $7,
             blocks = $8, intent = $9, design_tokens = $10,
             status = $11, fields = $12, featured_media_id = $13, published_at = $14, scheduled_unpublish_at = $15, updated_at = now()
-         WHERE id = $1",
+         WHERE id = $1 AND updated_at = $16",
     )
     .bind(id)
     .bind(p.parent_id)
@@ -455,12 +644,18 @@ pub async fn update(
     .bind(p.featured_media_id)
     .bind(p.published_at)
     .bind(p.scheduled_unpublish_at)
+    .bind(current.updated_at)
     .execute(&mut *tx)
     .await?;
+    if changed.rows_affected() != 1 {
+        return Err(CoreError::Conflict(
+            "Le contenu a été modifié pendant la sauvegarde.".into(),
+        ));
+    }
     if let Some(terms) = &p.term_ids {
         write_terms(&mut tx, id, terms).await?;
     }
-    let content_changed = current.title != p.title || current.body != p.body || current.excerpt != p.excerpt || current.fields != p.fields;
+    let content_changed = true;
     if ct.has_revisions && content_changed {
         write_revision(&mut tx, id, editor_id, &p).await?;
     }
@@ -477,8 +672,13 @@ pub async fn update(
 pub async fn delete(db: &PgPool, hooks: &dyn HookRunner, id: Uuid, force: bool) -> CoreResult<()> {
     let current = get(db, id).await?;
     if force || current.status == EntryStatus::Trash {
-        sqlx::query("DELETE FROM entries WHERE id = $1").bind(id).execute(db).await?;
-        hooks.action(names::ENTRY_DELETED, json!({ "id": id }).to_string()).await;
+        sqlx::query("DELETE FROM entries WHERE id = $1")
+            .bind(id)
+            .execute(db)
+            .await?;
+        hooks
+            .action(names::ENTRY_DELETED, json!({ "id": id }).to_string())
+            .await;
     } else {
         sqlx::query("UPDATE entries SET status = 'trash', updated_at = now() WHERE id = $1")
             .bind(id)
@@ -491,7 +691,7 @@ pub async fn delete(db: &PgPool, hooks: &dyn HookRunner, id: Uuid, force: bool) 
 pub async fn revisions(db: &PgPool, entry_id: Uuid) -> CoreResult<Vec<Revision>> {
     Ok(sqlx::query_as::<_, Revision>(
         "SELECT r.id, r.entry_id, r.author_id, u.display_name AS author_name, r.title, r.excerpt, r.body,
-                r.fields, r.created_at
+                r.fields, r.snapshot, r.created_at
          FROM revisions r LEFT JOIN users u ON u.id = r.author_id
          WHERE r.entry_id = $1 ORDER BY r.created_at DESC",
     )
@@ -508,9 +708,26 @@ pub async fn restore_revision(
     revision_id: Uuid,
     editor_id: Uuid,
 ) -> CoreResult<Entry> {
+    restore_revision_checked(db, hooks, entry_id, revision_id, editor_id, None).await
+}
+
+/// Restaure le contenu d'une révision en vérifiant optionnellement `expected_updated_at` (`WP-28`).
+pub async fn restore_revision_checked(
+    db: &PgPool,
+    hooks: &dyn HookRunner,
+    entry_id: Uuid,
+    revision_id: Uuid,
+    editor_id: Uuid,
+    expected_updated_at: Option<chrono::DateTime<Utc>>,
+) -> CoreResult<Entry> {
     let current = get(db, entry_id).await?;
+    if expected_updated_at.is_some_and(|expected| expected != current.updated_at) {
+        return Err(CoreError::Conflict(
+            "Ce contenu a été modifié par un autre auteur avant la restauration. Rechargez l'éditeur.".into(),
+        ));
+    }
     let rev = sqlx::query_as::<_, Revision>(
-        "SELECT r.id, r.entry_id, r.author_id, NULL::text AS author_name, r.title, r.excerpt, r.body, r.fields, r.created_at
+        "SELECT r.id, r.entry_id, r.author_id, NULL::text AS author_name, r.title, r.excerpt, r.body, r.fields, r.snapshot, r.created_at
          FROM revisions r WHERE r.id = $1 AND r.entry_id = $2",
     )
     .bind(revision_id)
@@ -518,7 +735,17 @@ pub async fn restore_revision(
     .fetch_one(db)
     .await?;
 
+    if let Some(snapshot) = rev.snapshot {
+        let mut input: EntryInput = serde_json::from_value(snapshot)
+            .map_err(|e| CoreError::validation(format!("Révision invalide : {e}")))?;
+        input.expected_updated_at = expected_updated_at;
+        return update_internal(db, hooks, entry_id, editor_id, input, true).await;
+    }
+    if current.blocks.get("rf_schema").is_some() {
+        return Err(CoreError::Conflict("Cette ancienne révision ne contient pas de document natif complet. Sa restauration automatique est refusée pour préserver les blocs actuels.".into()));
+    }
     let input = EntryInput {
+        expected_updated_at,
         title: rev.title,
         slug: Some(current.slug),
         excerpt: rev.excerpt,
@@ -614,6 +841,7 @@ mod tests {
         let past_date = Utc::now() - chrono::Duration::days(10);
 
         let input = EntryInput {
+            expected_updated_at: None,
             title: "Test Draft".to_string(),
             slug: None,
             excerpt: "".to_string(),
@@ -633,6 +861,29 @@ mod tests {
         // Même si existing_published_at était dans le passé (article préalablement publié),
         // pour un brouillon, published_at doit être remis à None pour éviter la réactivation par le scheduler !
         let prepared = prepare(&ct, input, Some(past_date), None).unwrap();
-        assert!(prepared.published_at.is_none(), "Un article remis en brouillon ne doit pas conserver sa date de publication passée");
+        assert!(
+            prepared.published_at.is_none(),
+            "Un article remis en brouillon ne doit pas conserver sa date de publication passée"
+        );
+    }
+
+    #[test]
+    fn test_record_slug_history_prevents_loops_and_tracks_chains() {
+        let mut fields = json!({});
+        record_slug_history(&mut fields, "slug-initial", "slug-v2");
+        assert_eq!(
+            fields["_rf_vault"]["rf_old_slugs"],
+            json!(["slug-initial"])
+        );
+        record_slug_history(&mut fields, "slug-v2", "slug-v3");
+        assert_eq!(
+            fields["_rf_vault"]["rf_old_slugs"],
+            json!(["slug-initial", "slug-v2"])
+        );
+        record_slug_history(&mut fields, "slug-v3", "slug-initial");
+        assert_eq!(
+            fields["_rf_vault"]["rf_old_slugs"],
+            json!(["slug-v2", "slug-v3"])
+        );
     }
 }

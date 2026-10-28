@@ -1,0 +1,15 @@
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_core-0hez91s947kty\s-hnmvcw4lvd-1r1oky8-working`
+
+warning: `rustforge-core` (lib) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_plugins-1dg91khps3cmb\s-hnmvcx11bf-1va4fa7-working`
+
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_core-1im7buasyzml7\s-hnmvcw4si8-0e79eci-working`
+
+warning: `rustforge-plugins` (lib) generated 1 warning
+warning: `rustforge-core` (lib test) generated 1 warning
+    Checking rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-api)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\cleme\Desktop\CMS Rust\target\debug\incremental\rustforge_plugins-20uvxvx94ng03\s-hnmvcx1484-0al6y82-working`
+
+warning: `rustforge-plugins` (lib test) generated 1 warning
+    Checking rustforge v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.99s
