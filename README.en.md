@@ -61,3 +61,4 @@ cargo test --locked --workspace
 The [integration suite](crates/rustforge-api/tests/consolidation.rs) executes end-to-end against a disposable PostgreSQL instance using `--include-ignored`.
 
 The `.gitignore` strictly excludes secrets, personal configs, local databases, media files, build dependencies, packages, and references.
+
