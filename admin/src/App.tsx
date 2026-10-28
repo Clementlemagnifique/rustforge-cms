@@ -33,6 +33,7 @@ import { AdminPlanView } from './components/AdminPlanView';
 import { NativeModulesView } from './components/NativeModulesView';
 import { TaxonomiesView } from './components/TaxonomiesView';
 import { UsersView } from './components/UsersView';
+import { CommentsView } from './components/CommentsView';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -261,6 +262,8 @@ export const App: React.FC = () => {
               {currentView === 'settings' && <SettingsView key="settings-general" initialTab="general" />}
               {currentView === 'settings:reading' && <SettingsView key="settings-reading" initialTab="reading" />}
               {currentView === 'settings:writing' && <SettingsView key="settings-writing" initialTab="writing" />}
+              {currentView === 'settings:discussion' && <SettingsView key="settings-discussion" initialTab="discussion" />}
+              {(currentView === 'comments' || currentView === 'comments:list') && <CommentsView key="comments-view" />}
               {currentView === 'users' && <UsersView key="users-list" initialTab="list" />}
               {currentView === 'users:new' && <UsersView key="users-new" initialTab="new" />}
               {currentView === 'profile' && <UsersView key="users-profile" initialTab="profile" />}

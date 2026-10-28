@@ -16,6 +16,7 @@ pub const TABLES: &[&str] = &[
     "entries",
     "entry_terms",
     "revisions",
+    "comments",
     "settings",
     "plugins",
     "forms",
@@ -171,6 +172,7 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
         ("media_folders", "parent_id"),
         ("terms", "parent_id"),
         ("entries", "parent_id"),
+        ("comments", "parent_id"),
         ("lms_courses", "product_id"),
         ("ecommerce_products", "course_id"),
     ];

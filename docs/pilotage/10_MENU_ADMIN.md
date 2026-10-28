@@ -31,9 +31,9 @@ Les accueils Formation/Boutique/Formulaires/Galeries affichent actuellement le p
 | rf_pages | Pages | — | — | socle | entries:page / EntriesView | ready | list :  |
 | rf_page_list | Pages | Toutes les pages | — | socle | entries:page / EntriesView | ready | list : Recherche;Statut;Parent;Ordre |
 | rf_page_new | Pages | Ajouter une page | — | socle | new:page / EntryEditorView | partial | editor : Titre;Contenu;Modèle;Parent;Aperçu;Publication |
-| rf_comments | Commentaires | — | — | socle | — / À réaliser | planned | list :  |
-| rf_comment_list | Commentaires | Tous les commentaires | — | socle | — / À réaliser | planned | moderation : Attente;Approuver;Répondre;Spam;Corbeille |
-| rf_comment_rules | Commentaires | Règles de discussion | — | socle | — / À réaliser | planned | settings : Antispam;Notifications;Identité;Rétention |
+| rf_comments | Commentaires | — | — | socle | comments / Groupe sans écran | ready | list :  |
+| rf_comment_list | Commentaires | Tous les commentaires | — | socle | comments / Groupe sans écran | ready | moderation : Attente;Approuver;Répondre;Spam;Corbeille |
+| rf_comment_rules | Commentaires | Règles de discussion | — | socle | settings:discussion / Groupe sans écran | ready | settings : Antispam;Notifications;Identité;Rétention |
 | rf_appearance | Apparence | — | — | socle | appearance / AppearanceView | partial | appearance :  |
 | rf_theme | Apparence | Thèmes | — | socle | — / À réaliser | planned | appearance : Activer;Aperçu;Retour;Thème dérivé |
 | rf_styles | Apparence | Styles | — | socle | appearance / AppearanceView | partial | appearance : Palette;Typographie;Espacement;Responsive |
@@ -62,7 +62,7 @@ Les accueils Formation/Boutique/Formulaires/Galeries affichent actuellement le p
 | rf_general | Réglages | Général | — | socle | settings / SettingsView | partial | settings : Titre;Slogan;Identité |
 | rf_writing | Réglages | Écriture | — | socle | settings:writing / SettingsView | partial | settings : Défauts éditoriaux;Notifications |
 | rf_reading | Réglages | Lecture | — | socle | settings:reading / SettingsView | partial | settings : Accueil;Pagination;Flux;Indexation |
-| rf_discussion | Réglages | Discussion | — | socle | — / À réaliser | planned | settings : Conditions;Réponses;Modération;Avatars |
+| rf_discussion | Réglages | Discussion | — | socle | settings:discussion / Groupe sans écran | ready | settings : Conditions;Réponses;Modération;Avatars |
 | rf_media_settings | Réglages | Médias | — | socle | — / À réaliser | planned | settings : Tailles;Variantes;Stockage |
 | rf_permalinks | Réglages | Permaliens | — | socle | — / À réaliser | planned | settings : Structure;Bases;Redirections |
 | rf_privacy_settings | Réglages | Confidentialité | — | socle | — / À réaliser | planned | settings : Page;Collecte;Consentement;Rétention |

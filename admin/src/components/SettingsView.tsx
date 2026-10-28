@@ -15,9 +15,10 @@ import {
   BookOpen,
   PenTool,
   Link2,
+  MessageSquare,
   AlertTriangle,
 } from 'lucide-react';
-import { settingsMessages } from '../i18n/messages.fr';
+import { settingsMessages, discussionSettingsMessages } from '../i18n/messages.fr';
 import { useSettingsStore, type SettingsTab } from '../stores/useSettingsStore';
 
 interface SettingsViewProps {
@@ -142,6 +143,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         >
           <Link2 className="w-3.5 h-3.5" />
           <span>{settingsMessages.tabPermalinks}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('discussion')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            activeTab === 'discussion'
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>{discussionSettingsMessages.tabDiscussion}</span>
         </button>
       </div>
 
@@ -592,6 +606,308 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   placeholder={settingsMessages.tagBasePlaceholder}
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ONGLET 5 : DISCUSSION & COMMENTAIRES (`WP-82` à `WP-87`) */}
+      {activeTab === 'discussion' && (
+        <div className="space-y-6">
+          {/* Réglages par défaut (`WP-82`) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                {discussionSettingsMessages.defaultArticleSettings} (WP-82)
+              </h4>
+            </div>
+
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings['discussion.default_comment_status'] !== false}
+                onChange={(e) =>
+                  setSetting('discussion.default_comment_status', e.target.checked)
+                }
+                className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+              />
+              <span className="text-xs text-slate-300">
+                {discussionSettingsMessages.defaultCommentStatus}
+              </span>
+            </label>
+          </div>
+
+          {/* Autres réglages des commentaires (`WP-83`) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                {discussionSettingsMessages.otherCommentSettings} (WP-83)
+              </h4>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['discussion.require_name_email'] !== false}
+                  onChange={(e) =>
+                    setSetting('discussion.require_name_email', e.target.checked)
+                  }
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.requireNameEmail}
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['discussion.comment_registration'] === true}
+                  onChange={(e) =>
+                    setSetting('discussion.comment_registration', e.target.checked)
+                  }
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.commentRegistration}
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings['discussion.close_comments_for_old_posts'] === true}
+                    onChange={(e) =>
+                      setSetting('discussion.close_comments_for_old_posts', e.target.checked)
+                    }
+                    className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {discussionSettingsMessages.closeOldPosts}
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={settings['discussion.close_comments_days'] ?? 14}
+                  onChange={(e) =>
+                    setSetting('discussion.close_comments_days', parseInt(e.target.value, 10) || 14)
+                  }
+                  className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center"
+                />
+                <span className="text-xs text-slate-400">{discussionSettingsMessages.days}</span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings['discussion.thread_comments'] !== false}
+                    onChange={(e) =>
+                      setSetting('discussion.thread_comments', e.target.checked)
+                    }
+                    className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {discussionSettingsMessages.threadComments}
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min={2}
+                  max={10}
+                  value={settings['discussion.thread_comments_depth'] ?? 5}
+                  onChange={(e) =>
+                    setSetting('discussion.thread_comments_depth', parseInt(e.target.value, 10) || 5)
+                  }
+                  className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center"
+                />
+                <span className="text-xs text-slate-400">{discussionSettingsMessages.levelsDeep}</span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings['discussion.page_comments'] === true}
+                    onChange={(e) =>
+                      setSetting('discussion.page_comments', e.target.checked)
+                    }
+                    className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {discussionSettingsMessages.pageComments}
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={settings['discussion.comments_per_page'] ?? 50}
+                  onChange={(e) =>
+                    setSetting('discussion.comments_per_page', parseInt(e.target.value, 10) || 50)
+                  }
+                  className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center"
+                />
+                <span className="text-xs text-slate-400">
+                  {discussionSettingsMessages.commentsPerPage}
+                </span>
+              </div>
+
+              <div className="pt-2">
+                <label className="text-xs text-slate-400 block mb-1">
+                  {discussionSettingsMessages.commentOrder}
+                </label>
+                <select
+                  value={settings['discussion.comment_order'] || 'asc'}
+                  onChange={(e) => setSetting('discussion.comment_order', e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                >
+                  <option value="asc">{discussionSettingsMessages.orderOldest}</option>
+                  <option value="desc">{discussionSettingsMessages.orderNewest}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Règles de modération (`WP-84`) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                {discussionSettingsMessages.moderationRules} (WP-84)
+              </h4>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['discussion.comment_moderation'] === true}
+                  onChange={(e) =>
+                    setSetting('discussion.comment_moderation', e.target.checked)
+                  }
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.commentModeration}
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['discussion.comment_previously_approved'] !== false}
+                  onChange={(e) =>
+                    setSetting('discussion.comment_previously_approved', e.target.checked)
+                  }
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.commentPreviouslyApproved}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Protection antispam et mots-clés (`WP-85`) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                {discussionSettingsMessages.antispamSection} (WP-85)
+              </h4>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.maxLinks}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={settings['discussion.comment_max_links'] ?? 2}
+                  onChange={(e) =>
+                    setSetting('discussion.comment_max_links', parseInt(e.target.value, 10) || 0)
+                  }
+                  className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center"
+                />
+                <span className="text-xs text-slate-400">
+                  {discussionSettingsMessages.linksOrMore}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  {discussionSettingsMessages.moderationKeys}
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">
+                  {discussionSettingsMessages.moderationKeysHint}
+                </p>
+                <textarea
+                  rows={4}
+                  value={settings['discussion.moderation_keys'] || ''}
+                  onChange={(e) => setSetting('discussion.moderation_keys', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  {discussionSettingsMessages.disallowedKeys}
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">
+                  {discussionSettingsMessages.disallowedKeysHint}
+                </p>
+                <textarea
+                  rows={4}
+                  value={settings['discussion.disallowed_keys'] || ''}
+                  onChange={(e) => setSetting('discussion.disallowed_keys', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Avatars (`WP-86`, `WP-87`) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                {discussionSettingsMessages.avatarsSection} (WP-86, WP-87)
+              </h4>
+            </div>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['discussion.show_avatars'] !== false}
+                  onChange={(e) => setSetting('discussion.show_avatars', e.target.checked)}
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <span className="text-xs text-slate-300">
+                  {discussionSettingsMessages.showAvatars}
+                </span>
+              </label>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">
+                  {discussionSettingsMessages.avatarDefault}
+                </label>
+                <select
+                  value={settings['discussion.avatar_default'] || 'mystery'}
+                  onChange={(e) => setSetting('discussion.avatar_default', e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                >
+                  <option value="mystery">Mystère (Silhouette par défaut)</option>
+                  <option value="blank">Vide (Transparent)</option>
+                  <option value="identicon">Identicon (Motif géométrique)</option>
+                  <option value="retro">Rétro (Pixel art 8-bit)</option>
+                </select>
               </div>
             </div>
           </div>

@@ -300,3 +300,81 @@ pub struct Media {
     pub external_provider: Option<String>,
     pub metadata: Value,
 }
+
+// ---------------------------------------------------------------------------
+// Commentaires (WP-42 à WP-45, WP-82 à WP-87)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum CommentStatus {
+    Pending,
+    Approved,
+    Spam,
+    Trash,
+}
+
+impl CommentStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CommentStatus::Pending => "pending",
+            CommentStatus::Approved => "approved",
+            CommentStatus::Spam => "spam",
+            CommentStatus::Trash => "trash",
+        }
+    }
+}
+
+impl std::fmt::Display for CommentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for CommentStatus {
+    type Err = crate::error::CoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "pending" => Ok(CommentStatus::Pending),
+            "approved" => Ok(CommentStatus::Approved),
+            "spam" => Ok(CommentStatus::Spam),
+            "trash" => Ok(CommentStatus::Trash),
+            _ => Err(crate::error::CoreError::validation("Statut de commentaire invalide")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Comment {
+    pub id: Uuid,
+    pub entry_id: Uuid,
+    pub parent_id: Option<Uuid>,
+    pub author_id: Option<Uuid>,
+    pub author_name: String,
+    pub author_email: String,
+    pub author_url: Option<String>,
+    pub author_ip: Option<String>,
+    pub author_user_agent: Option<String>,
+    pub content: String,
+    pub content_html: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub entry_title: Option<String>,
+    #[sqlx(default)]
+    pub entry_slug: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicCommentView {
+    pub id: Uuid,
+    pub parent_id: Option<Uuid>,
+    pub author_name: String,
+    pub author_url: Option<String>,
+    pub content_html: String,
+    pub created_at: DateTime<Utc>,
+    pub children: Vec<PublicCommentView>,
+}

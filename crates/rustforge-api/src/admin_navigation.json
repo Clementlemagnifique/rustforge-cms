@@ -375,12 +375,13 @@
     "id": "rf_comments",
     "parent": null,
     "label": "Commentaires",
-    "route": null,
+    "route": "comments",
     "module": null,
     "roles": [
-      "admin"
+      "admin",
+      "editor"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "list",
     "features": [],
     "tasks": [
@@ -393,12 +394,13 @@
     "id": "rf_comment_list",
     "parent": "rf_comments",
     "label": "Tous les commentaires",
-    "route": null,
+    "route": "comments",
     "module": null,
     "roles": [
-      "admin"
+      "admin",
+      "editor"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "moderation",
     "features": [
       "Attente",
@@ -418,12 +420,12 @@
     "id": "rf_comment_rules",
     "parent": "rf_comments",
     "label": "Règles de discussion",
-    "route": null,
+    "route": "settings:discussion",
     "module": null,
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "settings",
     "features": [
       "Antispam",
@@ -1085,12 +1087,12 @@
     "id": "rf_discussion",
     "parent": "rf_settings",
     "label": "Discussion",
-    "route": null,
+    "route": "settings:discussion",
     "module": null,
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "settings",
     "features": [
       "Conditions",

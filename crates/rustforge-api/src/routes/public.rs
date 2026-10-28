@@ -330,6 +330,17 @@ async fn render_single_entry(
                 serde_json::json!(format!("{site_url}{canonical_url_path}"));
             base_ctx["template"] = serde_json::json!("single.html");
             base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
+
+            let comments_tree = rustforge_core::comments::get_entry_approved_comments_tree(
+                &state_ref.db,
+                entry.id,
+                3,
+            )
+            .await
+            .unwrap_or_default();
+            base_ctx["comments_count"] = serde_json::json!(comments_tree.len());
+            base_ctx["comments"] = serde_json::to_value(&comments_tree).unwrap_or_default();
+
             base_ctx["schema_org"] = serde_json::json!({
                 "@context": "https://schema.org",
                 "@type": if entry.content_type == "post" { "BlogPosting" } else { "WebPage" },

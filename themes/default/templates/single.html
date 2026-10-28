@@ -38,6 +38,97 @@
         {{ entry.body_html | safe }}
     </div>
 
+    <!-- Section Commentaires (WP-42 à WP-45) -->
+    <section id="comments" style="margin-top: 4rem; padding-top: 3rem; border-top: 1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size: 1.8rem; margin-bottom: 2rem;">
+            Commentaires {% if comments_count > 0 %}<span style="font-size: 1.1rem; color: #94a3b8; font-weight: normal;">({{ comments_count }})</span>{% endif %}
+        </h2>
+
+        {% if comments and comments | length > 0 %}
+        <div class="rf-comments-list" style="display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 3.5rem;">
+            {% for comment in comments %}
+            <div class="rf-comment-item" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--tp-radius); padding: 1.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 0.9rem;">
+                            {{ comment.author_name | first | upper }}
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: #f1f5f9;">
+                                {% if comment.author_url %}
+                                <a href="{{ comment.author_url }}" target="_blank" rel="noopener noreferrer nofollow" style="color: inherit;">{{ comment.author_name }}</a>
+                                {% else %}
+                                {{ comment.author_name }}
+                                {% endif %}
+                            </div>
+                            <div style="font-size: 0.75rem; color: #64748b;">{{ comment.created_at }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6;">
+                    {{ comment.content_html | safe }}
+                </div>
+
+                {% if comment.children and comment.children | length > 0 %}
+                <div class="rf-comment-replies" style="margin-top: 1.25rem; margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 1rem;">
+                    {% for reply in comment.children %}
+                    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--tp-radius); border: 1px solid rgba(255,255,255,0.04);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 600; font-size: 0.9rem; color: #f1f5f9;">{{ reply.author_name }}</span>
+                            <span style="font-size: 0.75rem; color: #64748b;">&bull; {{ reply.created_at }}</span>
+                        </div>
+                        <div style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5;">
+                            {{ reply.content_html | safe }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 2.5rem; font-style: italic;">
+            Soyez le premier à commenter cette publication.
+        </p>
+        {% endif %}
+
+        <!-- Formulaire de soumission -->
+        <div style="background: rgba(15, 20, 34, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--tp-radius); padding: 2rem;">
+            <h3 style="font-size: 1.3rem; margin-top: 0; margin-bottom: 1.5rem;">Laisser un commentaire</h3>
+            <form id="comment-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <input type="text" name="website_url_hp" style="display: none !important;" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                    <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
+                        <span>Nom <strong style="color: #f43f5e;">*</strong></span>
+                        <input type="text" name="author_name" required maxlength="100" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.6rem 0.8rem; color: white; font-size: 0.9rem;" />
+                    </label>
+
+                    <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
+                        <span>E-mail <strong style="color: #f43f5e;">*</strong> (ne sera pas publié)</span>
+                        <input type="email" name="author_email" required maxlength="254" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.6rem 0.8rem; color: white; font-size: 0.9rem;" />
+                    </label>
+
+                    <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
+                        <span>Site web (optionnel)</span>
+                        <input type="url" name="author_url" maxlength="255" placeholder="https://…" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.6rem 0.8rem; color: white; font-size: 0.9rem;" />
+                    </label>
+                </div>
+
+                <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
+                    <span>Votre commentaire <strong style="color: #f43f5e;">*</strong></span>
+                    <textarea name="content" required rows="4" maxlength="4096" placeholder="Écrivez votre message…" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.75rem 0.8rem; color: white; font-size: 0.9rem; resize: vertical;"></textarea>
+                </label>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                    <div id="comment-status-msg" style="font-size: 0.85rem;" role="status"></div>
+                    <button type="submit" id="comment-submit-btn" class="btn-primary" style="cursor: pointer; border: none;">Publier le commentaire</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
     <!-- Pied d'article -->
     <footer style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
         <a href="/{{ locale }}" style="font-weight: 600;">&larr; Retour à l'accueil</a>
@@ -46,6 +137,55 @@
         </a>
     </footer>
 </article>
+
+<script>
+(function() {
+    var form = document.getElementById('comment-form');
+    var statusMsg = document.getElementById('comment-status-msg');
+    var submitBtn = document.getElementById('comment-submit-btn');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(form);
+        var payload = {
+            author_name: formData.get('author_name'),
+            author_email: formData.get('author_email'),
+            author_url: formData.get('author_url') || null,
+            content: formData.get('content'),
+            website_url_hp: formData.get('website_url_hp') || null
+        };
+
+        submitBtn.disabled = true;
+        statusMsg.style.color = '#94a3b8';
+        statusMsg.textContent = 'Envoi en cours…';
+
+        fetch('/api/v1/public/entries/{{ entry.id }}/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(function(res) {
+            return res.json().then(function(data) {
+                if (!res.ok) throw new Error(data.error || 'Erreur lors de la soumission.');
+                return data;
+            });
+        })
+        .then(function() {
+            statusMsg.style.color = '#10b981';
+            statusMsg.textContent = 'Merci ! Votre commentaire a été enregistré (il sera publié dès modération).';
+            form.reset();
+        })
+        .catch(function(err) {
+            statusMsg.style.color = '#f43f5e';
+            statusMsg.textContent = err.message || 'Impossible d’envoyer le commentaire.';
+        })
+        .finally(function() {
+            submitBtn.disabled = false;
+        });
+    });
+})();
+</script>
 
 <style>
     .entry-body h2 { font-size: 1.9rem; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; }

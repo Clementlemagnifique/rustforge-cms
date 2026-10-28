@@ -29,3 +29,7 @@ export type { UsersTab } from './useUsersStore';
 
 export { useSettingsStore } from './useSettingsStore';
 export type { SettingsTab } from './useSettingsStore';
+
+export { useCommentsStore } from './useCommentsStore';
+export type { CommentsStoreState, CommentFilterTab } from './useCommentsStore';
+

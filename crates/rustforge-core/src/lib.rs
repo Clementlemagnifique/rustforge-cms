@@ -9,6 +9,7 @@
 pub mod ai;
 pub mod archive;
 pub mod blocks;
+pub mod comments;
 pub mod content_types;
 pub mod converter;
 pub mod document;

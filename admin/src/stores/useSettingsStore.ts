@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import { api } from '../api';
 import type { Entry, TermRef } from '../types';
 
-export type SettingsTab = 'general' | 'reading' | 'writing' | 'permalinks';
+export type SettingsTab = 'general' | 'reading' | 'writing' | 'permalinks' | 'discussion';
 
 interface SettingsState {
   activeTab: SettingsTab;

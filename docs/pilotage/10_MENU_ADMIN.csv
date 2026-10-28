@@ -14,9 +14,9 @@ rf_optimize,rf.admin.optimize,2,Médias,Optimisation,,socle,"admin,editor,author
 rf_pages,rf.admin.pages,1,Pages,,,socle,"admin,editor,author",entries:page,ready,EntriesView,list,,WP-20,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_page_list,rf.admin.page_list,2,Pages,Toutes les pages,,socle,"admin,editor,author",entries:page,ready,EntriesView,list,Recherche;Statut;Parent;Ordre,WP-15;WP-20,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_page_new,rf.admin.page_new,2,Pages,Ajouter une page,,socle,"admin,editor,author",new:page,partial,EntryEditorView,editor,Titre;Contenu;Modèle;Parent;Aperçu;Publication,WP-23;WP-32,wordpress-plugins-ref/wordpress/wp-admin/menu.php
-rf_comments,rf.admin.comments,1,Commentaires,,,socle,admin,,planned,À réaliser,list,,WP-42,wordpress-plugins-ref/wordpress/wp-admin/menu.php
-rf_comment_list,rf.admin.comment_list,2,Commentaires,Tous les commentaires,,socle,admin,,planned,À réaliser,moderation,Attente;Approuver;Répondre;Spam;Corbeille,WP-42;WP-43,wordpress-plugins-ref/wordpress/wp-admin/menu.php
-rf_comment_rules,rf.admin.comment_rules,2,Commentaires,Règles de discussion,,socle,admin,,planned,À réaliser,settings,Antispam;Notifications;Identité;Rétention,WP-44;WP-45,wordpress-plugins-ref/wordpress/wp-admin/menu.php
+rf_comments,rf.admin.comments,1,Commentaires,,,socle,"admin,editor",comments,ready,Groupe sans écran,list,,WP-42,wordpress-plugins-ref/wordpress/wp-admin/menu.php
+rf_comment_list,rf.admin.comment_list,2,Commentaires,Tous les commentaires,,socle,"admin,editor",comments,ready,Groupe sans écran,moderation,Attente;Approuver;Répondre;Spam;Corbeille,WP-42;WP-43,wordpress-plugins-ref/wordpress/wp-admin/menu.php
+rf_comment_rules,rf.admin.comment_rules,2,Commentaires,Règles de discussion,,socle,admin,settings:discussion,ready,Groupe sans écran,settings,Antispam;Notifications;Identité;Rétention,WP-44;WP-45,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_appearance,rf.admin.appearance,1,Apparence,,,socle,admin,appearance,partial,AppearanceView,appearance,,WP-47,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_theme,rf.admin.theme,2,Apparence,Thèmes,,socle,admin,,planned,À réaliser,appearance,Activer;Aperçu;Retour;Thème dérivé,WP-47;TH-03;TH-05,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_styles,rf.admin.styles,2,Apparence,Styles,,socle,admin,appearance,partial,AppearanceView,appearance,Palette;Typographie;Espacement;Responsive,TH-12;TH-27;TH-28;TH-30,wordpress-plugins-ref/wordpress/wp-admin/menu.php
@@ -45,7 +45,7 @@ rf_settings,rf.admin.settings,1,Réglages,,,socle,admin,settings,partial,Setting
 rf_general,rf.admin.general,2,Réglages,Général,,socle,admin,settings,partial,SettingsView,settings,Titre;Slogan;Identité,WP-69;WP-70;WP-71;WP-74,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_writing,rf.admin.writing,2,Réglages,Écriture,,socle,admin,settings:writing,partial,SettingsView,settings,Défauts éditoriaux;Notifications,WP-75;WP-76;WP-77,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_reading,rf.admin.reading,2,Réglages,Lecture,,socle,admin,settings:reading,partial,SettingsView,settings,Accueil;Pagination;Flux;Indexation,WP-78;WP-79;WP-80;WP-81,wordpress-plugins-ref/wordpress/wp-admin/menu.php
-rf_discussion,rf.admin.discussion,2,Réglages,Discussion,,socle,admin,,planned,À réaliser,settings,Conditions;Réponses;Modération;Avatars,WP-82;WP-83;WP-84;WP-85;WP-86;WP-87,wordpress-plugins-ref/wordpress/wp-admin/menu.php
+rf_discussion,rf.admin.discussion,2,Réglages,Discussion,,socle,admin,settings:discussion,ready,Groupe sans écran,settings,Conditions;Réponses;Modération;Avatars,WP-82;WP-83;WP-84;WP-85;WP-86;WP-87,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_media_settings,rf.admin.media_settings,2,Réglages,Médias,,socle,admin,,planned,À réaliser,settings,Tailles;Variantes;Stockage,WP-88;WP-89,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_permalinks,rf.admin.permalinks,2,Réglages,Permaliens,,socle,admin,,planned,À réaliser,settings,Structure;Bases;Redirections,WP-90;WP-91,wordpress-plugins-ref/wordpress/wp-admin/menu.php
 rf_privacy_settings,rf.admin.privacy_settings,2,Réglages,Confidentialité,,socle,admin,,planned,À réaliser,settings,Page;Collecte;Consentement;Rétention,WP-92;WP-93,wordpress-plugins-ref/wordpress/wp-admin/menu.php

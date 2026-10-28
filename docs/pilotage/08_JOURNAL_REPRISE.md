@@ -1,5 +1,39 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — Commentaires, modération, discussion et RGPD (WP-42 à WP-45, WP-82 à WP-87, EX-35)
+
+**Point de reprise le plus récent.** Réalisation et qualification complète du lot Commentaires, Modération et Réglages de discussion (`WP-42` à `WP-45`, `WP-82` à `WP-87`, `EX-35`) :
+- **Schéma SQL & Base (`migrations/20261028000006_comments.sql`, `native_backup.rs`)** :
+  - Création de la table `comments` (UUID, `entry_id` avec clé étrangère ON DELETE CASCADE, `parent_id` auto-référentiel ON DELETE CASCADE, `author_id` optionnel ON DELETE SET NULL, `author_name`, `author_email`, `author_url`, `author_ip`, `author_user_agent`, `content`, `content_html`, `status`, horodatages).
+  - Index optimisés sur `entry_id`, `parent_id`, `status`, `created_at` et `author_email`.
+  - Intégration de `comments` dans `native_backup::TABLES` et résolution des contraintes auto-référentes (`parent_id`) pour sauvegarde et restauration parfaite dans les capsules.
+- **Moteur Métier & Antispam (`crates/rustforge-core/src/comments.rs`, `settings.rs`, `models.rs`)** :
+  - Cycle de vie complet : `pending`, `approved`, `spam`, `trash` avec transitions sécurisées et vidage de corbeille.
+  - Antispam multicouche :
+    - Détection de bots par champ leurre honeypot invisible `website_url_hp`.
+    - Modération automatique en fonction du seuil de liens `discussion.comment_max_links`.
+    - Analyse de listes de mots-clés configurables : mise en attente via `discussion.moderation_keys` ou rejet direct en corbeille sans alerte via `discussion.disallowed_keys`.
+    - Règle d'approbation préalable `discussion.comment_previously_approved` exemptant les commentateurs récurrents de modération manuelle.
+    - Clôture automatique des commentaires pour articles anciens selon `discussion.close_comments_for_old_posts` et `discussion.close_comments_days`.
+  - Formatage HTML sécurisé : assainissement strict des balises, neutralisation des scripts et ajout systématique de `rel="nofollow noopener noreferrer"` sur tous les liens hypertextes.
+- **Routage API & SSR (`crates/rustforge-api/src/routes/comments.rs`, `public.rs`, `single.html`, `themes/default`)** :
+  - Soumission publique `POST /api/v1/public/entries/{id}/comments` et consultation publique `GET /api/v1/public/entries/{id}/comments` renvoyant une vue anonymisée `PublicCommentView` (exclusion stricte d'adresse e-mail, adresse IP et user-agent selon l'exigence RGPD `WP-44`).
+  - Endpoints Studio : listing paginé avec filtre et recherche, compteurs en temps réel par statut, approbation, désapprobation, marquage spam, corbeille, modification de texte et réponses en cascade.
+  - Invalidation dynamique du cache SSR L1 Moka lors de toute modification de commentaire.
+  - Rendu SSR récursif dans les gabarits `single.html` (crates et thèmes) avec avatar stylisé, nom d'auteur, date, texte assaini, sous-commentaires imbriqués et formulaire natif sécurisé.
+- **Studio d'administration (`admin/src/components/CommentsView.tsx`, `SettingsView.tsx`, `useCommentsStore.ts`, `api.ts`, `types.ts`, `messages.fr.ts`)** :
+  - Vue dédiée `CommentsView` avec onglets par statut et compteurs dynamiques (Tous, En attente, Approuvés, Indésirables, Corbeille), barre d'actions groupées, recherche temps réel, tiroir de modification et tiroir de réponse publique.
+  - Onglet « Discussion & Commentaires » dans `SettingsView` couvrant l'intégralité des réglages `WP-82` à `WP-87` (conditions d'articles, nom/e-mail obligatoire, connexion requise, seuil d'ancienneté, profondeur d'imbrication, pagination des commentaires, ordre chronologique, règles de modération, seuil de liens, mots-clés de modération et d'interdiction, affichage et choix des avatars).
+  - Activation des entrées du menu d'administration (`rf_comments`, `rf_comment_list`, `rf_comment_rules`, `rf_discussion`) sous le rôle `admin` et `editor`.
+- **Validations exécutées** :
+  - Tests unitaires : **65 tests réussis** dans le workspace.
+  - Régression intégrée PostgreSQL / HTTP (`consolidation.rs`) : scénario complet réussi validant le rejet honeypot (400), la modération automatique, la confidentialité RGPD (zéro fuite d'e-mail/IP), l'approbation, la réponse en cascade, le rendu SSR et le cycle corbeille.
+  - Clippy strict workspace (0 avertissement).
+  - Frontend Studio : `oxlint` 0 avertissement, 0 erreur, build `vite` réussi.
+  - Contrôles documentaires : 434 tâches, 38 composants existants, 114 menus cohérents (`scripts/pilotage.py`, `scripts/verifier-documentation.py`).
+
+**Prochain lot : G3.4-D/E**, colonnes, méga-menus et modules dynamiques (`MOD-NAV-01`, `QM-04` à `QM-11`), ou suite de la feuille de route G4.
+
 ## 28 octobre 2026 — G3.4 / NAV-A à NAV-C : Menus hiérarchiques, éditeur Studio et navigation responsive accessible
 
 **Point de reprise le plus récent.** Réalisation et qualification complète des lots NAV-A, NAV-B et NAV-C (`WP-46`, `TH-15`, `TH-17`, `QM-01`, `QM-02`, `QM-03`, `QM-06`, `QM-08`) :

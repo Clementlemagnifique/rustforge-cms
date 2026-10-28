@@ -201,3 +201,39 @@ export interface MigrationImportResult {
   report: { entries_imported: number; terms_imported: number; warnings: string[] };
   checks_remaining: string[];
 }
+
+export type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
+
+export interface CommentItem {
+  id: string;
+  entry_id: string;
+  parent_id?: string | null;
+  author_id?: string | null;
+  author_name: string;
+  author_email?: string | null;
+  author_url?: string | null;
+  author_ip?: string | null;
+  author_user_agent?: string | null;
+  content: string;
+  content_html: string;
+  status: CommentStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommentCounts {
+  all: number;
+  pending: number;
+  approved: number;
+  spam: number;
+  trash: number;
+}
+
+export interface CommentListResponse {
+  items: CommentItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+

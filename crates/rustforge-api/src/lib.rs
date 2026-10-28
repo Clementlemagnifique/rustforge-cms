@@ -298,6 +298,20 @@ pub fn build_router(state: AppState) -> Router {
 
     );
 
+    let comments_routes = Router::new()
+        .route("/", get(routes::comments::list))
+        .route("/counts", get(routes::comments::counts))
+        .route("/batch", post(routes::comments::batch_update))
+        .route("/empty-trash", delete(routes::comments::empty_trash))
+        .route(
+            "/{id}",
+            get(routes::comments::get)
+                .put(routes::comments::update)
+                .delete(routes::comments::delete),
+        )
+        .route("/{id}/status", put(routes::comments::update_status))
+        .route("/{id}/reply", post(routes::comments::reply));
+
     let plugins_routes = Router::new()
         .route("/", get(routes::plugins::list))
         .route("/rescan", post(routes::plugins::rescan))
@@ -362,6 +376,10 @@ pub fn build_router(state: AppState) -> Router {
 
             get(routes::lms::public_get_course_by_slug),
 
+        )
+        .route(
+            "/entries/{id}/comments",
+            get(routes::comments::public_list).post(routes::comments::public_submit),
         );
 
     let converter_routes = Router::new()
@@ -400,6 +418,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/ecommerce", ecommerce_routes)
         .nest("/lms", lms_routes)
         .nest("/users", users_routes)
+        .nest("/comments", comments_routes)
         .nest("/settings", settings_routes)
         .nest("/plugins", plugins_routes)
         .nest("/stats", stats_routes)

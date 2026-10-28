@@ -442,4 +442,61 @@ export const api = {
       window.URL.revokeObjectURL(url);
     },
   },
+
+  comments: {
+    list: (params?: {
+      entry_id?: string;
+      status?: import('./types').CommentStatus;
+      search?: string;
+      page?: number;
+      per_page?: number;
+    }) => {
+      const q = new URLSearchParams();
+      if (params?.entry_id) q.set('entry_id', params.entry_id);
+      if (params?.status) q.set('status', params.status);
+      if (params?.search) q.set('search', params.search);
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.per_page) q.set('per_page', params.per_page.toString());
+      const qs = q.toString();
+      return request<import('./types').CommentListResponse>(`/comments${qs ? `?${qs}` : ''}`);
+    },
+    counts: () => request<import('./types').CommentCounts>('/comments/counts'),
+    get: (id: string) => request<import('./types').CommentItem>(`/comments/${id}`),
+    updateStatus: (id: string, status: import('./types').CommentStatus) =>
+      request<import('./types').CommentItem>(`/comments/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      }),
+    batchUpdate: (ids: string[], status: import('./types').CommentStatus) =>
+      request<{ updated: number }>('/comments/batch', {
+        method: 'POST',
+        body: JSON.stringify({ ids, status }),
+      }),
+    update: (
+      id: string,
+      data: {
+        content: string;
+        author_name?: string;
+        author_email?: string;
+        author_url?: string;
+      }
+    ) =>
+      request<import('./types').CommentItem>(`/comments/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    reply: (id: string, content: string) =>
+      request<import('./types').CommentItem>(`/comments/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }),
+    delete: (id: string) =>
+      request<{ deleted: boolean }>(`/comments/${id}`, {
+        method: 'DELETE',
+      }),
+    emptyTrash: () =>
+      request<{ deleted: number }>('/comments/empty-trash', {
+        method: 'DELETE',
+      }),
+  },
 };

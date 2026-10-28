@@ -2,6 +2,7 @@ pub mod admin;
 pub mod ai;
 pub mod auth;
 pub mod capsules;
+pub mod comments;
 pub mod content_types;
 pub mod converter;
 pub mod ecommerce;

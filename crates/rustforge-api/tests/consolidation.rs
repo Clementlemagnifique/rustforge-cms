@@ -4472,6 +4472,133 @@ async fn postgres_http_and_native_backup_regressions() {
 
     );
 
+    // ========================================================================
+    // WP-42 à WP-45, WP-82 à WP-87 : COMMENTAIRES, MODÉRATION & RGPD
+    // ========================================================================
+    // 1. Rejet honeypot anti-bot (WP-45)
+    let hp_res = request(
+        &app,
+        "POST",
+        &format!("/api/v1/public/entries/{}/comments", permalink_post.id),
+        None,
+        json!({
+            "author_name": "Robot Spammer",
+            "author_email": "bot@spam.test",
+            "content": "Achetez des pilules magiques",
+            "website_url_hp": "http://spammer.bot"
+        }),
+    )
+    .await;
+    assert_eq!(hp_res.0, 400);
+
+    // 2. Soumission d'un commentaire légitime (mis en modération automatique WP-42, WP-84)
+    let comment_res = request(
+        &app,
+        "POST",
+        &format!("/api/v1/public/entries/{}/comments", permalink_post.id),
+        None,
+        json!({
+            "author_name": "Jean Lecteur",
+            "author_email": "jean.lecteur@example.test",
+            "author_url": "https://jean.test",
+            "content": "Superbe article sur Rust et la souveraineté !",
+        }),
+    )
+    .await;
+    assert_eq!(comment_res.0, 200);
+    let created_comment = &comment_res.1;
+    let comment_id = created_comment["id"].as_str().unwrap();
+    // RGPD / WP-44 : l'e-mail et l'IP ne doivent pas être renvoyés dans la vue publique
+    assert!(created_comment.get("author_email").is_none());
+    assert!(created_comment.get("author_ip").is_none());
+    assert_eq!(created_comment["author_name"], "Jean Lecteur");
+
+    // 3. Vérification de la liste publique : le commentaire en attente ne doit PAS apparaître
+    let public_comments = request(
+        &app,
+        "GET",
+        &format!("/api/v1/public/entries/{}/comments", permalink_post.id),
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(public_comments.0, 200);
+    assert_eq!(public_comments.1.as_array().unwrap().len(), 0);
+
+    // 4. Modération Admin : consultation et approbation (WP-43)
+    let admin_comments = request(
+        &app,
+        "GET",
+        "/api/v1/comments?status=pending",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(admin_comments.0, 200);
+    assert_eq!(admin_comments.1["total"], 1);
+
+    let approve_res = request(
+        &app,
+        "PUT",
+        &format!("/api/v1/comments/{comment_id}/status"),
+        Some(&admin),
+        json!({ "status": "approved" }),
+    )
+    .await;
+    assert_eq!(approve_res.0, 200);
+    assert_eq!(approve_res.1["status"], "approved");
+
+    // 5. Réponse admin en cascade (WP-43, WP-83)
+    let reply_res = request(
+        &app,
+        "POST",
+        &format!("/api/v1/comments/{comment_id}/reply"),
+        Some(&admin),
+        json!({ "content": "Merci Jean pour votre lecture attentive !" }),
+    )
+    .await;
+    assert_eq!(reply_res.0, 200);
+    assert_eq!(reply_res.1["parent_id"], comment_id);
+    assert_eq!(reply_res.1["status"], "approved");
+
+    // 6. Rendu public SSR : intégration dans single.html et protection RGPD (WP-44)
+    let ssr_article = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(ssr_article.0, 200);
+    let ssr_html = ssr_article.1.as_str().unwrap();
+    assert!(ssr_html.contains("Jean Lecteur"));
+    assert!(ssr_html.contains("Superbe article sur Rust"));
+    assert!(ssr_html.contains("Merci Jean pour votre lecture"));
+    // Sécurité RGPD : pas d'e-mail dans le HTML public rendu
+    assert!(!ssr_html.contains("jean.lecteur@example.test"));
+
+    // 7. Compteurs, action groupée et vidage de corbeille (WP-45)
+    let counts_res = request(&app, "GET", "/api/v1/comments/counts", Some(&admin), Value::Null).await;
+    assert_eq!(counts_res.0, 200);
+    assert_eq!(counts_res.1["approved"], 2);
+
+    let reply_id = reply_res.1["id"].as_str().unwrap();
+    let batch_res = request(
+        &app,
+        "POST",
+        "/api/v1/comments/batch",
+        Some(&admin),
+        json!({ "ids": [comment_id, reply_id], "status": "trash" }),
+    )
+    .await;
+    assert_eq!(batch_res.0, 200);
+    assert_eq!(batch_res.1["updated"], 2);
+
+    let empty_trash_res = request(&app, "DELETE", "/api/v1/comments/empty-trash", Some(&admin), Value::Null).await;
+    assert_eq!(empty_trash_res.0, 200);
+    assert_eq!(empty_trash_res.1["deleted"], 2);
+
     let paths = StoragePaths {
 
         uploads: root.join("uploads"),

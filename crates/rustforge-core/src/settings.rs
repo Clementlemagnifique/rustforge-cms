@@ -43,9 +43,21 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "permalink.structure",
         "permalink.category_base",
         "permalink.tag_base",
+        "discussion.default_comment_status",
+        "discussion.require_name_email",
+        "discussion.comment_registration",
+        "discussion.close_comments_for_old_posts",
+        "discussion.close_comments_days",
+        "discussion.thread_comments",
+        "discussion.thread_comments_depth",
+        "discussion.page_comments",
+        "discussion.comments_per_page",
+        "discussion.comment_order",
+        "discussion.show_avatars",
+        "discussion.avatar_default",
     ];
     let rows: Vec<(String, Value)> = sqlx::query_as(
-        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') OR starts_with(key, 'permalink.') ORDER BY key",
+        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') OR starts_with(key, 'permalink.') OR starts_with(key, 'discussion.') ORDER BY key",
     )
     .bind(PUBLIC_PREFIX)
     .fetch_all(db)
@@ -426,6 +438,71 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 )));
             }
         }
+    } else if key == "discussion.default_comment_status"
+        && !value.is_boolean()
+        && !value.as_str().is_some_and(|s| matches!(s, "open" | "closed"))
+    {
+        return Err(CoreError::validation(
+            "discussion.default_comment_status doit être un booléen ou 'open'/'closed'.",
+        ));
+    } else if key == "discussion.require_name_email" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.require_name_email doit être un booléen."));
+    } else if key == "discussion.comment_registration" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.comment_registration doit être un booléen."));
+    } else if key == "discussion.close_comments_for_old_posts" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.close_comments_for_old_posts doit être un booléen."));
+    } else if key == "discussion.close_comments_days" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation("discussion.close_comments_days doit être un entier positif."));
+        };
+        if !(1..=3650).contains(&n) {
+            return Err(CoreError::validation("discussion.close_comments_days doit être compris entre 1 et 3650 jours."));
+        }
+    } else if key == "discussion.thread_comments" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.thread_comments doit être un booléen."));
+    } else if key == "discussion.thread_comments_depth" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation("discussion.thread_comments_depth doit être un entier entre 1 et 5."));
+        };
+        if !(1..=5).contains(&n) {
+            return Err(CoreError::validation("discussion.thread_comments_depth doit être compris entre 1 et 5 niveaux."));
+        }
+    } else if key == "discussion.page_comments" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.page_comments doit être un booléen."));
+    } else if key == "discussion.comments_per_page" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation("discussion.comments_per_page doit être un entier entre 1 et 100."));
+        };
+        if !(1..=100).contains(&n) {
+            return Err(CoreError::validation("discussion.comments_per_page doit être compris entre 1 et 100."));
+        }
+    } else if key == "discussion.comment_order" {
+        let Some(order) = value.as_str() else {
+            return Err(CoreError::validation("discussion.comment_order doit être 'asc' ou 'desc'."));
+        };
+        if !matches!(order, "asc" | "desc") {
+            return Err(CoreError::validation("discussion.comment_order doit être 'asc' ou 'desc'."));
+        }
+    } else if key == "discussion.comment_moderation" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.comment_moderation doit être un booléen."));
+    } else if key == "discussion.comment_previously_approved" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.comment_previously_approved doit être un booléen."));
+    } else if key == "discussion.comment_max_links" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation("discussion.comment_max_links doit être un entier positif ou nul."));
+        };
+        if !(0..=50).contains(&n) {
+            return Err(CoreError::validation("discussion.comment_max_links doit être compris entre 0 et 50."));
+        }
+    } else if (key == "discussion.moderation_keys" || key == "discussion.disallowed_keys")
+        && let Some(text) = value.as_str()
+        && text.len() > 16 * 1024
+    {
+        return Err(CoreError::validation("La liste de modération ou de mots interdits est limitée à 16 Kio."));
+    } else if key == "discussion.show_avatars" && !value.is_boolean() {
+        return Err(CoreError::validation("discussion.show_avatars doit être un booléen."));
+    } else if key == "discussion.avatar_default" && !value.is_string() {
+        return Err(CoreError::validation("discussion.avatar_default doit être une chaîne."));
     }
     Ok(())
 }
@@ -654,5 +731,23 @@ mod tests {
             ]
         });
         assert!(validate_setting_value("site.menus", &deep_menu).is_err());
+    }
+
+    #[test]
+    fn test_validate_discussion_settings() {
+        assert!(validate_setting_value("discussion.default_comment_status", &json!("open")).is_ok());
+        assert!(validate_setting_value("discussion.default_comment_status", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.default_comment_status", &json!("invalid")).is_err());
+
+        assert!(validate_setting_value("discussion.thread_comments_depth", &json!(3)).is_ok());
+        assert!(validate_setting_value("discussion.thread_comments_depth", &json!(0)).is_err());
+        assert!(validate_setting_value("discussion.thread_comments_depth", &json!(6)).is_err());
+
+        assert!(validate_setting_value("discussion.comment_order", &json!("asc")).is_ok());
+        assert!(validate_setting_value("discussion.comment_order", &json!("desc")).is_ok());
+        assert!(validate_setting_value("discussion.comment_order", &json!("random")).is_err());
+
+        assert!(validate_setting_value("discussion.comment_max_links", &json!(2)).is_ok());
+        assert!(validate_setting_value("discussion.comment_max_links", &json!(-1)).is_err());
     }
 }
