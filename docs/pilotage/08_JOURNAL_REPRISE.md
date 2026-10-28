@@ -1,5 +1,31 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — G3.3-F : permaliens souverains (WP-90) et bases de taxonomies (WP-91)
+
+**Point de reprise le plus récent.** Réalisation et qualification complète du lot G3.3-F (`WP-90`, `WP-91`) :
+- Moteur de permaliens souverain (`crates/rustforge-api/src/routes/permalinks.rs`) :
+  - Support des structures standard WordPress : simple / standard (`plain`), date et titre (`day_and_name`), mois et titre (`month_and_name`), numérique (`numeric` / `archives/{id}`), titre de l'article (`post_name`), et formats personnalisés avec balises autorisées (`%year%`, `%monthnum%`, `%day%`, `%post_id%`, `%postname%`, `%category%`, `%author%`).
+  - Validation stricte dans le cœur (`crates/rustforge-core/src/settings.rs`) : obligation d'inclure `%postname%` ou `%post_id%`, rejet des jetons inconnus, rejet des caractères dangereux/injections.
+  - Préfixes de taxonomies personnalisés (`permalink.category_base`, `permalink.tag_base`) : validation de slugs sûrs, interdiction des collisions entre bases et protection contre les slugs système réservés (`admin`, `api`, `uploads`, etc.).
+- Routage et redirections permanentes HTTP 308 :
+  - Routes Axum natives sans collision : `/{locale}/{year}/{month}/{day}/{slug}`, `/{locale}/{year}/{month}/{slug}`, `/{locale}/archives/{id}` et `/{locale}/{content_type}/{slug}`.
+  - Redirections 308 automatiques depuis les anciennes structures d'URL vers la structure canonique en vigueur.
+  - Redirection immédiate des archives de taxonomie depuis les anciens préfixes (`/archive/category/...` vers `/archive/{category_base}/...`).
+  - Résolution directe des renommages de slugs historiques (`resolve_slug_redirect`) en un seul saut 308 vers le permalien cible, sans chaîne ni boucle.
+- Intégration transversale :
+  - Flux RSS 2.0 et Atom 1.0 (`feeds.rs`) : liens d'articles générés selon la structure de permaliens configurée.
+  - Sitemap XML (`seo.rs`) : balises `<loc>` reflétant fidèlement les permaliens actifs.
+  - Balises `<link rel="canonical">` : URLs canoniques calculées selon la structure courante sur toutes les pages d'articles.
+- Studio d'administration (`admin/src/components/SettingsView.tsx`, `useSettingsStore.ts`, `messages.fr.ts`) :
+  - Nouvel onglet dédié « Permaliens & URLs » avec sélecteur radio des formats prédéfinis, prévisualisation en direct des URLs d'exemple, champ de structure personnalisée avec boutons d'insertion rapide des balises, et champs de personnalisation des préfixes de catégories/étiquettes.
+- Validations exécutées :
+  - Tests unitaires : **59 tests réussis** (API 14, core 43, plugins 2).
+  - Régression intégrée PostgreSQL / HTTP (`consolidation.rs`) : scénario complet réussi validant la détection des collisions, le rejet des tokens invalides, les redirections 308 entre structures, la résolution `archives/{id}`, et la conformité des balises canoniques.
+  - Lint Studio (`oxlint` 0 avertissement, 0 erreur), build Vite réussi, Clippy workspace strict réussi (0 avertissement).
+  - Contrôles documentaires : 434 tâches, 38 composants et 114 menus cohérents.
+
+**Prochain lot : G3.4 / NAV-A à NAV-E**, menus publics hiérarchiques et responsive inspirés de QuadMenu (`QM-01` à `QM-11`, `WP-46`).
+
 ## 28 octobre 2026 — G3.3-E : SEO structurel, robots.txt dynamique, sitemap.xml et canonical
 
 **Point de reprise le plus récent.** Réalisation et qualification complète du lot G3.3-E (`WP-81`, `WP-102`) :

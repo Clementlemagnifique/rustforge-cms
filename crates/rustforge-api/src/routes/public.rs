@@ -78,6 +78,22 @@ pub(super) async fn build_site_context(
         .unwrap_or("")
         .trim_end_matches('/');
 
+    let permalink_structure = site_settings
+        .get("permalink.structure")
+        .and_then(|v| v.as_str())
+        .unwrap_or("plain")
+        .to_string();
+    let category_base = site_settings
+        .get("permalink.category_base")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let tag_base = site_settings
+        .get("permalink.tag_base")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
     Ok(serde_json::json!({
         "locale": locale,
         "site_title": site_title,
@@ -90,6 +106,9 @@ pub(super) async fn build_site_context(
         "show_on_front": show_on_front,
         "page_on_front": page_on_front,
         "page_for_posts": site_settings.get("reading.page_for_posts"),
+        "permalink_structure": permalink_structure,
+        "category_base": category_base,
+        "tag_base": tag_base,
         "available_locales": [
             { "code": "fr", "url": "/fr" }
         ]
@@ -190,7 +209,60 @@ pub async fn ssr_home(
     }
 }
 
-/// Page d'un article ou contenu unique multilingue
+async fn render_single_entry(
+    state: AppState,
+    locale: String,
+    mut entry: Entry,
+    canonical_url_path: String,
+    number: i64,
+) -> ApiResult<axum::response::Response> {
+    if number != 1 {
+        return super::public_lists::not_found(&state, &locale).await;
+    }
+    state.ssr.synchronize(&state.db).await?;
+    let path = format!("{canonical_url_path}?page={number}");
+    let plugins = state.plugins.clone();
+    let state_ref = state.clone();
+    let loc = locale.clone();
+
+    let rendered = state
+        .ssr
+        .render_page(&locale, &path, move || async move {
+            let mut base_ctx = build_site_context(&state_ref, &loc).await?;
+            entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
+
+            let site_url = base_ctx
+                .get("site_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            base_ctx["canonical_url"] =
+                serde_json::json!(format!("{site_url}{canonical_url_path}"));
+            base_ctx["template"] = serde_json::json!("single.html");
+            base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
+            base_ctx["schema_org"] = serde_json::json!({
+                "@context": "https://schema.org",
+                "@type": if entry.content_type == "post" { "BlogPosting" } else { "WebPage" },
+                "headline": entry.title,
+                "description": entry.excerpt,
+                "datePublished": entry.published_at,
+                "author": { "@type": "Person", "name": entry.author_name.unwrap_or_else(|| "RustForge".into()) }
+            });
+
+            Ok(MinijinjaValue::from_serialize(&base_ctx))
+        })
+        .await;
+
+    match rendered {
+        Ok(html) => Ok(Html(html).into_response()),
+        Err(
+            crate::error::ApiError::NotFound
+            | crate::error::ApiError::Core(rustforge_core::CoreError::NotFound),
+        ) => super::public_lists::not_found(&state, &locale).await,
+        Err(err) => Err(err),
+    }
+}
+
+/// Page d'un article ou contenu unique multilingue (avec support des permaliens numériques et redirections).
 pub async fn ssr_single(
     State(state): State<AppState>,
     Path((locale, content_type, slug)): Path<(String, String, String)>,
@@ -199,64 +271,207 @@ pub async fn ssr_single(
     super::public_lists::validate_locale(&locale)?;
     state.ssr.synchronize(&state.db).await?;
     let (_, number) = params.normalized()?;
-    let path = format!("/{locale}/{content_type}/{slug}?page={number}");
-    let db = state.db.clone();
-    let plugins = state.plugins.clone();
-    let state_ref = state.clone();
-    let loc = locale.clone();
-    let ct = content_type.clone();
-    let sl = slug.clone();
 
-    let rendered = state.ssr.render_page(&locale, &path, move || async move {
-        let mut base_ctx = build_site_context(&state_ref, &loc).await?;
-        let mut entry = entries::get_published(&db, &ct, &sl).await?;
+    let (structure, category_base, tag_base) =
+        super::permalinks::load_permalink_settings(&state.db).await;
 
-        if ct == "page" && base_ctx["show_on_front"] == "page" && base_ctx["page_for_posts"].as_str() == Some(&entry.id.to_string()) {
-            let page = entries::list(&db,&EntryQuery { public_only:true, content_type:Some("post".into()), page:Some(number), per_page:base_ctx["reading_per_page"].as_i64(), ..Default::default() }).await?;
-            base_ctx["template"] = serde_json::json!("listing.html");
-            base_ctx["title"] = serde_json::json!(entry.title);
-            super::public_lists::page_context(&mut base_ctx,&page,&format!("/{loc}/{ct}/{sl}"),None)?;
-            return Ok(MinijinjaValue::from_serialize(base_ctx));
+    // Redirections des bases de taxonomie sans /archive/
+    if (!category_base.is_empty() && content_type == category_base) || content_type == "category" {
+        let base = if !category_base.is_empty() {
+            &category_base
+        } else {
+            "category"
+        };
+        return Ok(Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response());
+    }
+    if (!tag_base.is_empty() && content_type == tag_base) || content_type == "tag" {
+        let base = if !tag_base.is_empty() {
+            &tag_base
+        } else {
+            "tag"
+        };
+        return Ok(Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response());
+    }
+
+    // Permalien numérique /archives/{id}
+    if content_type == "archives" {
+        if let Ok(entry_id) = uuid::Uuid::parse_str(&slug) {
+            match entries::get_published_by_id(&state.db, entry_id).await {
+                Ok(entry) => {
+                    let canonical =
+                        super::permalinks::compute_entry_permalink(&entry, &structure, &locale);
+                    let current_path = format!("/{locale}/archives/{slug}");
+                    if canonical != current_path {
+                        return Ok(Redirect::permanent(&canonical).into_response());
+                    }
+                    return render_single_entry(state, locale, entry, canonical, number).await;
+                }
+                Err(rustforge_core::CoreError::NotFound) => {}
+                Err(e) => return Err(e.into()),
+            }
         }
-        if number != 1 { return Err(crate::error::ApiError::NotFound); }
+        return super::public_lists::not_found(&state, &locale).await;
+    }
 
-        // Exécution des filtres de plugins WASM sur le contenu
-        entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
+    // Page de blog / articles
+    let base_ctx = build_site_context(&state, &locale).await?;
+    if content_type == "page"
+        && let Ok(entry) = entries::get_published(&state.db, &content_type, &slug).await
+        && base_ctx["show_on_front"] == "page"
+        && base_ctx["page_for_posts"].as_str() == Some(&entry.id.to_string())
+    {
+        let page = entries::list(
+            &state.db,
+            &EntryQuery {
+                public_only: true,
+                content_type: Some("post".into()),
+                page: Some(number),
+                per_page: base_ctx["reading_per_page"].as_i64(),
+                ..Default::default()
+            },
+        )
+        .await?;
+        let mut listing_ctx = base_ctx;
+        listing_ctx["template"] = serde_json::json!("listing.html");
+        listing_ctx["title"] = serde_json::json!(entry.title);
+        super::public_lists::page_context(
+            &mut listing_ctx,
+            &page,
+            &format!("/{locale}/{content_type}/{slug}"),
+            None,
+        )?;
+        let html = state
+            .ssr
+            .render_page(&locale, &format!("/{locale}/{content_type}/{slug}?page={number}"), move || async move {
+                Ok(MinijinjaValue::from_serialize(listing_ctx))
+            })
+            .await?;
+        return Ok(Html(html).into_response());
+    }
 
-        let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
-        base_ctx["canonical_url"] = serde_json::json!(format!("{site_url}/{loc}/{ct}/{sl}"));
-        base_ctx["template"] = serde_json::json!("single.html");
-        base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
-        base_ctx["schema_org"] = serde_json::json!({
-            "@context": "https://schema.org",
-            "@type": if entry.content_type == "post" { "BlogPosting" } else { "WebPage" },
-            "headline": entry.title,
-            "description": entry.excerpt,
-            "datePublished": entry.published_at,
-            "author": { "@type": "Person", "name": entry.author_name.unwrap_or_else(|| "RustForge".into()) }
-        });
-
-        Ok(MinijinjaValue::from_serialize(&base_ctx))
-    }).await;
-
-    match rendered {
-        Ok(html) => Ok(Html(html).into_response()),
-        Err(
-            crate::error::ApiError::NotFound
-            | crate::error::ApiError::Core(rustforge_core::CoreError::NotFound),
-        ) => {
+    // Recherche de l'entrée publiée
+    let entry_res = entries::get_published(&state.db, &content_type, &slug).await;
+    let entry = match entry_res {
+        Ok(e) => e,
+        Err(rustforge_core::CoreError::NotFound) => {
             if let Some(target_slug) =
                 entries::resolve_slug_redirect(&state.db, &content_type, &slug).await?
+                && let Ok(target) =
+                    entries::get_published(&state.db, &content_type, &target_slug).await
             {
-                return Ok(
-                    Redirect::permanent(&format!("/{locale}/{content_type}/{target_slug}"))
-                        .into_response(),
-                );
+                let canonical =
+                    super::permalinks::compute_entry_permalink(&target, &structure, &locale);
+                return Ok(Redirect::permanent(&canonical).into_response());
             }
-            super::public_lists::not_found(&state, &locale).await
+            return super::public_lists::not_found(&state, &locale).await;
         }
-        Err(err) => Err(err),
+        Err(e) => return Err(e.into()),
+    };
+
+    let canonical = super::permalinks::compute_entry_permalink(&entry, &structure, &locale);
+    let current_path = format!("/{locale}/{content_type}/{slug}");
+    if canonical != current_path {
+        return Ok(Redirect::permanent(&canonical).into_response());
     }
+
+    render_single_entry(state, locale, entry, canonical, number).await
+}
+
+/// Permalien date et titre : `/{locale}/{year}/{month}/{day}/{slug}`
+pub async fn ssr_day_and_name(
+    State(state): State<AppState>,
+    Path((locale, year_str, month_str, day_str, slug)): Path<(
+        String,
+        String,
+        String,
+        String,
+        String,
+    )>,
+    Query(params): Query<super::public_lists::ListParams>,
+) -> ApiResult<axum::response::Response> {
+    super::public_lists::validate_locale(&locale)?;
+    let (Ok(year), Ok(month), Ok(day)) = (
+        year_str.parse::<i32>(),
+        month_str.parse::<u32>(),
+        day_str.parse::<u32>(),
+    ) else {
+        return super::public_lists::not_found(&state, &locale).await;
+    };
+    if !(1900..=2100).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return super::public_lists::not_found(&state, &locale).await;
+    }
+    let (_, number) = params.normalized()?;
+
+    let (structure, _, _) = super::permalinks::load_permalink_settings(&state.db).await;
+
+    let entry_res = entries::get_published(&state.db, "post", &slug).await;
+    let entry = match entry_res {
+        Ok(e) => e,
+        Err(rustforge_core::CoreError::NotFound) => {
+            if let Some(target_slug) = entries::resolve_slug_redirect(&state.db, "post", &slug).await?
+                && let Ok(target) = entries::get_published(&state.db, "post", &target_slug).await
+            {
+                let canonical =
+                    super::permalinks::compute_entry_permalink(&target, &structure, &locale);
+                return Ok(Redirect::permanent(&canonical).into_response());
+            }
+            return super::public_lists::not_found(&state, &locale).await;
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let canonical = super::permalinks::compute_entry_permalink(&entry, &structure, &locale);
+    let current_path = format!("/{locale}/{year:04}/{month:02}/{day:02}/{slug}");
+    if canonical != current_path {
+        return Ok(Redirect::permanent(&canonical).into_response());
+    }
+
+    render_single_entry(state, locale, entry, canonical, number).await
+}
+
+/// Permalien mois et titre : `/{locale}/{year}/{month}/{slug}`
+pub async fn ssr_month_and_name(
+    State(state): State<AppState>,
+    Path((locale, year_str, month_str, slug)): Path<(String, String, String, String)>,
+    Query(params): Query<super::public_lists::ListParams>,
+) -> ApiResult<axum::response::Response> {
+    super::public_lists::validate_locale(&locale)?;
+    let (Ok(year), Ok(month)) = (
+        year_str.parse::<i32>(),
+        month_str.parse::<u32>(),
+    ) else {
+        return super::public_lists::not_found(&state, &locale).await;
+    };
+    if !(1900..=2100).contains(&year) || !(1..=12).contains(&month) {
+        return super::public_lists::not_found(&state, &locale).await;
+    }
+    let (_, number) = params.normalized()?;
+
+    let (structure, _, _) = super::permalinks::load_permalink_settings(&state.db).await;
+
+    let entry_res = entries::get_published(&state.db, "post", &slug).await;
+    let entry = match entry_res {
+        Ok(e) => e,
+        Err(rustforge_core::CoreError::NotFound) => {
+            if let Some(target_slug) = entries::resolve_slug_redirect(&state.db, "post", &slug).await?
+                && let Ok(target) = entries::get_published(&state.db, "post", &target_slug).await
+            {
+                let canonical =
+                    super::permalinks::compute_entry_permalink(&target, &structure, &locale);
+                return Ok(Redirect::permanent(&canonical).into_response());
+            }
+            return super::public_lists::not_found(&state, &locale).await;
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let canonical = super::permalinks::compute_entry_permalink(&entry, &structure, &locale);
+    let current_path = format!("/{locale}/{year:04}/{month:02}/{slug}");
+    if canonical != current_path {
+        return Ok(Redirect::permanent(&canonical).into_response());
+    }
+
+    render_single_entry(state, locale, entry, canonical, number).await
 }
 
 /// Page en Mode Zen sans distraction

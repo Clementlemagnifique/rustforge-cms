@@ -161,6 +161,18 @@ pub async fn get_published(db: &PgPool, content_type: &str, slug: &str) -> CoreR
     Ok(entry)
 }
 
+/// Entrée publiée et visible, par identifiant UUID direct (permaliens numériques `archives/{id}`).
+pub async fn get_published_by_id(db: &PgPool, id: Uuid) -> CoreResult<Entry> {
+    let mut entry = sqlx::query_as::<_, Entry>(&format!(
+        "{SELECT} WHERE e.id = $1 AND {PUBLIC_VISIBILITY}"
+    ))
+    .bind(id)
+    .fetch_one(db)
+    .await?;
+    attach_terms(db, std::slice::from_mut(&mut entry)).await?;
+    Ok(entry)
+}
+
 /// Si un slug historique (`_rf_vault.rf_old_slugs`) correspond à une entrée publiée dont le slug
 /// canonique actuel est différent, retourne le slug canonique cible (résolution directe sans chaîne `A -> B -> C`).
 pub async fn resolve_slug_redirect(

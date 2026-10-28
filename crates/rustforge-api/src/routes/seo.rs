@@ -21,8 +21,10 @@ use rustforge_core::settings;
 
 #[derive(sqlx::FromRow)]
 struct SitemapEntry {
+    id: uuid::Uuid,
     content_type: String,
     slug: String,
+    created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     published_at: Option<DateTime<Utc>>,
 }
@@ -53,6 +55,7 @@ fn build_sitemap_xml(
     site_url: &str,
     locale: &str,
     entries: &[SitemapEntry],
+    permalink_structure: &str,
 ) -> String {
     let mut xml = String::with_capacity(4096);
     let base_url = site_url.trim_end_matches('/');
@@ -75,10 +78,21 @@ fn build_sitemap_xml(
     xml.push_str("  </url>\n");
 
     for entry in entries {
+        let date = entry.published_at.unwrap_or(entry.created_at);
+        let permalink = super::permalinks::compute_permalink_parts(
+            &entry.content_type,
+            &entry.slug,
+            date,
+            entry.id,
+            None,
+            None,
+            permalink_structure,
+            locale,
+        );
         let entry_loc = if base_url.is_empty() {
-            format!("/{locale}/{}/{}", entry.content_type, entry.slug)
+            permalink
         } else {
-            format!("{base_url}/{locale}/{}/{}", entry.content_type, entry.slug)
+            format!("{base_url}{permalink}")
         };
         let lastmod = entry
             .published_at
@@ -146,8 +160,11 @@ async fn handle_sitemap(state: AppState, locale: &str) -> ApiResult<Response> {
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
+    let (permalink_structure, _, _) =
+        super::permalinks::load_permalink_settings(&state.db).await;
+
     let entries: Vec<SitemapEntry> = sqlx::query_as(
-        r#"SELECT ct.slug AS content_type, e.slug, e.updated_at, e.published_at
+        r#"SELECT e.id, ct.slug AS content_type, e.slug, e.created_at, e.updated_at, e.published_at
            FROM entries e
            JOIN content_types ct ON ct.id = e.content_type_id
            WHERE e.status = 'published'::entry_status
@@ -161,7 +178,7 @@ async fn handle_sitemap(state: AppState, locale: &str) -> ApiResult<Response> {
     .await
     .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
 
-    let xml = build_sitemap_xml(site_url, locale, &entries);
+    let xml = build_sitemap_xml(site_url, locale, &entries, &permalink_structure);
 
     Response::builder()
         .status(StatusCode::OK)
@@ -208,19 +225,23 @@ mod tests {
     fn test_sitemap_xml_generation_and_escaping() {
         let entries = vec![
             SitemapEntry {
+                id: uuid::Uuid::nil(),
                 content_type: "post".into(),
                 slug: "article-1".into(),
+                created_at: Utc::now(),
                 updated_at: Utc::now(),
                 published_at: Some(Utc::now()),
             },
             SitemapEntry {
+                id: uuid::Uuid::nil(),
                 content_type: "page".into(),
                 slug: "page-propos".into(),
+                created_at: Utc::now(),
                 updated_at: Utc::now(),
                 published_at: Some(Utc::now()),
             },
         ];
-        let xml = build_sitemap_xml("https://example.com", "fr", &entries);
+        let xml = build_sitemap_xml("https://example.com", "fr", &entries, "plain");
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         assert!(xml.contains("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
         assert!(xml.contains("<loc>https://example.com/fr</loc>"));

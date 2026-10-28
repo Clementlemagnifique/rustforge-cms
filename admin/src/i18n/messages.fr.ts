@@ -271,6 +271,27 @@ export const settingsMessages = {
   tabGeneral: 'Général & Identité',
   tabReading: 'Lecture & Accueil',
   tabWriting: 'Écriture & Défauts',
+  tabPermalinks: 'Permaliens & URLs',
+
+  permalinksTitle: 'Structure des permaliens',
+  permalinksSubtitle:
+    'RustForge propose des formats d’URL sémantiques pour vos articles. L’utilisation de balises facilite la lecture pour vos visiteurs et optimise le référencement naturel.',
+  permalinkPlain: 'Simple / Par défaut',
+  permalinkDayAndName: 'Date et titre',
+  permalinkMonthAndName: 'Mois et titre',
+  permalinkNumeric: 'Numérique (Archives)',
+  permalinkPostName: 'Titre de l’article',
+  permalinkCustom: 'Structure personnalisée',
+  permalinkCustomPlaceholder: '/%year%/%monthnum%/%postname%/',
+  permalinkAvailableTags: 'Balises disponibles à insérer dans votre structure :',
+  taxonomyBasesTitle: 'Préfixes des taxonomies (Facultatif)',
+  taxonomyBasesSubtitle:
+    'Vous pouvez définir des préfixes d’URL personnalisés pour les archives de catégories et d’étiquettes. Les anciennes URLs seront automatiquement redirigées (HTTP 308).',
+  categoryBaseLabel: 'Préfixe des catégories',
+  categoryBasePlaceholder: 'category',
+  tagBaseLabel: 'Préfixe des étiquettes',
+  tagBasePlaceholder: 'tag',
+
   saveButton: 'Enregistrer les réglages',
   savingButton: 'Enregistrement…',
   savedFeedback: 'Réglages enregistrés !',

@@ -191,8 +191,8 @@ Les liens de sources pointent vers le dossier local ignoré par Git. Les emprein
 
 | ID / phase | Fonction et options | Cible / arbitrage | Existant | Recette attendue | État |
 | --- | --- | --- | --- | --- | --- |
-| <a id="wp-90"></a>WP-90 / G3 | Structure des permaliens<br>[options-permalink.php:1](../../wordpress-plugins-ref/wordpress/wp-admin/options-permalink.php#L1) | rf.routing · Adapter; conserver la capacité utile · Cœur | [EX-05](07_ETAT_EXISTANT.md#ex-05) : À comparer; non validé à parité | permalink_structure; tokens permis, collisions et liens historiques contrôlés. | A_FAIRE |
-| <a id="wp-91"></a>WP-91 / G3 | Bases catégories et étiquettes<br>[options-permalink.php:1](../../wordpress-plugins-ref/wordpress/wp-admin/options-permalink.php#L1) | rf.routing · Adapter; conserver la capacité utile · Cœur | [EX-05](07_ETAT_EXISTANT.md#ex-05) : À comparer; non validé à parité | category_base, tag_base; redirections et conflits avec pages testés. | A_FAIRE |
+| <a id="wp-90"></a>WP-90 / G3 | Structure des permaliens<br>[options-permalink.php:1](../../wordpress-plugins-ref/wordpress/wp-admin/options-permalink.php#L1) | rf.routing · Adapter; conserver la capacité utile · Cœur | [EX-05](07_ETAT_EXISTANT.md#ex-05) : À comparer; non validé à parité | permalink_structure; tokens permis, collisions et liens historiques contrôlés. | VALIDE |
+| <a id="wp-91"></a>WP-91 / G3 | Bases catégories et étiquettes<br>[options-permalink.php:1](../../wordpress-plugins-ref/wordpress/wp-admin/options-permalink.php#L1) | rf.routing · Adapter; conserver la capacité utile · Cœur | [EX-05](07_ETAT_EXISTANT.md#ex-05) : À comparer; non validé à parité | category_base, tag_base; redirections et conflits avec pages testés. | VALIDE |
 
 ## Réglages / privacy
 

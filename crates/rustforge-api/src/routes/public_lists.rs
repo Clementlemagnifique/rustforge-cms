@@ -138,10 +138,47 @@ pub async fn archive(
 ) -> ApiResult<Response> {
     validate_locale(&locale)?;
     let (_, page) = params.normalized()?;
-    if !matches!(taxonomy.as_str(), "category" | "tag") {
+    let (_, category_base, tag_base) =
+        super::permalinks::load_permalink_settings(&state.db).await;
+
+    let (real_taxonomy, is_canonical) = if taxonomy == "category" {
+        if !category_base.is_empty() && category_base != "category" {
+            ("category", false)
+        } else {
+            ("category", true)
+        }
+    } else if !category_base.is_empty() && taxonomy == category_base {
+        ("category", true)
+    } else if taxonomy == "tag" {
+        if !tag_base.is_empty() && tag_base != "tag" {
+            ("tag", false)
+        } else {
+            ("tag", true)
+        }
+    } else if !tag_base.is_empty() && taxonomy == tag_base {
+        ("tag", true)
+    } else {
         return not_found(&state, &locale).await;
+    };
+
+    if !is_canonical {
+        let canonical_base = if real_taxonomy == "category" {
+            &category_base
+        } else {
+            &tag_base
+        };
+        let page_suffix = if page > 1 {
+            format!("?page={page}")
+        } else {
+            String::new()
+        };
+        return Ok(axum::response::Redirect::permanent(&format!(
+            "/{locale}/archive/{canonical_base}/{term}{page_suffix}"
+        ))
+        .into_response());
     }
-    render(state, locale, page, None, Some((taxonomy, term))).await
+
+    render(state, locale, page, None, Some((real_taxonomy.to_string(), term))).await
 }
 async fn render(
     state: AppState,
@@ -176,7 +213,14 @@ async fn render(
                 .bind(&tax).bind(&slug).fetch_optional(&st.db).await.map_err(rustforge_core::CoreError::from)?;
             ctx["title"] = json!(name.ok_or(ApiError::NotFound)?);
             query.taxonomy = Some(tax.clone()); query.term = Some(slug.clone());
-            (format!("/{loc}/archive/{}/{}",encode(&tax),encode(&slug)),None)
+            let display_base = if tax == "category" && !ctx["category_base"].as_str().unwrap_or("").is_empty() {
+                ctx["category_base"].as_str().unwrap()
+            } else if tax == "tag" && !ctx["tag_base"].as_str().unwrap_or("").is_empty() {
+                ctx["tag_base"].as_str().unwrap()
+            } else {
+                &tax
+            };
+            (format!("/{loc}/archive/{}/{}", encode(display_base), encode(&slug)), None)
         };
         let page = entries::list(&st.db,&query).await?;
         page_context(&mut ctx,&page,&base,q.as_deref())?;

@@ -35,6 +35,7 @@ use std::{
 use tower::ServiceExt;
 
 use uuid::Uuid;
+use chrono::Datelike;
 
 
 
@@ -3215,6 +3216,178 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(home_html.0, 200);
     assert!(home_html.1.as_str().unwrap().contains("<link rel=\"canonical\" href=\"http://localhost:8080/fr\" />"));
     assert!(!home_html.1.as_str().unwrap().contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+
+    // G3.3-F : Structure des permaliens (WP-90) et bases de taxonomies (WP-91)
+    let permalink_post = entries::create(
+        &db,
+        &NoopHooks,
+        "post",
+        author.id,
+        input(json!({
+            "title": "Article Permalien G33F",
+            "slug": "article-permalien-g33f",
+            "status": "published",
+            "body": "Contenu du test de permaliens",
+            "term_ids": [archive_term]
+        })),
+    )
+    .await
+    .unwrap();
+
+    // 1. Validation des réglages de permaliens (collisions, tokens invalides)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"permalink.structure": "/%year%/%monthnum%/"})
+        )
+        .await
+        .0,
+        422
+    );
+
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"permalink.category_base": "admin"})
+        )
+        .await
+        .0,
+        422
+    );
+
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "permalink.category_base": "rubrique",
+                "permalink.tag_base": "rubrique"
+            })
+        )
+        .await
+        .0,
+        422
+    );
+
+    // 2. Configuration des bases personnalisées (WP-91)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "permalink.category_base": "rubrique",
+                "permalink.tag_base": "mot-cle"
+            })
+        )
+        .await
+        .0,
+        200
+    );
+
+    let old_cat_archive = request(&app, "GET", "/fr/archive/category/g33-public", None, Value::Null).await;
+    assert_eq!(old_cat_archive.0, 308);
+
+    let new_cat_archive = request(&app, "GET", "/fr/archive/rubrique/g33-public", None, Value::Null).await;
+    assert_eq!(new_cat_archive.0, 200);
+    assert!(new_cat_archive.1.as_str().unwrap().contains("Article Permalien G33F"));
+
+    // 3. Permalien par défaut plain (/fr/post/{slug})
+    let plain_resp = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(plain_resp.0, 200);
+
+    // 4. Passage en day_and_name : /fr/post/{slug} redirige 308 vers /fr/{year}/{month}/{day}/{slug}
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"permalink.structure": "day_and_name"})
+        )
+        .await
+        .0,
+        200
+    );
+
+    let old_url_resp = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(old_url_resp.0, 308);
+
+    let pub_date = permalink_post.published_at.unwrap_or(permalink_post.created_at);
+    let expected_day_path = format!(
+        "/fr/{:04}/{:02}/{:02}/article-permalien-g33f",
+        pub_date.year(),
+        pub_date.month(),
+        pub_date.day()
+    );
+
+    let day_name_resp = request(&app, "GET", &expected_day_path, None, Value::Null).await;
+    assert_eq!(day_name_resp.0, 200);
+    assert!(day_name_resp.1.as_str().unwrap().contains("Article Permalien G33F"));
+    assert!(day_name_resp.1.as_str().unwrap().contains(&expected_day_path));
+
+    // 5. Permalien numérique : archives/{id}
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"permalink.structure": "numeric"})
+        )
+        .await
+        .0,
+        200
+    );
+
+    let numeric_path = format!("/fr/archives/{}", permalink_post.id);
+    let numeric_resp = request(&app, "GET", &numeric_path, None, Value::Null).await;
+    assert_eq!(numeric_resp.0, 200);
+    assert!(numeric_resp.1.as_str().unwrap().contains("Article Permalien G33F"));
+
+    let redirect_to_numeric = request(&app, "GET", &expected_day_path, None, Value::Null).await;
+    assert_eq!(redirect_to_numeric.0, 308);
+
+    // 6. Rétablissement de la structure plain et réinitialisation des bases
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "permalink.structure": "plain",
+                "permalink.category_base": "",
+                "permalink.tag_base": ""
+            })
+        )
+        .await
+        .0,
+        200
+    );
 
     assert_eq!(
 

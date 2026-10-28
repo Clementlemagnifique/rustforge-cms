@@ -453,12 +453,18 @@ pub fn build_router(state: AppState) -> Router {
 
         )
         .fallback(routes::public_lists::fallback)
+        // Permaliens date et titre / mois et titre (WP-90)
         .route(
-
+            "/{locale}/{year}/{month}/{day}/{slug}",
+            get(routes::public::ssr_day_and_name),
+        )
+        .route(
+            "/{locale}/{year}/{month}/{slug}",
+            get(routes::public::ssr_month_and_name),
+        )
+        .route(
             "/{locale}/{content_type}/{slug}",
-
             get(routes::public::ssr_single),
-
         )
         .route(
 

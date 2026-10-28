@@ -48,6 +48,7 @@ pub fn xml_cdata(s: &str) -> String {
     format!("<![CDATA[{}]]>", s.replace("]]>", "]]]]><![CDATA[>"))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn generate_rss(
     site_title: &str,
     site_tagline: &str,
@@ -56,6 +57,7 @@ pub fn generate_rss(
     feed_url: &str,
     entries: &[Entry],
     rss_use_excerpt: bool,
+    permalink_structure: &str,
 ) -> String {
     let mut xml = String::with_capacity(4096);
     let base_url = site_url.trim_end_matches('/');
@@ -95,10 +97,12 @@ pub fn generate_rss(
     xml.push_str("    <generator>RustForge CMS</generator>\n");
 
     for entry in entries {
+        let permalink =
+            super::permalinks::compute_entry_permalink(entry, permalink_structure, locale);
         let entry_url = if base_url.is_empty() {
-            format!("/{locale}/post/{}", entry.slug)
+            permalink
         } else {
-            format!("{base_url}/{locale}/post/{}", entry.slug)
+            format!("{base_url}{permalink}")
         };
         let pub_date = entry
             .published_at
@@ -149,6 +153,7 @@ pub fn generate_rss(
     xml
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn generate_atom(
     site_title: &str,
     site_tagline: &str,
@@ -157,6 +162,7 @@ pub fn generate_atom(
     feed_url: &str,
     entries: &[Entry],
     rss_use_excerpt: bool,
+    permalink_structure: &str,
 ) -> String {
     let mut xml = String::with_capacity(4096);
     let base_url = site_url.trim_end_matches('/');
@@ -194,10 +200,12 @@ pub fn generate_atom(
     xml.push_str("  <generator uri=\"https://rustforge.org\" version=\"1.0.0-alpha.1\">RustForge CMS</generator>\n");
 
     for entry in entries {
+        let permalink =
+            super::permalinks::compute_entry_permalink(entry, permalink_structure, locale);
         let entry_url = if base_url.is_empty() {
-            format!("/{locale}/post/{}", entry.slug)
+            permalink
         } else {
-            format!("{base_url}/{locale}/post/{}", entry.slug)
+            format!("{base_url}{permalink}")
         };
         let pub_date = entry
             .published_at
@@ -301,6 +309,9 @@ async fn handle_feed(
         format!("{base_url}{path_uri}")
     };
 
+    let (permalink_structure, _, _) =
+        super::permalinks::load_permalink_settings(&state.db).await;
+
     let (content_type, xml) = match format {
         FeedFormat::Rss => (
             "application/rss+xml; charset=utf-8",
@@ -312,6 +323,7 @@ async fn handle_feed(
                 &feed_url,
                 &page.items,
                 rss_use_excerpt,
+                &permalink_structure,
             ),
         ),
         FeedFormat::Atom => (
@@ -324,6 +336,7 @@ async fn handle_feed(
                 &feed_url,
                 &page.items,
                 rss_use_excerpt,
+                &permalink_structure,
             ),
         ),
     };
@@ -419,7 +432,7 @@ mod tests {
         let entries = vec![
             sample_entry("Titre <Test> & \"Guillemets\"", "article-1", "Contenu de l'article", "Court résumé"),
         ];
-        let xml = generate_rss("Site & Blog", "Mon Slogan <Super>", "https://example.com", "fr", "https://example.com/fr/feed", &entries, false);
+        let xml = generate_rss("Site & Blog", "Mon Slogan <Super>", "https://example.com", "fr", "https://example.com/fr/feed", &entries, false, "plain");
 
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         assert!(xml.contains("<rss version=\"2.0\""));
@@ -437,7 +450,7 @@ mod tests {
         let entries = vec![
             sample_entry("Article", "slug", "Grand contenu secret", "Court résumé"),
         ];
-        let xml = generate_rss("Site", "", "https://example.com", "fr", "https://example.com/feed", &entries, true);
+        let xml = generate_rss("Site", "", "https://example.com", "fr", "https://example.com/feed", &entries, true, "plain");
 
         assert!(xml.contains("<description><![CDATA[Court résumé]]></description>"));
         assert!(!xml.contains("<content:encoded>"));
@@ -449,7 +462,7 @@ mod tests {
         let entries = vec![
             sample_entry("Titre Atom", "atom-slug", "Corps Atom", "Résumé Atom"),
         ];
-        let xml = generate_atom("Site Atom", "Sous-titre", "https://example.com", "fr", "https://example.com/feed/atom", &entries, false);
+        let xml = generate_atom("Site Atom", "Sous-titre", "https://example.com", "fr", "https://example.com/feed/atom", &entries, false, "plain");
 
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>"));
         assert!(xml.contains("<feed xmlns=\"http://www.w3.org/2005/Atom\">"));

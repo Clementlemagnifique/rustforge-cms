@@ -40,9 +40,12 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "reading.posts_per_rss",
         "reading.rss_use_excerpt",
         "reading.blog_public",
+        "permalink.structure",
+        "permalink.category_base",
+        "permalink.tag_base",
     ];
     let rows: Vec<(String, Value)> = sqlx::query_as(
-        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') ORDER BY key",
+        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') OR starts_with(key, 'permalink.') ORDER BY key",
     )
     .bind(PUBLIC_PREFIX)
     .fetch_all(db)
@@ -230,6 +233,116 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 "Adresse e-mail d'administration invalide.",
             ));
         }
+    } else if key == "permalink.structure" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation(
+                "permalink.structure doit être une chaîne.",
+            ));
+        };
+        let trimmed = s.trim();
+        if trimmed.is_empty()
+            || matches!(
+                trimmed,
+                "plain" | "day_and_name" | "month_and_name" | "numeric" | "post_name"
+            )
+        {
+            return Ok(());
+        }
+        if trimmed.len() > 256 {
+            return Err(CoreError::validation(
+                "La structure de permalien est limitée à 256 caractères.",
+            ));
+        }
+        if !trimmed.starts_with('/') {
+            return Err(CoreError::validation(
+                "Une structure de permalien personnalisée doit commencer par un slash « / ».",
+            ));
+        }
+        if !trimmed.contains("%postname%") && !trimmed.contains("%post_id%") {
+            return Err(CoreError::validation(
+                "La structure de permalien personnalisée doit contenir au moins %postname% ou %post_id%.",
+            ));
+        }
+        const ALLOWED_TOKENS: &[&str] = &[
+            "%year%", "%monthnum%", "%day%", "%hour%", "%minute%", "%second%",
+            "%post_id%", "%postname%", "%category%", "%author%",
+        ];
+        let mut rest = trimmed;
+        while let Some(start) = rest.find('%') {
+            let after_start = &rest[start + 1..];
+            if let Some(end) = after_start.find('%') {
+                let token = &rest[start..=start + 1 + end];
+                if !ALLOWED_TOKENS.contains(&token) {
+                    return Err(CoreError::validation(format!(
+                        "Jeton de permalien inconnu « {token} »."
+                    )));
+                }
+                rest = &after_start[end + 1..];
+            } else {
+                return Err(CoreError::validation(
+                    "Jeton de permalien mal formé (délimiteur '%' non fermé).",
+                ));
+            }
+        }
+        if trimmed.chars().any(|c| c.is_control() || matches!(c, '<' | '>' | '"' | '\'' | '\\' | '?' | '#')) {
+            return Err(CoreError::validation(
+                "La structure de permalien contient des caractères interdits.",
+            ));
+        }
+    } else if key == "permalink.category_base" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation(
+                "permalink.category_base doit être une chaîne.",
+            ));
+        };
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            if trimmed.len() > 64 {
+                return Err(CoreError::validation(
+                    "Le préfixe de catégorie ne peut pas dépasser 64 caractères.",
+                ));
+            }
+            crate::security::safe_slug(trimmed).map_err(|_| {
+                CoreError::validation(
+                    "Le préfixe de catégorie doit être un slug valide (minuscules, chiffres, tirets).",
+                )
+            })?;
+            const RESERVED: &[&str] = &[
+                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives", "zen", "post", "page",
+            ];
+            if RESERVED.contains(&trimmed) && trimmed != "category" {
+                return Err(CoreError::validation(format!(
+                    "Le préfixe de catégorie « {trimmed} » est un mot réservé par le système."
+                )));
+            }
+        }
+    } else if key == "permalink.tag_base" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation(
+                "permalink.tag_base doit être une chaîne.",
+            ));
+        };
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            if trimmed.len() > 64 {
+                return Err(CoreError::validation(
+                    "Le préfixe d'étiquette ne peut pas dépasser 64 caractères.",
+                ));
+            }
+            crate::security::safe_slug(trimmed).map_err(|_| {
+                CoreError::validation(
+                    "Le préfixe d'étiquette doit être un slug valide (minuscules, chiffres, tirets).",
+                )
+            })?;
+            const RESERVED: &[&str] = &[
+                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives", "zen", "post", "page",
+            ];
+            if RESERVED.contains(&trimmed) && trimmed != "tag" {
+                return Err(CoreError::validation(format!(
+                    "Le préfixe d'étiquette « {trimmed} » est un mot réservé par le système."
+                )));
+            }
+        }
     }
     Ok(())
 }
@@ -246,6 +359,18 @@ pub async fn update(
     }
     for (k, v) in &values {
         validate_setting_value(k, v)?;
+    }
+    if let (Some(cat), Some(tag)) = (
+        values.get("permalink.category_base").and_then(Value::as_str),
+        values.get("permalink.tag_base").and_then(Value::as_str),
+    ) {
+        let cat = cat.trim();
+        let tag = tag.trim();
+        if !cat.is_empty() && !tag.is_empty() && cat == tag {
+            return Err(CoreError::validation(
+                "Le préfixe de catégorie et le préfixe d'étiquette ne peuvent pas être identiques.",
+            ));
+        }
     }
     let mut tx = db.begin().await?;
     if values.keys().any(|k| {
@@ -359,5 +484,40 @@ mod tests {
         assert!(validate_setting_value("reading.rss_use_excerpt", &json!(false)).is_ok());
         assert!(validate_setting_value("reading.rss_use_excerpt", &json!("true")).is_err());
         assert!(validate_setting_value("reading.rss_use_excerpt", &json!(1)).is_err());
+    }
+
+    #[test]
+    fn test_validate_permalink_settings() {
+        // Standard presets
+        for preset in ["plain", "day_and_name", "month_and_name", "numeric", "post_name", ""] {
+            assert!(validate_setting_value("permalink.structure", &json!(preset)).is_ok());
+        }
+
+        // Custom structure with valid tokens
+        assert!(validate_setting_value("permalink.structure", &json!("/%year%/%postname%/")).is_ok());
+        assert!(validate_setting_value("permalink.structure", &json!("/archives/%post_id%")).is_ok());
+        assert!(validate_setting_value("permalink.structure", &json!("/blog/%category%/%postname%")).is_ok());
+
+        // Custom structure missing required post identifier
+        assert!(validate_setting_value("permalink.structure", &json!("/%year%/%monthnum%/")).is_err());
+
+        // Custom structure without leading slash
+        assert!(validate_setting_value("permalink.structure", &json!("%year%/%postname%")).is_err());
+
+        // Custom structure with unknown token
+        assert!(validate_setting_value("permalink.structure", &json!("/%unknown%/%postname%")).is_err());
+
+        // Category base
+        assert!(validate_setting_value("permalink.category_base", &json!("rubrique")).is_ok());
+        assert!(validate_setting_value("permalink.category_base", &json!("category")).is_ok());
+        assert!(validate_setting_value("permalink.category_base", &json!("")).is_ok());
+        assert!(validate_setting_value("permalink.category_base", &json!("api")).is_err()); // Reserved
+        assert!(validate_setting_value("permalink.category_base", &json!("bad/slash")).is_err()); // Slashes forbidden
+
+        // Tag base
+        assert!(validate_setting_value("permalink.tag_base", &json!("mot-cle")).is_ok());
+        assert!(validate_setting_value("permalink.tag_base", &json!("tag")).is_ok());
+        assert!(validate_setting_value("permalink.tag_base", &json!("")).is_ok());
+        assert!(validate_setting_value("permalink.tag_base", &json!("admin")).is_err()); // Reserved
     }
 }
