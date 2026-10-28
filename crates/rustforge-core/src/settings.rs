@@ -97,6 +97,107 @@ fn validate_menu_url(url: &str) -> CoreResult<()> {
     Ok(())
 }
 
+/// Vérifie la validité d'une liste d'éléments de menu (WP-46, QM-01, QM-02).
+fn validate_menu_items(arr: &[Value]) -> CoreResult<()> {
+    if arr.len() > 64 {
+        return Err(CoreError::validation(
+            "Un emplacement de menu est limité à 64 liens.",
+        ));
+    }
+
+    let mut parent_map = std::collections::HashMap::new();
+
+    for item in arr {
+        let Some(item_obj) = item.as_object() else {
+            return Err(CoreError::validation(
+                "Chaque élément de menu doit être un objet JSON.",
+            ));
+        };
+        let label = item_obj
+            .get("label")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or("");
+        if label.is_empty() || label.chars().count() > 80 {
+            return Err(CoreError::validation(
+                "Le libellé d'un lien de menu est obligatoire (max 80 caractères).",
+            ));
+        }
+        let url = item_obj.get("url").and_then(Value::as_str).unwrap_or("");
+        validate_menu_url(url)?;
+
+        if let Some(badge) = item_obj.get("badge").and_then(Value::as_str)
+            && badge.chars().count() > 20
+        {
+            return Err(CoreError::validation(
+                "Le badge d'un élément de menu est limité à 20 caractères.",
+            ));
+        }
+
+        if let Some(subtitle) = item_obj.get("subtitle").and_then(Value::as_str)
+            && subtitle.chars().count() > 80
+        {
+            return Err(CoreError::validation(
+                "Le sous-titre d'un élément de menu est limité à 80 caractères.",
+            ));
+        }
+
+        if let Some(target) = item_obj.get("target").and_then(Value::as_str)
+            && !matches!(target, "_self" | "_blank")
+        {
+            return Err(CoreError::validation(
+                "La cible de lien doit être '_self' ou '_blank'.",
+            ));
+        }
+
+        if let Some(item_type) = item_obj.get("type").and_then(Value::as_str)
+            && !matches!(item_type, "custom" | "page" | "category" | "tag")
+        {
+            return Err(CoreError::validation(
+                "Le type d'élément de menu doit être 'custom', 'page', 'category' ou 'tag'.",
+            ));
+        }
+
+        if let Some(id) = item_obj.get("id").and_then(Value::as_str)
+            && let Some(parent_id) = item_obj.get("parent_id").and_then(Value::as_str)
+        {
+            let trimmed_parent = parent_id.trim();
+            if !trimmed_parent.is_empty() {
+                if trimmed_parent == id {
+                    return Err(CoreError::validation(
+                        "Un élément de menu ne peut pas être son propre parent.",
+                    ));
+                }
+                parent_map.insert(id.to_string(), trimmed_parent.to_string());
+            }
+        }
+    }
+
+    // Détection de cycles et contrôle de la profondeur maximale (max 3 niveaux)
+    for child_id in parent_map.keys() {
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(child_id.clone());
+        let mut curr = child_id;
+        let mut depth = 1;
+        while let Some(parent) = parent_map.get(curr) {
+            depth += 1;
+            if depth > 3 {
+                return Err(CoreError::validation(
+                    "La profondeur maximale des sous-menus est limitée à 3 niveaux.",
+                ));
+            }
+            if !visited.insert(parent.clone()) {
+                return Err(CoreError::validation(
+                    "Boucle cyclique détectée dans la hiérarchie des menus.",
+                ));
+            }
+            curr = parent;
+        }
+    }
+
+    Ok(())
+}
+
 /// Valide les réglages structurés critiques (`site.menus` `WP-46` et `site.design_tokens` `WP-48`/`WP-50`).
 fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
     if value.is_null() {
@@ -117,25 +218,7 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                     "Chaque emplacement de menu doit être une liste d'éléments.",
                 ));
             };
-            if arr.len() > 32 {
-                return Err(CoreError::validation(
-                    "Un emplacement de menu est limité à 32 liens.",
-                ));
-            }
-            for item in arr {
-                let label = item
-                    .get("label")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .unwrap_or("");
-                if label.is_empty() || label.chars().count() > 80 {
-                    return Err(CoreError::validation(
-                        "Le libellé d'un lien de menu est obligatoire (max 80 caractères).",
-                    ));
-                }
-                let url = item.get("url").and_then(Value::as_str).unwrap_or("");
-                validate_menu_url(url)?;
-            }
+            validate_menu_items(arr)?;
         }
     } else if key == "site.design_tokens"
         && let Some(obj) = value.as_object()
@@ -519,5 +602,57 @@ mod tests {
         assert!(validate_setting_value("permalink.tag_base", &json!("tag")).is_ok());
         assert!(validate_setting_value("permalink.tag_base", &json!("")).is_ok());
         assert!(validate_setting_value("permalink.tag_base", &json!("admin")).is_err()); // Reserved
+    }
+
+    #[test]
+    fn test_validate_hierarchical_menus() {
+        // Flat legacy menu is valid
+        let flat_menu = json!({
+            "header": [
+                {"label": "Accueil", "url": "/fr"},
+                {"label": "Contact", "url": "/fr/contact"}
+            ],
+            "footer": []
+        });
+        assert!(validate_setting_value("site.menus", &flat_menu).is_ok());
+
+        // Valid hierarchical menu with parent_id, badge, subtitle, target
+        let tree_menu = json!({
+            "header": [
+                {"id": "1", "label": "Services", "url": "/fr/services"},
+                {"id": "2", "parent_id": "1", "label": "Conseil", "url": "/fr/conseil", "badge": "Pro", "subtitle": "Audit d'architecture"},
+                {"id": "3", "parent_id": "2", "label": "Sécurité", "url": "/fr/securite"}
+            ],
+            "footer": []
+        });
+        assert!(validate_setting_value("site.menus", &tree_menu).is_ok());
+
+        // Self-referencing parent rejected
+        let self_parent = json!({
+            "header": [
+                {"id": "1", "parent_id": "1", "label": "Boucle", "url": "/fr/boucle"}
+            ]
+        });
+        assert!(validate_setting_value("site.menus", &self_parent).is_err());
+
+        // Cyclic loop A -> B -> A rejected
+        let cycle_menu = json!({
+            "header": [
+                {"id": "A", "parent_id": "B", "label": "A", "url": "/fr/a"},
+                {"id": "B", "parent_id": "A", "label": "B", "url": "/fr/b"}
+            ]
+        });
+        assert!(validate_setting_value("site.menus", &cycle_menu).is_err());
+
+        // Depth exceeding 3 levels rejected (level 1 -> 2 -> 3 -> 4)
+        let deep_menu = json!({
+            "header": [
+                {"id": "1", "label": "N1", "url": "/1"},
+                {"id": "2", "parent_id": "1", "label": "N2", "url": "/2"},
+                {"id": "3", "parent_id": "2", "label": "N3", "url": "/3"},
+                {"id": "4", "parent_id": "3", "label": "N4", "url": "/4"}
+            ]
+        });
+        assert!(validate_setting_value("site.menus", &deep_menu).is_err());
     }
 }

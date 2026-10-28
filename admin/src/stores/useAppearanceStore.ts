@@ -43,6 +43,8 @@ export interface AppearanceStoreState {
   newLinkLabel: string;
   newLinkUrl: string;
   newLinkTarget: '_self' | '_blank';
+  newLinkBadge: string;
+  newLinkSubtitle: string;
 
   // Sources rapides pour ajouter des liens (Pages publiées & Catégories)
   publishedPages: Entry[];
@@ -55,8 +57,19 @@ export interface AppearanceStoreState {
   setNewLinkLabel: (label: string) => void;
   setNewLinkUrl: (url: string) => void;
   setNewLinkTarget: (target: '_self' | '_blank') => void;
-  addMenuItem: (label?: string, url?: string, target?: '_self' | '_blank') => void;
+  setNewLinkBadge: (badge: string) => void;
+  setNewLinkSubtitle: (subtitle: string) => void;
+  addMenuItem: (
+    label?: string,
+    url?: string,
+    target?: '_self' | '_blank',
+    extra?: Partial<PublicMenuItem>,
+  ) => void;
   moveMenuItem: (id: string, delta: -1 | 1) => void;
+  indentMenuItem: (id: string) => void;
+  outdentMenuItem: (id: string) => void;
+  duplicateMenuItem: (id: string) => void;
+  updateMenuItem: (id: string, updates: Partial<PublicMenuItem>) => void;
   removeMenuItem: (id: string) => void;
 
   // Actions asynchrones (API)
@@ -64,6 +77,18 @@ export interface AppearanceStoreState {
   saveStyles: () => Promise<void>;
   saveMenus: () => Promise<void>;
 }
+
+export const getItemDepth = (itemId: string, list: PublicMenuItem[]): number => {
+  const byId = new Map(list.map((it) => [it.id, it]));
+  let depth = 1;
+  let curr = byId.get(itemId);
+  while (curr?.parent_id && byId.has(curr.parent_id)) {
+    depth += 1;
+    if (depth > 10) break;
+    curr = byId.get(curr.parent_id);
+  }
+  return depth;
+};
 
 const DEFAULT_TOKENS: DesignTokensState = {
   primary_color: '#4f46e5',
@@ -86,6 +111,8 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
   newLinkLabel: '',
   newLinkUrl: '',
   newLinkTarget: '_self',
+  newLinkBadge: '',
+  newLinkSubtitle: '',
 
   publishedPages: [],
   categories: [],
@@ -101,19 +128,37 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
   setNewLinkLabel: (newLinkLabel) => set({ newLinkLabel }),
   setNewLinkUrl: (newLinkUrl) => set({ newLinkUrl }),
   setNewLinkTarget: (newLinkTarget) => set({ newLinkTarget }),
+  setNewLinkBadge: (newLinkBadge) => set({ newLinkBadge }),
+  setNewLinkSubtitle: (newLinkSubtitle) => set({ newLinkSubtitle }),
 
-  addMenuItem: (labelOverride, urlOverride, targetOverride) => {
-    const { menus, activeLocation, newLinkLabel, newLinkUrl, newLinkTarget } = get();
+  addMenuItem: (labelOverride, urlOverride, targetOverride, extra) => {
+    const {
+      menus,
+      activeLocation,
+      newLinkLabel,
+      newLinkUrl,
+      newLinkTarget,
+      newLinkBadge,
+      newLinkSubtitle,
+    } = get();
     const label = (labelOverride ?? newLinkLabel).trim();
     const url = (urlOverride ?? newLinkUrl).trim();
     const target = targetOverride ?? newLinkTarget;
     if (!label || !url) return;
+
+    const badge = (extra?.badge ?? newLinkBadge).trim() || undefined;
+    const subtitle = (extra?.subtitle ?? newLinkSubtitle).trim() || undefined;
 
     const nextItem: PublicMenuItem = {
       id: crypto.randomUUID(),
       label,
       url,
       target,
+      badge,
+      subtitle,
+      parent_id: extra?.parent_id ?? null,
+      type: extra?.type ?? 'custom',
+      object_id: extra?.object_id ?? null,
     };
     set({
       menus: {
@@ -122,6 +167,8 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
       },
       newLinkLabel: labelOverride ? newLinkLabel : '',
       newLinkUrl: urlOverride ? newLinkUrl : '',
+      newLinkBadge: '',
+      newLinkSubtitle: '',
       error: '',
       message: '',
     });
@@ -143,12 +190,64 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
     });
   },
 
+  indentMenuItem: (id) => {
+    const { menus, activeLocation } = get();
+    const list = [...menus[activeLocation]];
+    const idx = list.findIndex((item) => item.id === id);
+    if (idx <= 0) return;
+    const prev = list[idx - 1];
+    const prevDepth = getItemDepth(prev.id, list);
+    if (prevDepth >= 3) return;
+    list[idx] = { ...list[idx], parent_id: prev.id };
+    set({ menus: { ...menus, [activeLocation]: list } });
+  },
+
+  outdentMenuItem: (id) => {
+    const { menus, activeLocation } = get();
+    const list = [...menus[activeLocation]];
+    const idx = list.findIndex((item) => item.id === id);
+    if (idx < 0) return;
+    const item = list[idx];
+    if (!item.parent_id) return;
+    const parent = list.find((p) => p.id === item.parent_id);
+    list[idx] = { ...item, parent_id: parent?.parent_id ?? null };
+    set({ menus: { ...menus, [activeLocation]: list } });
+  },
+
+  duplicateMenuItem: (id) => {
+    const { menus, activeLocation } = get();
+    const list = [...menus[activeLocation]];
+    const idx = list.findIndex((item) => item.id === id);
+    if (idx < 0) return;
+    const original = list[idx];
+    const clone: PublicMenuItem = {
+      ...original,
+      id: crypto.randomUUID(),
+      label: `${original.label} (copie)`,
+    };
+    list.splice(idx + 1, 0, clone);
+    set({ menus: { ...menus, [activeLocation]: list } });
+  },
+
+  updateMenuItem: (id, updates) => {
+    const { menus, activeLocation } = get();
+    const list = menus[activeLocation].map((item) =>
+      item.id === id ? { ...item, ...updates } : item,
+    );
+    set({ menus: { ...menus, [activeLocation]: list } });
+  },
+
   removeMenuItem: (id) => {
     const { menus, activeLocation } = get();
+    const target = menus[activeLocation].find((it) => it.id === id);
+    const parentId = target?.parent_id ?? null;
+    const list = menus[activeLocation]
+      .filter((item) => item.id !== id)
+      .map((item) => (item.parent_id === id ? { ...item, parent_id: parentId } : item));
     set({
       menus: {
         ...menus,
-        [activeLocation]: menus[activeLocation].filter((item) => item.id !== id),
+        [activeLocation]: list,
       },
     });
   },

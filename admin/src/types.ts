@@ -111,9 +111,15 @@ export interface Media {
 
 export interface PublicMenuItem {
   id: string;
+  parent_id?: string | null;
   label: string;
   url: string;
   target?: '_self' | '_blank';
+  type?: 'custom' | 'page' | 'category' | 'tag';
+  object_id?: string | null;
+  badge?: string;
+  subtitle?: string;
+  children?: PublicMenuItem[];
 }
 
 export interface PublicMenus {

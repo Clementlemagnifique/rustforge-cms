@@ -21,6 +21,96 @@ use rustforge_core::{
 // Helpers Rendu SSR & Multilingue
 // ---------------------------------------------------------------------------
 
+/// Transforme un ensemble de menus plats avec `parent_id` en arbre hiérarchique avec `children` (WP-46, NAV-A/C).
+pub fn transform_menus_to_tree(raw_menus: &serde_json::Value) -> serde_json::Value {
+    let Some(obj) = raw_menus.as_object() else {
+        return serde_json::json!({ "header": [], "footer": [] });
+    };
+
+    let mut out = serde_json::Map::new();
+
+    for (loc, items_val) in obj {
+        let Some(items) = items_val.as_array() else {
+            out.insert(loc.clone(), serde_json::json!([]));
+            continue;
+        };
+
+        if items.is_empty() {
+            out.insert(loc.clone(), serde_json::json!([]));
+            continue;
+        }
+
+        let mut by_id: std::collections::BTreeMap<String, serde_json::Map<String, serde_json::Value>> =
+            std::collections::BTreeMap::new();
+        let mut item_order: Vec<String> = Vec::new();
+
+        for (idx, item) in items.iter().enumerate() {
+            if let Some(item_obj) = item.as_object() {
+                let mut map = item_obj.clone();
+                let id = map
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("rf-item-{idx}"));
+                map.insert("id".into(), serde_json::json!(id));
+                by_id.insert(id.clone(), map);
+                item_order.push(id);
+            }
+        }
+
+        let mut root_order: Vec<String> = Vec::new();
+        for id in &item_order {
+            if let Some(item_map) = by_id.get(id) {
+                let parent_id = item_map
+                    .get("parent_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|p| !p.is_empty() && by_id.contains_key(*p));
+
+                if parent_id.is_none() {
+                    root_order.push(id.clone());
+                }
+            }
+        }
+
+        fn nest_item(
+            id: &str,
+            by_id: &std::collections::BTreeMap<String, serde_json::Map<String, serde_json::Value>>,
+            item_order: &[String],
+        ) -> serde_json::Value {
+            if let Some(item_map) = by_id.get(id) {
+                let mut obj = item_map.clone();
+                let mut children = Vec::new();
+                for other_id in item_order {
+                    if let Some(other_map) = by_id.get(other_id)
+                        && other_map
+                            .get("parent_id")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::trim)
+                            == Some(id)
+                    {
+                        children.push(nest_item(other_id, by_id, item_order));
+                    }
+                }
+                obj.insert("children".into(), serde_json::json!(children));
+                serde_json::Value::Object(obj)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+
+        let roots: Vec<serde_json::Value> = root_order
+            .iter()
+            .map(|id| nest_item(id, &by_id, &item_order))
+            .filter(|v| !v.is_null())
+            .collect();
+
+        out.insert(loc.clone(), serde_json::json!(roots));
+    }
+
+    serde_json::Value::Object(out)
+}
+
 pub(super) async fn build_site_context(
     state: &AppState,
     locale: &str,
@@ -46,12 +136,13 @@ pub(super) async fn build_site_context(
                 "custom_css": ""
             })
         });
-    let menus = site_settings.get("site.menus").cloned().unwrap_or_else(|| {
+    let raw_menus = site_settings.get("site.menus").cloned().unwrap_or_else(|| {
         serde_json::json!({
             "header": [],
             "footer": []
         })
     });
+    let menus = transform_menus_to_tree(&raw_menus);
     let blog_public = site_settings
         .get("reading.blog_public")
         .and_then(|v| v.as_bool())
@@ -587,3 +678,60 @@ pub async fn preview_theme(
         .await?;
     Ok(Html(html))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_transform_menus_to_tree() {
+        // Flat menu gets children: [] on every item
+        let flat = json!({
+            "header": [
+                {"id": "1", "label": "Accueil", "url": "/fr"},
+                {"id": "2", "label": "Contact", "url": "/fr/contact"}
+            ],
+            "footer": []
+        });
+        let tree = transform_menus_to_tree(&flat);
+        let header = tree.get("header").and_then(Value::as_array).unwrap();
+        assert_eq!(header.len(), 2);
+        assert_eq!(header[0]["label"], "Accueil");
+        assert_eq!(header[0]["children"], json!([]));
+        assert_eq!(header[1]["label"], "Contact");
+        assert_eq!(header[1]["children"], json!([]));
+
+        // Hierarchical menu with nested children and badges
+        let hierarchical = json!({
+            "header": [
+                {"id": "services", "label": "Services", "url": "/services"},
+                {"id": "web", "parent_id": "services", "label": "Développement Web", "url": "/services/web", "badge": "Nouveau", "subtitle": "Sur mesure"},
+                {"id": "audit", "parent_id": "services", "label": "Audit & Conseil", "url": "/services/audit"},
+                {"id": "secu", "parent_id": "audit", "label": "Sécurité Rust", "url": "/services/audit/secu"},
+                {"id": "a-propos", "label": "À propos", "url": "/about"}
+            ],
+            "footer": [
+                {"id": "mentions", "label": "Mentions Légales", "url": "/mentions"}
+            ]
+        });
+        let res = transform_menus_to_tree(&hierarchical);
+        let res_header = res.get("header").and_then(Value::as_array).unwrap();
+        // Roots should be "services" and "a-propos"
+        assert_eq!(res_header.len(), 2);
+        assert_eq!(res_header[0]["id"], "services");
+        let services_children = res_header[0]["children"].as_array().unwrap();
+        assert_eq!(services_children.len(), 2);
+        assert_eq!(services_children[0]["id"], "web");
+        assert_eq!(services_children[0]["badge"], "Nouveau");
+        assert_eq!(services_children[0]["subtitle"], "Sur mesure");
+        assert_eq!(services_children[1]["id"], "audit");
+        let audit_children = services_children[1]["children"].as_array().unwrap();
+        assert_eq!(audit_children.len(), 1);
+        assert_eq!(audit_children[0]["id"], "secu");
+
+        assert_eq!(res_header[1]["id"], "a-propos");
+        assert_eq!(res_header[1]["children"], json!([]));
+    }
+}
+

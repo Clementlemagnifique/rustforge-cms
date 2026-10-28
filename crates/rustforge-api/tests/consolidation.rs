@@ -2209,6 +2209,107 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(home_html.contains(".custom-g3-rule"));
 
+    // Validation hiérarchique QuadMenu (NAV-A, NAV-C, WP-46, TH-15, TH-17)
+    // Rejet d'un cycle A -> B -> A (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [
+                        {"id": "c1", "parent_id": "c2", "label": "Cycle 1", "url": "/fr"},
+                        {"id": "c2", "parent_id": "c1", "label": "Cycle 2", "url": "/fr"}
+                    ]
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+
+    // Rejet d'auto-référence parent_id == id (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [
+                        {"id": "loop_me", "parent_id": "loop_me", "label": "Boucle", "url": "/fr"}
+                    ]
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+
+    // Rejet de profondeur excédant 3 niveaux (422)
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [
+                        {"id": "d1", "label": "N1", "url": "/1"},
+                        {"id": "d2", "parent_id": "d1", "label": "N2", "url": "/2"},
+                        {"id": "d3", "parent_id": "d2", "label": "N3", "url": "/3"},
+                        {"id": "d4", "parent_id": "d3", "label": "N4", "url": "/4"}
+                    ]
+                }
+            }),
+        )
+        .await
+        .0,
+        422
+    );
+
+    // Enregistrement valide d'un menu arborescent avec sous-menu, badge, sous-titre et contrôle SSR
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "site.menus": {
+                    "header": [
+                        {"id": "m_root", "label": "Solutions Pro", "url": "/fr/solutions"},
+                        {"id": "m_sub", "parent_id": "m_root", "label": "Audit Rust", "url": "/fr/audit", "badge": "VIP", "subtitle": "Expertise souveraine"}
+                    ],
+                    "footer": [
+                        {"id": "m_foot", "label": "Confidentialité", "url": "/fr/privacy", "badge": "RGPD"}
+                    ]
+                }
+            }),
+        )
+        .await
+        .0,
+        200
+    );
+
+    let home_nav = request(&app, "GET", "/fr", None, Value::Null).await;
+    assert_eq!(home_nav.0, 200);
+    let nav_html = home_nav.1.as_str().unwrap();
+    assert!(nav_html.contains("Solutions Pro"));
+    assert!(nav_html.contains("Audit Rust"));
+    assert!(nav_html.contains("has-children"));
+    assert!(nav_html.contains("rf-sub-menu"));
+    assert!(nav_html.contains("VIP"));
+    assert!(nav_html.contains("Expertise souveraine"));
+    assert!(nav_html.contains("Confidentialité"));
+    assert!(nav_html.contains("RGPD"));
+
 
 
     // 13. G3 Lot 2 : Utilisateurs, rôles, réattribution et sessions (WP-52 à WP-55) + Réglages Lecture/Général (WP-69 à WP-81).

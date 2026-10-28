@@ -1,5 +1,31 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — G3.4 / NAV-A à NAV-C : Menus hiérarchiques, éditeur Studio et navigation responsive accessible
+
+**Point de reprise le plus récent.** Réalisation et qualification complète des lots NAV-A, NAV-B et NAV-C (`WP-46`, `TH-15`, `TH-17`, `QM-01`, `QM-02`, `QM-03`, `QM-06`, `QM-08`) :
+- **Schéma et validation d'arborescence serveur (`crates/rustforge-core/src/settings.rs`)** :
+  - Support transparent du format plat legacy et du format arborescent avec `id`, `parent_id`, `badge` (max 20 caractères), `subtitle` (max 80 caractères), `target` (`_self`/`_blank`), `type` (`custom`, `page`, `category`, `tag`), `object_id`.
+  - Capacité augmentée à 64 liens par emplacement (`header`, `footer`).
+  - Détection et rejet `422 Unprocessable Entity` des boucles auto-référentes (`parent_id == id`), des cycles indirects (`A -> B -> A`), et des profondeurs excédant 3 niveaux.
+- **Normalisation SSR et templates récursifs (`crates/rustforge-api/src/routes/public.rs`, `base.html`, `themes/default`)** :
+  - `transform_menus_to_tree` convertit les listes de menus en arbre avec `children: [...]` garantis sur tous les éléments.
+  - Rendu HTML récursif des sous-menus jusqu'à 3 niveaux (`.rf-nav-item.has-children`, `.rf-sub-menu`, `.rf-sub-sub-menu`).
+  - Accessibilité complète au clavier via `:focus-within` sur desktop.
+  - Navigation mobile responsive accessible (`TH-17`) : bouton de bascule accessible au clavier (Espace/Entrée), fermeture par touche Échap avec restitution du focus, et repli 100% fonctionnel sans JavaScript via sélecteur CSS `:checked`.
+  - Rendu des badges (`.rf-badge`) et sous-titres (`.rf-subtitle`) sur les liens d'en-tête et de pied de page.
+- **Éditeur arborescent dans le Studio (`admin/src/components/AppearanceView.tsx`, `useAppearanceStore.ts`, `messages.fr.ts`)** :
+  - Indentation visuelle par niveau (Niveau 1, 2 et 3 avec bordures et teintes distinctes).
+  - Actions hiérarchiques : décalage à droite / sous-élément (`indentMenuItem`), décalage à gauche / niveau parent (`outdentMenuItem`), montée / descente (`moveMenuItem`), duplication avec nouvel identifiant stable UUID (`duplicateMenuItem`), suppression avec réaffectation des enfants au parent pour éviter tout orphelin (`removeMenuItem`).
+  - Tiroir d'édition inline dépliable (`Edit3`) pour ajuster le libellé, l'URL, le badge, le sous-titre et la cible.
+  - Formulaire d'ajout rapide avec badge et sous-titre optionnels.
+- Validations exécutées :
+  - Tests unitaires : **61 tests réussis** (API 15, core 44, plugins 2).
+  - Régression intégrée PostgreSQL / HTTP (`consolidation.rs`) : scénario complet réussi validant le rejet des cycles (422), auto-références (422), dépassements de profondeur > 3 (422), et le rendu public SSR des sous-menus, badges, sous-titres et footer.
+  - Lint Studio (`oxlint` 0 avertissement, 0 erreur), build Vite réussi, Clippy workspace strict réussi (0 avertissement).
+  - Contrôles documentaires : 434 tâches, 38 composants et 114 menus cohérents.
+
+**Prochain lot : G3.4-D/E**, colonnes, méga-menus et modules dynamiques (`MOD-NAV-01`, `QM-04` à `QM-11`), ou suite de la feuille de route G3 (Commentaires `WP-42` à `WP-45`, `EX-35`).
+
 ## 28 octobre 2026 — G3.3-F : permaliens souverains (WP-90) et bases de taxonomies (WP-91)
 
 **Point de reprise le plus récent.** Réalisation et qualification complète du lot G3.3-F (`WP-90`, `WP-91`) :

@@ -10,10 +10,22 @@
  *   (`header`, `footer`) avec ajout rapide depuis les pages publiées et catégories.
  */
 
-import React, { useEffect } from 'react';
-import { Palette, Navigation, Plus, Trash2, ArrowUp, ArrowDown, Save } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  Palette,
+  Navigation,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Copy,
+  Edit3,
+  Save,
+} from 'lucide-react';
 import { appearanceMessages } from '../i18n/messages.fr';
-import { useAppearanceStore } from '../stores/useAppearanceStore';
+import { useAppearanceStore, getItemDepth } from '../stores/useAppearanceStore';
 import type { AppearanceTab } from '../stores/useAppearanceStore';
 
 interface AppearanceViewProps {
@@ -21,6 +33,8 @@ interface AppearanceViewProps {
 }
 
 export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const activeTab = useAppearanceStore((s) => s.activeTab);
   const loading = useAppearanceStore((s) => s.loading);
   const saving = useAppearanceStore((s) => s.saving);
@@ -33,6 +47,8 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
   const newLinkLabel = useAppearanceStore((s) => s.newLinkLabel);
   const newLinkUrl = useAppearanceStore((s) => s.newLinkUrl);
   const newLinkTarget = useAppearanceStore((s) => s.newLinkTarget);
+  const newLinkBadge = useAppearanceStore((s) => s.newLinkBadge);
+  const newLinkSubtitle = useAppearanceStore((s) => s.newLinkSubtitle);
   const publishedPages = useAppearanceStore((s) => s.publishedPages);
   const categories = useAppearanceStore((s) => s.categories);
 
@@ -42,8 +58,14 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
   const setNewLinkLabel = useAppearanceStore((s) => s.setNewLinkLabel);
   const setNewLinkUrl = useAppearanceStore((s) => s.setNewLinkUrl);
   const setNewLinkTarget = useAppearanceStore((s) => s.setNewLinkTarget);
+  const setNewLinkBadge = useAppearanceStore((s) => s.setNewLinkBadge);
+  const setNewLinkSubtitle = useAppearanceStore((s) => s.setNewLinkSubtitle);
   const addMenuItem = useAppearanceStore((s) => s.addMenuItem);
   const moveMenuItem = useAppearanceStore((s) => s.moveMenuItem);
+  const indentMenuItem = useAppearanceStore((s) => s.indentMenuItem);
+  const outdentMenuItem = useAppearanceStore((s) => s.outdentMenuItem);
+  const duplicateMenuItem = useAppearanceStore((s) => s.duplicateMenuItem);
+  const updateMenuItem = useAppearanceStore((s) => s.updateMenuItem);
   const removeMenuItem = useAppearanceStore((s) => s.removeMenuItem);
   const loadAppearance = useAppearanceStore((s) => s.loadAppearance);
   const saveStyles = useAppearanceStore((s) => s.saveStyles);
@@ -231,14 +253,14 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
           </div>
         </form>
       ) : (
-        /* Onglet Menus publics & Emplacements (WP-46) */
+        /* Onglet Menus publics & Emplacements hiérarchiques (WP-46 / NAV-B / QM-01 à QM-03) */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Colonne gauche : Sources d'ajout rapide (Pages, Catégories, Lien libre) */}
+          {/* Colonne gauche : Sources d'ajout rapide (Pages, Catégories, Lien libre avec options QuadMenu) */}
           <div className="lg:col-span-5 space-y-4">
             <div className="rounded-2xl bg-[#0f1422] border border-white/10 p-5 space-y-4 text-xs">
               <h3 className="font-bold text-white">{appearanceMessages.addMenuItemTitle}</h3>
 
-              {/* Formulaire de lien personnalisé */}
+              {/* Formulaire de lien personnalisé avec badge et sous-titre */}
               <div className="space-y-3">
                 <label className="block space-y-1">
                   <span className="text-slate-400">{appearanceMessages.customLinkLabel}</span>
@@ -246,31 +268,60 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                     type="text"
                     value={newLinkLabel}
                     onChange={(e) => setNewLinkLabel(e.target.value)}
-                    placeholder="Ex: À propos, Contact, Boutique…"
+                    placeholder="Ex: Accueil, Services, Contact…"
                     className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
                   />
                 </label>
+
                 <label className="block space-y-1">
                   <span className="text-slate-400">{appearanceMessages.customLinkUrl}</span>
                   <input
                     type="text"
                     value={newLinkUrl}
                     onChange={(e) => setNewLinkUrl(e.target.value)}
-                    placeholder="/fr/page/a-propos ou https://…"
+                    placeholder="/fr/services ou https://…"
                     className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 font-mono text-xs text-white"
                   />
                 </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{appearanceMessages.badgeLabel}</span>
+                    <input
+                      type="text"
+                      maxLength={20}
+                      value={newLinkBadge}
+                      onChange={(e) => setNewLinkBadge(e.target.value)}
+                      placeholder="Ex: Pro, New"
+                      className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{appearanceMessages.customLinkTarget}</span>
+                    <select
+                      value={newLinkTarget}
+                      onChange={(e) => setNewLinkTarget(e.target.value as '_self' | '_blank')}
+                      className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="_self">{appearanceMessages.targetSelf}</option>
+                      <option value="_blank">{appearanceMessages.targetBlank}</option>
+                    </select>
+                  </label>
+                </div>
+
                 <label className="block space-y-1">
-                  <span className="text-slate-400">{appearanceMessages.customLinkTarget}</span>
-                  <select
-                    value={newLinkTarget}
-                    onChange={(e) => setNewLinkTarget(e.target.value as '_self' | '_blank')}
+                  <span className="text-slate-400">{appearanceMessages.subtitleLabel}</span>
+                  <input
+                    type="text"
+                    maxLength={80}
+                    value={newLinkSubtitle}
+                    onChange={(e) => setNewLinkSubtitle(e.target.value)}
+                    placeholder="Courte description ou phrase d'appel"
                     className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
-                  >
-                    <option value="_self">{appearanceMessages.targetSelf}</option>
-                    <option value="_blank">{appearanceMessages.targetBlank}</option>
-                  </select>
+                  />
                 </label>
+
                 <button
                   type="button"
                   onClick={() => addMenuItem()}
@@ -325,7 +376,7 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
             </div>
           </div>
 
-          {/* Colonne droite : Arbre du menu de l'emplacement actif */}
+          {/* Colonne droite : Arbre hiérarchique du menu de l'emplacement actif */}
           <div className="lg:col-span-7 rounded-2xl bg-[#0f1422] border border-white/10 p-5 space-y-4 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -356,52 +407,183 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
 
             {activeItems.length === 0 ? (
               <p className="py-8 text-center text-slate-500">
-                Aucun lien configuré pour cet emplacement. Le thème utilise les liens par défaut.
+                {appearanceMessages.emptyMenuLocation}
               </p>
             ) : (
-              <ul className="space-y-2">
-                {activeItems.map((item, idx) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-black/30 border border-white/5 px-3.5 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-100">{item.label}</div>
-                      <div className="font-mono text-[11px] text-slate-400 truncate">
-                        {item.url}{' '}
-                        {item.target === '_blank' ? '· (nouvel onglet)' : ''}
+              <ul className="space-y-2.5">
+                {activeItems.map((item, idx) => {
+                  const depth = getItemDepth(item.id, activeItems);
+                  const canIndent =
+                    idx > 0 && getItemDepth(activeItems[idx - 1].id, activeItems) < 3;
+                  const canOutdent = Boolean(item.parent_id);
+                  const isEditing = editingId === item.id;
+
+                  const indentClass =
+                    depth === 1
+                      ? 'ml-0'
+                      : depth === 2
+                        ? 'ml-5 pl-3 border-l-2 border-indigo-500/60 bg-indigo-950/20'
+                        : 'ml-10 pl-3 border-l-2 border-emerald-500/60 bg-emerald-950/20';
+
+                  return (
+                    <li
+                      key={item.id}
+                      className={`rounded-xl border border-white/5 transition-all p-3 ${indentClass} ${
+                        isEditing ? 'bg-indigo-950/30 border-indigo-500/30' : 'bg-black/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {depth > 1 && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/10 text-slate-300">
+                                {appearanceMessages.levelPrefix} {depth}
+                              </span>
+                            )}
+                            <span className="font-semibold text-slate-100">{item.label}</span>
+                            {item.badge && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-400 truncate">
+                            {item.url}
+                            {item.target === '_blank' ? ' · (nouvel onglet)' : ''}
+                            {item.subtitle ? ` · ${item.subtitle}` : ''}
+                          </div>
+                        </div>
+
+                        {/* Barre d'outils d'actions hiérarchiques */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            disabled={!canOutdent}
+                            onClick={() => outdentMenuItem(item.id)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-20"
+                            title={appearanceMessages.outdentItem}
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canIndent}
+                            onClick={() => indentMenuItem(item.id)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-20"
+                            title={appearanceMessages.indentItem}
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveMenuItem(item.id, -1)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                            title="Monter"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === activeItems.length - 1}
+                            onClick={() => moveMenuItem(item.id, 1)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                            title="Descendre"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => duplicateMenuItem(item.id)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-300"
+                            title={appearanceMessages.duplicateItem}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(isEditing ? null : item.id)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isEditing ? 'bg-indigo-600 text-white' : 'hover:bg-white/10 text-slate-300'
+                            }`}
+                            title={isEditing ? appearanceMessages.closeEditItem : appearanceMessages.editItem}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeMenuItem(item.id)}
+                            className="p-1.5 rounded-lg text-red-300 hover:bg-red-500/10"
+                            title="Retirer du menu"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        disabled={idx === 0}
-                        onClick={() => moveMenuItem(item.id, -1)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30"
-                        title="Monter"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={idx === activeItems.length - 1}
-                        onClick={() => moveMenuItem(item.id, 1)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30"
-                        title="Descendre"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeMenuItem(item.id)}
-                        className="p-1.5 rounded-lg text-red-300 hover:bg-red-500/10"
-                        title="Retirer du menu"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
+
+                      {/* Panneau d'édition inline dépliable (QM-01 à QM-03) */}
+                      {isEditing && (
+                        <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          <label className="block space-y-1">
+                            <span className="text-slate-400">{appearanceMessages.customLinkLabel}</span>
+                            <input
+                              type="text"
+                              value={item.label}
+                              onChange={(e) => updateMenuItem(item.id, { label: e.target.value })}
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-slate-400">{appearanceMessages.customLinkUrl}</span>
+                            <input
+                              type="text"
+                              value={item.url}
+                              onChange={(e) => updateMenuItem(item.id, { url: e.target.value })}
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 font-mono text-xs text-white"
+                            />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-slate-400">{appearanceMessages.badgeLabel}</span>
+                            <input
+                              type="text"
+                              maxLength={20}
+                              value={item.badge ?? ''}
+                              onChange={(e) => updateMenuItem(item.id, { badge: e.target.value })}
+                              placeholder="Ex: Pro, New"
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-slate-400">{appearanceMessages.customLinkTarget}</span>
+                            <select
+                              value={item.target ?? '_self'}
+                              onChange={(e) =>
+                                updateMenuItem(item.id, {
+                                  target: e.target.value as '_self' | '_blank',
+                                })
+                              }
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+                            >
+                              <option value="_self">{appearanceMessages.targetSelf}</option>
+                              <option value="_blank">{appearanceMessages.targetBlank}</option>
+                            </select>
+                          </label>
+                          <label className="md:col-span-2 block space-y-1">
+                            <span className="text-slate-400">{appearanceMessages.subtitleLabel}</span>
+                            <input
+                              type="text"
+                              maxLength={80}
+                              value={item.subtitle ?? ''}
+                              onChange={(e) => updateMenuItem(item.id, { subtitle: e.target.value })}
+                              placeholder="Courte description ou phrase d'appel"
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
 

@@ -220,6 +220,16 @@ export const appearanceMessages = {
   targetBlank: 'Nouvel onglet (_blank)',
   addLinkButton: 'Ajouter au menu',
   saveMenus: 'Enregistrer les menus publics',
+  indentItem: 'Décaler vers la droite (sous-élément)',
+  outdentItem: 'Décaler vers la gauche (niveau parent)',
+  duplicateItem: 'Dupliquer cet élément',
+  editItem: 'Modifier',
+  closeEditItem: 'Fermer',
+  badgeLabel: 'Badge (optionnel, ex: Pro, New)',
+  subtitleLabel: 'Sous-titre explicatif (optionnel)',
+  subItemBadge: 'Sous-élément',
+  levelPrefix: 'Niveau',
+  emptyMenuLocation: 'Aucun lien configuré pour cet emplacement. Le thème utilise les liens par défaut.',
 } as const;
 
 export const usersMessages = {
