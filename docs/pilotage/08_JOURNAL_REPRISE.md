@@ -1,5 +1,21 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — G3.3-E : SEO structurel, robots.txt dynamique, sitemap.xml et canonical
+
+**Point de reprise le plus récent.** Réalisation et qualification complète du lot G3.3-E (`WP-81`, `WP-102`) :
+- Moteur SEO dédié (`crates/rustforge-api/src/routes/seo.rs`) :
+  - `GET /robots.txt` dynamique : lorsque `reading.blog_public` est désactivé (`false`), émet `User-agent: *\nDisallow: /\n` ; lorsqu'il est actif (`true`), émet les règles d'exclusion d'administration (`Disallow: /admin/`, `Disallow: /api/`), `Allow: /` et la directive `Sitemap: {site_url}/sitemap.xml`.
+  - `GET /sitemap.xml` et `GET /{locale}/sitemap.xml` : génération XML sitemap standard (`http://www.sitemaps.org/schemas/sitemap/0.9`). Exclut strictement les contenus non publics (brouillons, publications futures, expirées). Conforme au standard WordPress : si `reading.blog_public` est `false`, le sitemap renvoie 404 Not Found.
+- Balises `<link rel="canonical">` : injection de `canonical_url` calculée proprement dans les contextes de rendu des pages d'accueil, articles, archives de taxonomie et recherche (`base.html`), échappée avec `| safe` pour préserver les slashes.
+- Synchronisation du cache SSR : invalidation totale immédiate du cache de pages lors de la modification des réglages généraux (`settings::update`) pour refléter instantanément la politique d'indexation.
+- Validations exécutées :
+  - Tests unitaires : **55 tests réussis** (API 11, core 42, plugins 2).
+  - Régression intégrée PostgreSQL / HTTP (`consolidation.rs`) : scénario complet réussi validant le comportement privé (`robots.txt` avec `Disallow: /`, `sitemap.xml` en 404), la transition vers l'état public (`Allow: /`, découverte sitemap, exclusion des brouillons de l'urlset), et le rendu des balises `<link rel="canonical">`.
+  - Lint Studio (`oxlint` 0 avertissement, 0 erreur), build Vite réussi, Clippy workspace strict réussi (0 avertissement).
+  - Contrôles documentaires : 434 tâches, 38 composants et 114 menus cohérents.
+
+**Prochain lot : G3.3-F**, permaliens personnalisés et bases de taxonomies (`WP-90`, `WP-91`).
+
 ## 28 octobre 2026 ? G3.3-D : flux RSS 2.0 / Atom 1.0, taille distincte et texte complet/extrait effectifs
 
 **Point de reprise le plus r?cent.** R?alisation et qualification compl?te du lot G3.3-D (`WP-79`, `WP-80`, `WP-101`) :

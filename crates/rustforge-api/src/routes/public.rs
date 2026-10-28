@@ -72,10 +72,17 @@ pub(super) async fn build_site_context(
         .filter(|s| !s.is_empty())
         .map(str::to_string);
 
+    let site_url = site_settings
+        .get("site.url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim_end_matches('/');
+
     Ok(serde_json::json!({
         "locale": locale,
         "site_title": site_title,
         "site_tagline": site_tagline,
+        "site_url": site_url,
         "design_tokens": design_tokens,
         "menus": menus,
         "blog_public": blog_public,
@@ -131,6 +138,13 @@ pub async fn ssr_home(
                 .and_then(|v| v.as_str())
                 .and_then(|s| uuid::Uuid::parse_str(s).ok());
 
+            let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+            base_ctx["canonical_url"] = serde_json::json!(if number > 1 {
+                format!("{site_url}/{loc}?page={number}")
+            } else {
+                format!("{site_url}/{loc}")
+            });
+
             if show_on_front == "page"
                 && let Some(front_id) = page_on_front
             {
@@ -141,6 +155,8 @@ pub async fn ssr_home(
                         }
                         entry.body_html =
                             plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
+                        let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+                        base_ctx["canonical_url"] = serde_json::json!(format!("{site_url}/{loc}"));
                         base_ctx["template"] = serde_json::json!("single.html");
                         base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
                         return Ok(MinijinjaValue::from_serialize(&base_ctx));
@@ -207,6 +223,8 @@ pub async fn ssr_single(
         // Exécution des filtres de plugins WASM sur le contenu
         entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
 
+        let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+        base_ctx["canonical_url"] = serde_json::json!(format!("{site_url}/{loc}/{ct}/{sl}"));
         base_ctx["template"] = serde_json::json!("single.html");
         base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
         base_ctx["schema_org"] = serde_json::json!({

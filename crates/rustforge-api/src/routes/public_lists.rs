@@ -180,6 +180,12 @@ async fn render(
         };
         let page = entries::list(&st.db,&query).await?;
         page_context(&mut ctx,&page,&base,q.as_deref())?;
+        let site_url = ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+        ctx["canonical_url"] = json!(if number > 1 {
+            format!("{site_url}{base}?page={number}")
+        } else {
+            format!("{site_url}{base}")
+        });
         Ok(Value::from_serialize(ctx))
     }).await;
     match rendered {

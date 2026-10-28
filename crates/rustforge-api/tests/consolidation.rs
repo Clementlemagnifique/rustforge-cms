@@ -3168,6 +3168,54 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert_eq!(rss_excerpt_body.matches("<item>").count(), 2);
 
+    // G3.3-E : SEO structurel, robots.txt, sitemap.xml et canonical
+    // 1. ?tat blog_public == false (configur? ? l'?tape ant?rieure)
+    let robots_private = request(&app, "GET", "/robots.txt", None, Value::Null).await;
+    assert_eq!(robots_private.0, 200);
+    assert_eq!(robots_private.1.as_str().unwrap(), "User-agent: *\nDisallow: /\n");
+
+    let sitemap_private = request(&app, "GET", "/sitemap.xml", None, Value::Null).await;
+    assert_eq!(sitemap_private.0, 404);
+
+    let home_private = request(&app, "GET", "/fr", None, Value::Null).await;
+    assert_eq!(home_private.0, 200);
+    assert!(home_private.1.as_str().unwrap().contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+
+    // 2. Passage ? blog_public == true : robots.txt permissif avec sitemap et disallow admin/api
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.blog_public": true})
+        )
+        .await
+        .0,
+        200
+    );
+
+    let robots = request(&app, "GET", "/robots.txt", None, Value::Null).await;
+    assert_eq!(robots.0, 200);
+    let robots_txt = robots.1.as_str().unwrap();
+    assert!(robots_txt.contains("User-agent: *"));
+    assert!(robots_txt.contains("Disallow: /admin/"));
+    assert!(robots_txt.contains("Allow: /"));
+    assert!(robots_txt.contains("Sitemap: http://localhost:8080/sitemap.xml"));
+
+    let sitemap = request(&app, "GET", "/sitemap.xml", None, Value::Null).await;
+    assert_eq!(sitemap.0, 200);
+    let sitemap_xml = sitemap.1.as_str().unwrap();
+    assert!(sitemap_xml.contains("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+    assert!(sitemap_xml.contains("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
+    assert!(sitemap_xml.contains("<loc>http://localhost:8080/fr</loc>"));
+    assert!(!sitemap_xml.contains("G33Needle SECRET"));
+
+    let home_html = request(&app, "GET", "/fr", None, Value::Null).await;
+    assert_eq!(home_html.0, 200);
+    assert!(home_html.1.as_str().unwrap().contains("<link rel=\"canonical\" href=\"http://localhost:8080/fr\" />"));
+    assert!(!home_html.1.as_str().unwrap().contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+
     assert_eq!(
 
         request(
