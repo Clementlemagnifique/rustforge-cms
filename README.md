@@ -1,5 +1,7 @@
 # RustForge CMS
 
+> 🌍 **Langues / Languages :** **Français** · [English](README.en.md)
+
 RustForge CMS est un CMS Rust avec rendu HTML serveur, administration visuelle et modules activables. Version déclarée : **`1.0.0-alpha.1`**. Le socle existe; l’éditeur visuel complet, la migration avec médias/SEO et la parité fonctionnelle restent à consolider.
 
 **Reprise : [plan d’action global](docs/PLAN_ACTION_GLOBAL.md).** Le [tableau de l’existant](docs/pilotage/07_ETAT_EXISTANT.md) décrit 38 composants. Les trois matrices [cœur/admin](docs/pilotage/01_COEUR_ADMIN.md), [thème](docs/pilotage/02_THEME.md) et [modules](docs/pilotage/03_MODULES.md) organisent la comparaison et les travaux. L’[index documentaire](docs/README.md) regroupe les références actives et l’historique.

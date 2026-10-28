@@ -7,7 +7,7 @@ import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-files = [ROOT/'README.md', ROOT/'FEUILLE_DE_ROUTE.md', ROOT/'SECURITY.md', ROOT/'admin/README.md']
+files = [ROOT/'README.md', ROOT/'README.en.md', ROOT/'FEUILLE_DE_ROUTE.md', ROOT/'SECURITY.md', ROOT/'admin/README.md']
 files += [p for p in (ROOT/'docs').rglob('*.md') if 'historique' not in p.parts
           and not p.name.startswith(('AUDIT_', 'VALIDATION_'))]
 errors, checked = [], 0
