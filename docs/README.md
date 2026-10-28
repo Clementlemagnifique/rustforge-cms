@@ -4,13 +4,16 @@
 
 **Commencer par le [plan d’action global](PLAN_ACTION_GLOBAL.md)**. Il donne l’ordre des lots, les conditions de passage et le mode de reprise.
 
+**Reprise GPT-6.1 Sol préparée le 28 octobre :** lire d'abord la première entrée du [journal](pilotage/08_JOURNAL_REPRISE.md), puis la section « Reprise préparée pour GPT-6.1 Sol » du plan. Elle contient le message à copier, les sous-lots G3.3 et leurs recettes. Le checkout courant est un worktree distinct du dossier du Bureau ; conserver ses modifications locales.
+
 | Document de pilotage | Usage |
 | --- | --- |
 | [Ce qui existe déjà](pilotage/07_ETAT_EXISTANT.md) | 38 composants : code, interface, validation disponible, limites, conservation ou extension. |
 | [Cœur et administration](pilotage/01_COEUR_ADMIN.md) | Fonctionnalités, options, menus, ergonomie et blocs de la référence source. |
 | [Thème idéal](pilotage/02_THEME.md) | Synthèse Astra, GeneratePress, Twenty Twenty-Five; évolution du thème existant sur le moteur HTML Rust. |
-| [Modules natifs](pilotage/03_MODULES.md) | Fonctions des 17 extensions locales et référence web AutomatorWP; activation, arbitrage et recette. |
+| [Modules natifs](pilotage/03_MODULES.md) | Fonctions des 18 extensions locales et références web AutomatorWP/QuadMenu; activation, arbitrage et recette. |
 | [Menu admin et interfaces](pilotage/10_MENU_ADMIN.md) | Trois niveaux, routes, design, fonctions, modules, droits et clés de traduction; registre partagé avec Rust. |
+| [Référence WP Adminify](pilotage/12_REFERENCE_ADMINIFY_STUDIO.md) | Cartographie du style et des options du futur Studio, avec tickets et critères. |
 | [Plan directeur](pilotage/00_PLAN_DIRECTEUR.md) | Décisions d’architecture, couverture, états et définition de terminé. |
 | [Contrats transverses](pilotage/04_CONTRATS_TRANSVERSES.md) | Données, rendu, permissions, cache, événements, modules et IA partagés. |
 | [Audit des références](pilotage/06_AUDIT_REFERENCES.md) | Versions locales, sources observées, limites des paquets et distinction gratuit/premium. |

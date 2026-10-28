@@ -26,7 +26,7 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
            SET status = 'archived'::entry_status, updated_at = now()
            WHERE status = 'published'::entry_status
              AND scheduled_unpublish_at IS NOT NULL
-             AND scheduled_unpublish_at <= $1"#
+             AND scheduled_unpublish_at <= $1"#,
     )
     .bind(now)
     .execute(db)
@@ -34,7 +34,10 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
 
     report.auto_unpublished_count = unpublished_res.rows_affected() as usize;
     if report.auto_unpublished_count > 0 {
-        info!("🕒 [Scheduler] Dépublication automatique de {} contenu(s) expiré(s)", report.auto_unpublished_count);
+        info!(
+            "🕒 [Scheduler] Dépublication automatique de {} contenu(s) expiré(s)",
+            report.auto_unpublished_count
+        );
     }
 
     // 2. Publication automatique des contenus planifiés en attente
@@ -43,7 +46,7 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
            SET status = 'published'::entry_status, updated_at = now()
            WHERE status = 'draft'::entry_status
              AND published_at IS NOT NULL
-             AND published_at <= $1"#
+             AND published_at <= $1"#,
     )
     .bind(now)
     .execute(db)
@@ -51,7 +54,10 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
 
     report.auto_published_count = published_res.rows_affected() as usize;
     if report.auto_published_count > 0 {
-        info!("🚀 [Scheduler] Publication automatique de {} contenu(s) planifié(s)", report.auto_published_count);
+        info!(
+            "🚀 [Scheduler] Publication automatique de {} contenu(s) planifié(s)",
+            report.auto_published_count
+        );
     }
 
     Ok(report)
@@ -60,7 +66,10 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
 /// Démarre la tâche de fond Tokio assurant la planification à la minute près.
 pub fn start_scheduler(db: PgPool, interval_secs: u64) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        info!("🕒 Démarrage du Planificateur Éditorial Souverain (vérification toutes les {}s)", interval_secs);
+        info!(
+            "🕒 Démarrage du Planificateur Éditorial Souverain (vérification toutes les {}s)",
+            interval_secs
+        );
         let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
         loop {
             interval.tick().await;

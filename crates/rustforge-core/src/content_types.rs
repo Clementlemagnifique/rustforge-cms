@@ -16,7 +16,15 @@ const SELECT: &str = "SELECT ct.id, ct.slug, ct.name, ct.name_singular, ct.descr
     FROM content_types ct";
 
 /// Slugs réservés par les routes de l'API.
-const RESERVED: &[&str] = &["site", "content", "taxonomies", "media", "admin", "api", "uploads"];
+const RESERVED: &[&str] = &[
+    "site",
+    "content",
+    "taxonomies",
+    "media",
+    "admin",
+    "api",
+    "uploads",
+];
 
 #[derive(Debug, Deserialize)]
 pub struct ContentTypeInput {
@@ -40,28 +48,36 @@ fn yes() -> bool {
 }
 
 pub async fn list(db: &PgPool) -> CoreResult<Vec<ContentType>> {
-    Ok(sqlx::query_as::<_, ContentType>(&format!("{SELECT} ORDER BY ct.is_system DESC, ct.name ASC"))
-        .fetch_all(db)
-        .await?)
+    Ok(sqlx::query_as::<_, ContentType>(&format!(
+        "{SELECT} ORDER BY ct.is_system DESC, ct.name ASC"
+    ))
+    .fetch_all(db)
+    .await?)
 }
 
 pub async fn get_by_slug(db: &PgPool, slug: &str) -> CoreResult<ContentType> {
-    Ok(sqlx::query_as::<_, ContentType>(&format!("{SELECT} WHERE ct.slug = $1"))
-        .bind(slug)
-        .fetch_one(db)
-        .await?)
+    Ok(
+        sqlx::query_as::<_, ContentType>(&format!("{SELECT} WHERE ct.slug = $1"))
+            .bind(slug)
+            .fetch_one(db)
+            .await?,
+    )
 }
 
 pub async fn get(db: &PgPool, id: Uuid) -> CoreResult<ContentType> {
-    Ok(sqlx::query_as::<_, ContentType>(&format!("{SELECT} WHERE ct.id = $1"))
-        .bind(id)
-        .fetch_one(db)
-        .await?)
+    Ok(
+        sqlx::query_as::<_, ContentType>(&format!("{SELECT} WHERE ct.id = $1"))
+            .bind(id)
+            .fetch_one(db)
+            .await?,
+    )
 }
 
 fn validate(input: &ContentTypeInput) -> CoreResult<()> {
     if input.name.trim().is_empty() || input.name_singular.trim().is_empty() {
-        return Err(CoreError::validation("le nom (pluriel et singulier) est obligatoire"));
+        return Err(CoreError::validation(
+            "le nom (pluriel et singulier) est obligatoire",
+        ));
     }
     validate_schema(&input.fields)
 }
@@ -70,7 +86,9 @@ pub async fn create(db: &PgPool, input: ContentTypeInput) -> CoreResult<ContentT
     validate(&input)?;
     let slug = crate::slugify(input.slug.as_deref().unwrap_or(&input.name_singular));
     if RESERVED.contains(&slug.as_str()) {
-        return Err(CoreError::validation(format!("le slug « {slug} » est réservé")));
+        return Err(CoreError::validation(format!(
+            "le slug « {slug} » est réservé"
+        )));
     }
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO content_types (slug, name, name_singular, description, icon, hierarchical, has_revisions, fields)
@@ -98,7 +116,9 @@ pub async fn update(db: &PgPool, id: Uuid, input: ContentTypeInput) -> CoreResul
     } else {
         let s = crate::slugify(input.slug.as_deref().unwrap_or(&current.slug));
         if RESERVED.contains(&s.as_str()) {
-            return Err(CoreError::validation(format!("le slug « {s} » est réservé")));
+            return Err(CoreError::validation(format!(
+                "le slug « {s} » est réservé"
+            )));
         }
         s
     };
@@ -124,7 +144,9 @@ pub async fn update(db: &PgPool, id: Uuid, input: ContentTypeInput) -> CoreResul
 pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<()> {
     let current = get(db, id).await?;
     if current.is_system {
-        return Err(CoreError::Conflict("les types système ne peuvent pas être supprimés".into()));
+        return Err(CoreError::Conflict(
+            "les types système ne peuvent pas être supprimés".into(),
+        ));
     }
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM entries WHERE content_type_id = $1")
         .bind(id)
@@ -135,6 +157,9 @@ pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<()> {
             "ce type contient encore {count} entrée(s) : supprimez-les d'abord"
         )));
     }
-    sqlx::query("DELETE FROM content_types WHERE id = $1").bind(id).execute(db).await?;
+    sqlx::query("DELETE FROM content_types WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
     Ok(())
 }

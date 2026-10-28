@@ -171,7 +171,8 @@ fn rf_xml_preserves_complete_envelope_and_cdata() {
         json!({"xml":"]]> & <tag>","bool":false,"array":[1,2]}),
     );
     let native = json!({"rf_schema":"rf.document/1","rf_blocks":[{"rf_id":"p","rf_type":"paragraph","rf_text":"Source ]]> & <tag>"}]});
-    doc.metadata.insert("entry_blocks:native-test".into(), native.clone());
+    doc.metadata
+        .insert("entry_blocks:native-test".into(), native.clone());
     let xml = DataMorphExporter::to_rf_xml(&doc).unwrap();
     let restored = WxrImporter::parse(Cursor::new(xml)).unwrap();
     assert_eq!(restored.metadata["entry_blocks:native-test"], native);
@@ -334,10 +335,27 @@ async fn postgres_http_and_native_backup_regressions() {
             .await
             .unwrap();
     assert_eq!(page_status, "draft");
-    for _ in 0..2 { core::scheduler::run_scheduler_tick(&db).await.unwrap(); }
-    let private_state:(String,Option<chrono::DateTime<chrono::Utc>>)=sqlx::query_as("SELECT status::text,published_at FROM entries WHERE slug='presentation'").fetch_one(&db).await.unwrap();
-    assert_eq!(private_state,("draft".into(),None));
-    assert_eq!(request(&app,"GET","/api/v1/public/entries/page/presentation",None,Value::Null).await.0,404);
+    for _ in 0..2 {
+        core::scheduler::run_scheduler_tick(&db).await.unwrap();
+    }
+    let private_state: (String, Option<chrono::DateTime<chrono::Utc>>) =
+        sqlx::query_as("SELECT status::text,published_at FROM entries WHERE slug='presentation'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(private_state, ("draft".into(), None));
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/api/v1/public/entries/page/presentation",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        404
+    );
     let media:Uuid=sqlx::query_scalar("INSERT INTO media(path,original_name,mime_type,size_bytes) VALUES('example.txt','example.txt','text/plain',14) RETURNING id").fetch_one(&db).await.unwrap();
     let term: Uuid = sqlx::query_scalar("SELECT id FROM terms LIMIT 1")
         .fetch_one(&db)
@@ -511,7 +529,13 @@ async fn postgres_http_and_native_backup_regressions() {
     // Public SSR and headless API serve the exact projected HTML without exposing raw body or vault.
     let ssr_post = request(&app, "GET", "/fr/post/article-natif-g2", None, Value::Null).await;
     assert_eq!(ssr_post.0, 200);
-    assert!(ssr_post.1.as_str().unwrap().contains("<h2>Titre natif V1</h2>"));
+    assert!(
+        ssr_post
+            .1
+            .as_str()
+            .unwrap()
+            .contains("<h2>Titre natif V1</h2>")
+    );
     assert!(!ssr_post.1.as_str().unwrap().contains("<script>alert(1)"));
     let pub_json = request(
         &app,
@@ -856,7 +880,10 @@ async fn postgres_http_and_native_backup_regressions() {
     .await;
     assert_eq!(quick_edited.0, 200, "{quick_edited:?}");
     assert_eq!(quick_edited.1["blocks"], native_doc_v1);
-    assert_eq!(quick_edited.1["fields"]["_rf_vault"]["origin_key"], "preserve_me");
+    assert_eq!(
+        quick_edited.1["fields"]["_rf_vault"]["origin_key"],
+        "preserve_me"
+    );
     assert_eq!(quick_edited.1["terms"][0]["slug"], "guide-technique");
     let filtered_list = request(
         &app,
@@ -1141,10 +1168,7 @@ async fn postgres_http_and_native_backup_regressions() {
     let deleted_user = request(
         &app,
         "DELETE",
-        &format!(
-            "/api/v1/users/{}?reassign_to={}",
-            temp_author.id, author.id
-        ),
+        &format!("/api/v1/users/{}?reassign_to={}", temp_author.id, author.id),
         Some(&admin),
         Value::Null,
     )
@@ -1210,6 +1234,332 @@ async fn postgres_http_and_native_backup_regressions() {
     let static_home_html = static_home.1.as_str().unwrap();
     assert!(static_home_html.contains("Page Parente"));
     assert!(static_home_html.contains("noindex, nofollow"));
+
+    // G3.3-A : la page d'accueil suit les règles publiques, même sans scheduler.
+    let home_page_id = Uuid::parse_str(page_parent_id).unwrap();
+    for mutation in [
+        "status = 'draft'",
+        "status = 'published', published_at = now() + interval '1 day'",
+        "status = 'published', published_at = now() - interval '1 day', scheduled_unpublish_at = now() - interval '1 second'",
+    ] {
+        sqlx::query(&format!("UPDATE entries SET {mutation} WHERE id = $1"))
+            .bind(home_page_id)
+            .execute(&db)
+            .await
+            .unwrap();
+        assert!(matches!(
+            entries::get_published_page(&db, home_page_id).await,
+            Err(core::CoreError::NotFound)
+        ));
+        let page_slug = entries::get(&db, home_page_id).await.unwrap().slug;
+        assert!(matches!(
+            entries::get_published(&db, "page", &page_slug).await,
+            Err(core::CoreError::NotFound)
+        ));
+        let home = request(&app, "GET", "/fr", None, Value::Null).await;
+        assert_eq!(home.0, 200);
+        assert!(!home.1.as_str().unwrap().contains("Page Parente"));
+        let public = entries::list(
+            &db,
+            &core::entries::EntryQuery {
+                public_only: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!public.items.iter().any(|e| e.id == home_page_id));
+    }
+    sqlx::query("UPDATE entries SET status='published', published_at=now() - interval '1 day', scheduled_unpublish_at=now() + interval '2 seconds' WHERE id=$1")
+        .bind(home_page_id).execute(&db).await.unwrap();
+    assert!(
+        request(&app, "GET", "/fr", None, Value::Null)
+            .await
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Page Parente")
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(2200)).await;
+    // Pas d'écriture ni de tick entre les deux requêtes : le cache chaud doit expirer.
+    assert!(
+        !request(&app, "GET", "/fr", None, Value::Null)
+            .await
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Page Parente")
+    );
+    sqlx::query("UPDATE entries SET scheduled_unpublish_at=NULL WHERE id=$1")
+        .bind(home_page_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // G3.3-B : parcours publics, pagination, cache et frontières JSON/HTML.
+    sqlx::query("INSERT INTO terms(taxonomy_id,name,slug) SELECT id,'Vide','g33-empty' FROM taxonomies WHERE slug='tag'").execute(&db).await.unwrap();
+    let archive_term: Uuid = sqlx::query_scalar("INSERT INTO terms(taxonomy_id,name,slug) SELECT id,'Archive publique','g33-public' FROM taxonomies WHERE slug='category' RETURNING id")
+        .fetch_one(&db).await.unwrap();
+    for n in 1..=3 {
+        entries::create(&db, &NoopHooks, "post", author.id,
+            input(json!({"title":format!("G33Needle article {n}"),"status":"published","body":"Texte public", "term_ids":[archive_term]}))).await.unwrap();
+    }
+    entries::create(
+        &db,
+        &NoopHooks,
+        "post",
+        author.id,
+        input(json!({"title":"G33Needle SECRET","status":"draft","term_ids":[archive_term]})),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.show_on_front":"posts","reading.per_page":1})
+        )
+        .await
+        .0,
+        200
+    );
+    for (name, timing) in [
+        ("FUTURE", "published_at=now()+interval '1 day'"),
+        (
+            "EXPIRED",
+            "scheduled_unpublish_at=now()-interval '1 second'",
+        ),
+    ] {
+        let hidden = entries::create(&db,&NoopHooks,"post",author.id,input(json!({"title":format!("G33Needle {name}"),"status":"published","term_ids":[archive_term]}))).await.unwrap();
+        sqlx::query(&format!("UPDATE entries SET {timing} WHERE id=$1"))
+            .bind(hidden.id)
+            .execute(&db)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        request(&app, "GET", "/fr/archive/tag/g33-empty", None, Value::Null)
+            .await
+            .0,
+        200
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/fr/archive/tag/g33-empty?page=2",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        404
+    );
+    let results = request(&app, "GET", "/fr/search?q=G33Needle", None, Value::Null).await;
+    assert_eq!(results.0, 200, "{results:?}");
+    let html = results.1.as_str().unwrap();
+    assert!(html.contains("3 résultat(s)"));
+    assert!(!html.contains("SECRET"));
+    assert!(html.contains("q=G33Needle&amp;page=2"));
+    let second = request(
+        &app,
+        "GET",
+        "/fr/search?q=G33Needle&page=2",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(second.0, 200);
+    assert_ne!(results.1, second.1);
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/fr/search?q=G33Needle&page=4",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(
+        request(&app, "GET", "/fr/search?q=inexistantG33", None, Value::Null)
+            .await
+            .0,
+        200
+    );
+    assert_eq!(
+        request(&app, "GET", "/fr/search", None, Value::Null)
+            .await
+            .0,
+        200
+    );
+    for url in ["/fr/search?page=0", "/fr/search?page=abc", "/fr?page=-1"] {
+        assert_eq!(request(&app, "GET", url, None, Value::Null).await.0, 400);
+    }
+    let escaped = request(
+        &app,
+        "GET",
+        "/fr/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(escaped.0, 200);
+    assert!(
+        !escaped
+            .1
+            .as_str()
+            .unwrap()
+            .contains("<script>alert(1)</script>")
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/fr/archive/category/g33-public",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/fr/archive/category/g33-public?page=2",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        200
+    );
+    for url in [
+        "/fr/archive/category/missing-g33",
+        "/fr/archive/unknown/g33-public",
+        "/fr/post/missing-g33",
+        "/fr/unknown/extra/path/404",
+    ] {
+        let missing = request(&app, "GET", url, None, Value::Null).await;
+        assert_eq!(missing.0, 404);
+        assert!(missing.1.as_str().unwrap().contains("Page introuvable"));
+    }
+    assert!(
+        request(&app, "GET", "/api/v1/missing-g33", None, Value::Null)
+            .await
+            .1
+            .is_object()
+    );
+    assert_eq!(
+        request(&app, "GET", "/fr?page=2", None, Value::Null)
+            .await
+            .0,
+        200
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.show_on_front":"page","reading.per_page":10})
+        )
+        .await
+        .0,
+        200
+    );
+
+    // G3.3-C : choix distincts et index public effectif.
+    let blog_page=entries::create(&db,&NoopHooks,"page",author.id,input(json!({"title":"Index du journal","slug":"g33-blog","body":"Ce texte ne doit pas devenir la liste","status":"published"}))).await.unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.page_for_posts":home_page_id.to_string()})
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.page_for_posts":"not-a-uuid"})
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.page_for_posts":blog_page.id.to_string(),"reading.per_page":1})
+        )
+        .await
+        .0,
+        200
+    );
+    let index = request(&app, "GET", "/fr/page/g33-blog", None, Value::Null).await;
+    assert_eq!(index.0, 200);
+    assert!(index.1.as_str().unwrap().contains("G33Needle article"));
+    assert!(
+        !index
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Ce texte ne doit pas devenir la liste")
+    );
+    assert_eq!(
+        request(&app, "GET", "/fr/page/g33-blog?page=2", None, Value::Null)
+            .await
+            .0,
+        200
+    );
+    assert!(
+        request(&app, "GET", "/fr", None, Value::Null)
+            .await
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Page Parente")
+    );
+    sqlx::query("UPDATE entries SET status='draft' WHERE id=$1")
+        .bind(blog_page.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(&app, "GET", "/fr/page/g33-blog", None, Value::Null)
+            .await
+            .0,
+        404
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"reading.page_for_posts":null,"reading.per_page":10})
+        )
+        .await
+        .0,
+        200
+    );
 
     let proposal=request(&app,"POST","/api/v1/ai/execute",Some(&token),json!({"tool_name":"create_or_update_content","arguments":{"id":entry.id,"title":"AI approved"}})).await;
     assert_eq!(proposal.0, 200, "{proposal:?}");
@@ -1376,12 +1726,11 @@ async fn postgres_http_and_native_backup_regressions() {
     DataMorphImporter::apply(&db, &parsed_json, admin_id)
         .await
         .unwrap();
-    let imported_native_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM entries WHERE slug='import-article-natif-g2'",
-    )
-    .fetch_one(&db)
-    .await
-    .unwrap();
+    let imported_native_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM entries WHERE slug='import-article-natif-g2'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
     let imported_native = entries::get(&db, imported_native_id).await.unwrap();
     assert_eq!(imported_native.blocks, native_doc_v1);
     assert_eq!(imported_native.body, preview_body);
@@ -1404,12 +1753,11 @@ async fn postgres_http_and_native_backup_regressions() {
     DataMorphImporter::apply(&db, &parsed_xml_doc, admin_id)
         .await
         .unwrap();
-    let xml_imported_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM entries WHERE slug='rfxml-article-natif-g2'",
-    )
-    .fetch_one(&db)
-    .await
-    .unwrap();
+    let xml_imported_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM entries WHERE slug='rfxml-article-natif-g2'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
     let xml_imported = entries::get(&db, xml_imported_id).await.unwrap();
     assert_eq!(xml_imported.blocks, native_doc_v1);
     assert_eq!(xml_imported.body, preview_body);
@@ -1419,10 +1767,12 @@ async fn postgres_http_and_native_backup_regressions() {
         "preserve_me"
     );
 
-    let imported: Uuid = sqlx::query_scalar("SELECT entry_id FROM import_origins WHERE source='https://wp.example.test' LIMIT 1")
-        .fetch_one(&db)
-        .await
-        .unwrap();
+    let imported: Uuid = sqlx::query_scalar(
+        "SELECT entry_id FROM import_origins WHERE source='https://wp.example.test' LIMIT 1",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
     sqlx::query("UPDATE entries SET updated_at=now(),title='Keep human edit' WHERE id=$1")
         .bind(imported)
         .execute(&db)
@@ -1530,7 +1880,14 @@ async fn postgres_http_and_native_backup_regressions() {
         .0,
         400
     );
-    let author_nav = request(&app, "GET", "/api/v1/admin/navigation", Some(&token), Value::Null).await;
+    let author_nav = request(
+        &app,
+        "GET",
+        "/api/v1/admin/navigation",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
     assert_eq!(author_nav.0, 200);
     assert!(author_nav.1["catalog"].as_array().unwrap().is_empty());
     assert!(
@@ -1556,7 +1913,10 @@ async fn postgres_http_and_native_backup_regressions() {
     .await;
     assert_eq!(disable_zen.0, 200);
     assert_eq!(disable_zen.1["modules"]["zen_mode"], false);
-    assert_eq!(request(&app, "GET", zen_url, None, Value::Null).await.0, 404);
+    assert_eq!(
+        request(&app, "GET", zen_url, None, Value::Null).await.0,
+        404
+    );
 
     // 3. Disabling LMS removes it from navigation and closes both admin and public LMS APIs (404),
     // while preserving underlying course/module/lesson data upon reactivation.
@@ -1585,9 +1945,15 @@ async fn postgres_http_and_native_backup_regressions() {
             .any(|n| n["id"] == "rf_lms")
     );
     assert_eq!(
-        request(&app, "GET", "/api/v1/lms/courses", Some(&admin), Value::Null)
-            .await
-            .0,
+        request(
+            &app,
+            "GET",
+            "/api/v1/lms/courses",
+            Some(&admin),
+            Value::Null
+        )
+        .await
+        .0,
         404
     );
     assert_eq!(
@@ -1629,7 +1995,14 @@ async fn postgres_http_and_native_backup_regressions() {
     );
     assert_eq!(mod_a.0, 200);
     assert_eq!(mod_b.0, 200);
-    let merged_nav = request(&app, "GET", "/api/v1/admin/navigation", Some(&admin), Value::Null).await;
+    let merged_nav = request(
+        &app,
+        "GET",
+        "/api/v1/admin/navigation",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
     assert_eq!(merged_nav.0, 200);
     assert_eq!(merged_nav.1["modules"]["forms"], false);
     assert_eq!(merged_nav.1["modules"]["lms"], true);
@@ -1637,7 +2010,14 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(merged_nav.1["modules"]["galleries"], true);
     assert_eq!(merged_nav.1["modules"]["ecommerce"], true);
     // Reactivated LMS still has its course and lessons intact.
-    let courses_after = request(&app, "GET", "/api/v1/lms/courses", Some(&admin), Value::Null).await;
+    let courses_after = request(
+        &app,
+        "GET",
+        "/api/v1/lms/courses",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
     assert_eq!(courses_after.0, 200);
     assert_eq!(courses_after.1.as_array().unwrap().len(), 1);
     let lessons_after = request(

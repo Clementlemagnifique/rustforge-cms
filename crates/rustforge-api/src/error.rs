@@ -3,8 +3,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde_json::json;
 use rustforge_core::CoreError;
+use serde_json::json;
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -32,20 +32,27 @@ impl IntoResponse for ApiError {
             }
             ApiError::Core(CoreError::Validation(msg)) => (StatusCode::UNPROCESSABLE_ENTITY, msg),
             ApiError::Core(CoreError::Conflict(msg)) => (StatusCode::CONFLICT, msg),
-            ApiError::Core(CoreError::Unauthorized) | ApiError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED, "authentification requise".to_string())
-            }
+            ApiError::Core(CoreError::Unauthorized) | ApiError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "authentification requise".to_string(),
+            ),
             ApiError::Core(CoreError::Forbidden) | ApiError::Forbidden => {
                 (StatusCode::FORBIDDEN, "droits insuffisants".to_string())
             }
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             ApiError::Core(CoreError::Database(err)) => {
                 tracing::error!(%err, "erreur de base de données");
-                (StatusCode::INTERNAL_SERVER_ERROR, "erreur de base de données".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "erreur de base de données".to_string(),
+                )
             }
             ApiError::Core(CoreError::Internal(err)) | ApiError::Internal(err) => {
                 tracing::error!(%err, "erreur interne");
-                (StatusCode::INTERNAL_SERVER_ERROR, "erreur interne".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "erreur interne".to_string(),
+                )
             }
         };
 

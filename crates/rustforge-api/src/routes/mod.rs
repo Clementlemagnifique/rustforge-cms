@@ -1,5 +1,5 @@
-pub mod ai;
 pub mod admin;
+pub mod ai;
 pub mod auth;
 pub mod capsules;
 pub mod content_types;
@@ -18,3 +18,5 @@ pub mod setup;
 pub mod stats;
 pub mod taxonomies;
 pub mod users;
+
+pub mod public_lists;

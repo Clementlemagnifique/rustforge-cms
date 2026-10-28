@@ -31,9 +31,9 @@ pub fn excerpt(markdown: &str, max_chars: usize) -> String {
     for event in parser {
         match event {
             pulldown_cmark::Event::Text(t) | pulldown_cmark::Event::Code(t) => text.push_str(&t),
-            pulldown_cmark::Event::SoftBreak | pulldown_cmark::Event::HardBreak | pulldown_cmark::Event::End(_) => {
-                text.push(' ')
-            }
+            pulldown_cmark::Event::SoftBreak
+            | pulldown_cmark::Event::HardBreak
+            | pulldown_cmark::Event::End(_) => text.push(' '),
             _ => {}
         }
     }

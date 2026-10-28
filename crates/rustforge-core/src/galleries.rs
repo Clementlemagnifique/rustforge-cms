@@ -99,13 +99,19 @@ pub async fn get_gallery_by_slug(db: &PgPool, slug: &str) -> CoreResult<Gallery>
 }
 
 pub async fn get_gallery_items(db: &PgPool, gallery_id: Uuid) -> CoreResult<Vec<GalleryItem>> {
-    Ok(sqlx::query_as("SELECT * FROM gallery_items WHERE gallery_id = $1 ORDER BY sort_order ASC, created_at ASC")
-        .bind(gallery_id)
-        .fetch_all(db)
-        .await?)
+    Ok(sqlx::query_as(
+        "SELECT * FROM gallery_items WHERE gallery_id = $1 ORDER BY sort_order ASC, created_at ASC",
+    )
+    .bind(gallery_id)
+    .fetch_all(db)
+    .await?)
 }
 
-pub async fn create_gallery(db: &PgPool, author_id: Uuid, input: GalleryInput) -> CoreResult<Gallery> {
+pub async fn create_gallery(
+    db: &PgPool,
+    author_id: Uuid,
+    input: GalleryInput,
+) -> CoreResult<Gallery> {
     let slug = input.slug.unwrap_or_else(|| crate::slugify(&input.name));
     let mut gallery: Gallery = sqlx::query_as(
         "INSERT INTO galleries (name, slug, description, layout, settings, created_by)
@@ -123,7 +129,11 @@ pub async fn create_gallery(db: &PgPool, author_id: Uuid, input: GalleryInput) -
     Ok(gallery)
 }
 
-pub async fn add_item(db: &PgPool, gallery_id: Uuid, input: GalleryItemInput) -> CoreResult<GalleryItem> {
+pub async fn add_item(
+    db: &PgPool,
+    gallery_id: Uuid,
+    input: GalleryItemInput,
+) -> CoreResult<GalleryItem> {
     let item: GalleryItem = sqlx::query_as(
         "INSERT INTO gallery_items (gallery_id, item_type, media_id, external_url, title, caption, thumbnail_url, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
@@ -142,11 +152,17 @@ pub async fn add_item(db: &PgPool, gallery_id: Uuid, input: GalleryItemInput) ->
 }
 
 pub async fn delete_gallery(db: &PgPool, id: Uuid) -> CoreResult<()> {
-    sqlx::query("DELETE FROM galleries WHERE id = $1").bind(id).execute(db).await?;
+    sqlx::query("DELETE FROM galleries WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
     Ok(())
 }
 
 pub async fn delete_item(db: &PgPool, item_id: Uuid) -> CoreResult<()> {
-    sqlx::query("DELETE FROM gallery_items WHERE id = $1").bind(item_id).execute(db).await?;
+    sqlx::query("DELETE FROM gallery_items WHERE id = $1")
+        .bind(item_id)
+        .execute(db)
+        .await?;
     Ok(())
 }

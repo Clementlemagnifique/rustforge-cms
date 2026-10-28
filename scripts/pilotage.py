@@ -15,7 +15,7 @@ BASE = ROOT/'docs/pilotage'
 TABLES = [
     ('01_COEUR_ADMIN', 'Cœur, administration et blocs', 'WP-'),
     ('02_THEME', 'Thème de base rf-base', 'TH-'),
-    ('03_MODULES', 'Modules — 17 références locales et une référence web', 'MOD-'),
+    ('03_MODULES', 'Modules — 18 références locales et deux références web', 'MOD-'),
 ]
 
 

@@ -75,17 +75,34 @@ pub async fn create(db: &PgPool, m: NewMedia) -> CoreResult<Media> {
 }
 
 pub async fn get(db: &PgPool, id: Uuid) -> CoreResult<Media> {
-    Ok(sqlx::query_as::<_, Media>(&format!("{SELECT} WHERE m.id = $1")).bind(id).fetch_one(db).await?)
+    Ok(
+        sqlx::query_as::<_, Media>(&format!("{SELECT} WHERE m.id = $1"))
+            .bind(id)
+            .fetch_one(db)
+            .await?,
+    )
 }
 
 pub async fn list(db: &PgPool, q: &MediaQuery) -> CoreResult<Page<Media>> {
     let params = PageParams::new(q.page, q.per_page);
-    let search = q.q.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()).map(|s| format!("%{s}%"));
-    let kind = q.kind.as_ref().filter(|s| !s.is_empty()).map(|s| format!("{s}%"));
-    
+    let search =
+        q.q.as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| format!("%{s}%"));
+    let kind = q
+        .kind
+        .as_ref()
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("{s}%"));
+
     let mut qb = sqlx::QueryBuilder::new("SELECT count(*) FROM media m WHERE TRUE");
     if let Some(ref s) = search {
-        qb.push(" AND (m.original_name ILIKE ").push_bind(s).push(" OR m.alt ILIKE ").push_bind(s).push(")");
+        qb.push(" AND (m.original_name ILIKE ")
+            .push_bind(s)
+            .push(" OR m.alt ILIKE ")
+            .push_bind(s)
+            .push(")");
     }
     if let Some(ref k) = kind {
         qb.push(" AND m.mime_type LIKE ").push_bind(k);
@@ -98,7 +115,11 @@ pub async fn list(db: &PgPool, q: &MediaQuery) -> CoreResult<Page<Media>> {
     let mut qb = sqlx::QueryBuilder::new(SELECT);
     qb.push(" WHERE TRUE");
     if let Some(ref s) = search {
-        qb.push(" AND (m.original_name ILIKE ").push_bind(s).push(" OR m.alt ILIKE ").push_bind(s).push(")");
+        qb.push(" AND (m.original_name ILIKE ")
+            .push_bind(s)
+            .push(" OR m.alt ILIKE ")
+            .push_bind(s)
+            .push(")");
     }
     if let Some(ref k) = kind {
         qb.push(" AND m.mime_type LIKE ").push_bind(k);
@@ -106,7 +127,10 @@ pub async fn list(db: &PgPool, q: &MediaQuery) -> CoreResult<Page<Media>> {
     if let Some(f_id) = q.folder_id {
         qb.push(" AND m.folder_id = ").push_bind(f_id);
     }
-    qb.push(" ORDER BY m.created_at DESC LIMIT ").push_bind(params.limit()).push(" OFFSET ").push_bind(params.offset());
+    qb.push(" ORDER BY m.created_at DESC LIMIT ")
+        .push_bind(params.limit())
+        .push(" OFFSET ")
+        .push_bind(params.offset());
 
     let items = qb.build_query_as::<Media>().fetch_all(db).await?;
     Ok(Page::new(items, total, params))
@@ -180,12 +204,18 @@ pub async fn delete_checked(
 // ---------------------------------------------------------------------------
 
 pub async fn list_folders(db: &PgPool) -> CoreResult<Vec<MediaFolder>> {
-    Ok(sqlx::query_as("SELECT id, parent_id, name, slug, created_at FROM media_folders ORDER BY name ASC")
-        .fetch_all(db)
-        .await?)
+    Ok(sqlx::query_as(
+        "SELECT id, parent_id, name, slug, created_at FROM media_folders ORDER BY name ASC",
+    )
+    .fetch_all(db)
+    .await?)
 }
 
-pub async fn create_folder(db: &PgPool, name: &str, parent_id: Option<Uuid>) -> CoreResult<MediaFolder> {
+pub async fn create_folder(
+    db: &PgPool,
+    name: &str,
+    parent_id: Option<Uuid>,
+) -> CoreResult<MediaFolder> {
     let slug = crate::slugify(name);
     Ok(sqlx::query_as(
         "INSERT INTO media_folders (name, slug, parent_id) VALUES ($1, $2, $3) RETURNING id, parent_id, name, slug, created_at",
@@ -198,6 +228,9 @@ pub async fn create_folder(db: &PgPool, name: &str, parent_id: Option<Uuid>) -> 
 }
 
 pub async fn delete_folder(db: &PgPool, id: Uuid) -> CoreResult<()> {
-    sqlx::query("DELETE FROM media_folders WHERE id = $1").bind(id).execute(db).await?;
+    sqlx::query("DELETE FROM media_folders WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
     Ok(())
 }

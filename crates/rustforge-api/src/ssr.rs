@@ -20,6 +20,7 @@ use crate::error::{ApiError, ApiResult};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CacheKey {
     pub revision: i64,
+    pub visibility_epoch: i64,
     pub locale: String,
     pub path: String,
 }
@@ -29,10 +30,28 @@ pub struct CacheKey {
 pub struct SsrEngine {
     env: Arc<RwLock<Environment<'static>>>,
     revision: Arc<AtomicI64>,
+    visibility_epoch: Arc<AtomicI64>,
     reload: Arc<tokio::sync::Mutex<()>>,
     cache: Cache<CacheKey, String>,
     pub themes_dir: PathBuf,
     pub active_theme: String,
+}
+
+fn theme_loader(
+    path: PathBuf,
+) -> impl Fn(&str) -> Result<Option<String>, minijinja::Error> + Send + Sync + 'static {
+    let disk = minijinja::path_loader(path);
+    move |name| {
+        if let Some(source) = disk(name)? {
+            return Ok(Some(source));
+        }
+        Ok(match name {
+            "listing.html" => Some(include_str!("../templates/listing.html").into()),
+            "pagination.html" => Some(include_str!("../templates/pagination.html").into()),
+            "404.html" => Some(include_str!("../templates/404.html").into()),
+            _ => None,
+        })
+    }
 }
 
 impl SsrEngine {
@@ -42,7 +61,7 @@ impl SsrEngine {
 
         if theme_templates.exists() {
             tracing::info!(path = ?theme_templates, "Moteur SSR : Chargement dynamique des templates depuis le thème");
-            env.set_loader(minijinja::path_loader(&theme_templates));
+            env.set_loader(theme_loader(theme_templates));
         } else {
             tracing::info!("Moteur SSR : Chargement des templates intégrés par défaut");
             env.add_template("base.html", include_str!("../templates/base.html"))
@@ -51,6 +70,17 @@ impl SsrEngine {
                 .expect("template home.html invalide");
             env.add_template("single.html", include_str!("../templates/single.html"))
                 .expect("template single.html invalide");
+            for (name, source) in [
+                ("listing.html", include_str!("../templates/listing.html")),
+                (
+                    "pagination.html",
+                    include_str!("../templates/pagination.html"),
+                ),
+                ("404.html", include_str!("../templates/404.html")),
+            ] {
+                env.add_template(name, source)
+                    .expect("template public invalide");
+            }
             env.add_template("zen.html", include_str!("../templates/zen.html"))
                 .expect("template zen.html invalide");
         }
@@ -64,6 +94,7 @@ impl SsrEngine {
         Self {
             env: Arc::new(RwLock::new(env)),
             revision: Arc::new(AtomicI64::new(-1)),
+            visibility_epoch: Arc::new(AtomicI64::new(-1)),
             reload: Arc::new(tokio::sync::Mutex::new(())),
             cache,
             themes_dir,
@@ -76,6 +107,12 @@ impl SsrEngine {
         let _guard = self.reload.lock().await;
         let (revision, theme): (i64, Option<String>) = sqlx::query_as("SELECT revision, (SELECT value #>> '{}' FROM settings WHERE key='site.active_theme') FROM runtime_revision WHERE singleton")
             .fetch_one(db).await.map_err(rustforge_core::CoreError::from)?;
+        // Une échéance peut modifier la visibilité sans écriture SQL ni tick du scheduler.
+        let epoch: i64 = sqlx::query_scalar("SELECT COALESCE((extract(epoch FROM max(deadline)) * 1000000)::bigint, 0) FROM entries e CROSS JOIN LATERAL (VALUES (e.published_at), (e.scheduled_unpublish_at)) AS dates(deadline) WHERE e.status = 'published' AND deadline <= now()")
+            .fetch_one(db).await.map_err(rustforge_core::CoreError::from)?;
+        if self.visibility_epoch.swap(epoch, Ordering::SeqCst) != epoch {
+            self.cache.invalidate_all();
+        }
         if revision != self.revision.load(Ordering::SeqCst) {
             let theme = theme.as_deref().unwrap_or(&self.active_theme);
             rustforge_core::security::safe_slug(theme)?;
@@ -92,7 +129,7 @@ impl SsrEngine {
                     .write()
                     .map_err(|_| ApiError::Internal(anyhow::anyhow!("verrou de rendu")))?;
                 env.clear_templates();
-                env.set_loader(minijinja::path_loader(path));
+                env.set_loader(theme_loader(path));
             }
             self.cache.invalidate_all();
             self.revision.store(revision, Ordering::SeqCst);
@@ -113,6 +150,7 @@ impl SsrEngine {
     {
         let key = CacheKey {
             revision: self.revision.load(Ordering::SeqCst),
+            visibility_epoch: self.visibility_epoch.load(Ordering::SeqCst),
             locale: locale.to_string(),
             path: path.to_string(),
         };
@@ -156,6 +194,7 @@ impl SsrEngine {
     pub async fn invalidate(&self, locale: &str, path: &str) {
         let key = CacheKey {
             revision: self.revision.load(Ordering::SeqCst),
+            visibility_epoch: self.visibility_epoch.load(Ordering::SeqCst),
             locale: locale.to_string(),
             path: path.to_string(),
         };

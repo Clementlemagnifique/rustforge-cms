@@ -153,7 +153,8 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             return Err(CoreError::validation("Contenu de bloc trop volumineux"));
         }
         let text = literal(&block.rf_text);
-        if (!matches!(block.rf_type, Kind::List) && (!block.rf_items.is_empty() || block.rf_ordered))
+        if (!matches!(block.rf_type, Kind::List)
+            && (!block.rf_items.is_empty() || block.rf_ordered))
             || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
@@ -478,9 +479,7 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
 
         // 8. Bouton / lien autonome sur une ligne isolée [texte](url)
         let next_is_blank = idx + 1 >= lines.len() || lines[idx + 1].trim().is_empty();
-        if next_is_blank
-            && let Some((label, url)) = parse_markdown_button_line(trimmed)
-        {
+        if next_is_blank && let Some((label, url)) = parse_markdown_button_line(trimmed) {
             blocks.push(Block {
                 rf_id: next_id()?,
                 rf_type: Kind::Button,

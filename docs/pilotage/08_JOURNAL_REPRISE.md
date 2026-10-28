@@ -1,8 +1,85 @@
 # RustForge CMS — journal de reprise
 
+## 28 octobre 2026 — Références Adminify Lite et QuadMenu, préparation des menus
+
+**Point de reprise le plus récent.** Ajout demandé d'Adminify Lite et de QuadMenu comme inspirations. Session documentaire ; aucun changement runtime, aucune activation ni installation de plugin.
+
+- Adminify trouvé dans `C:\Users\cleme\Desktop\CMS Rust\wordpress-plugins-ref\plugins-ref\adminify` : version déclarée 4.3.3, GPLv3 ou ultérieure, bootstrap non premium. Lecture ciblée de cinq fichiers (en-tête/readme, options et éditeur de menu) et repérage des modules ; empreintes complètes de ces cinq fichiers ajoutées à l'inventaire avec couverture partielle explicite. Aucun audit exhaustif Free/Pro, recette PHP ou rescan des anciennes références.
+- QuadMenu : accueil/fonctions/documentation/éléments/méga-menu/responsive/offres officiels consultés. Référence web seule. Cartographie QM-01 à QM-11, distinction Free/Pro et écran cible ajoutés dans [le document existant](12_REFERENCE_ADMINIFY_STUDIO.md), sans nouveau MD stratégique.
+- Plan NAV-A à E : migration du modèle plat, arbre et références dynamiques, SSR/mobile accessible, colonnes/contenu enrichi puis composition des services recherche/compte/commerce. Rendu Rust/MiniJinja conservé ; pas de Bootstrap, PHP ou moteur de menus parallèle imposé. Contrats d'export, d'URLs, de cache et de droits précisés.
+- `EX-36` corrigé : menus plats header/footer avec ordre, ajout/suppression et validation URL ; hiérarchie et méga-menu absents. WP-46 et TH-15/17 enrichis. `MOD-ADM-01` et `MOD-NAV-01` ajoutés comme tâches de qualification/composition, sans créer deux plugins à exécuter.
+- Matrices régénérées et vérifiées : **434 tâches, 38 composants, 156 lignes modules**, 18 références locales et deux web. Le générateur d'inventaire connaît désormais `adminify` pour éviter une erreur de mapping lors d'un futur scan autorisé. Le registre lexical reste à **16 295 candidats**, sans ajout lexical automatique dans cette session.
+- Vérifications documentaires : **36 documents, 1 440 liens locaux, 22 archives intactes, aucune erreur**. Références absentes du worktree résolues temporairement en lecture seule vers leurs vrais fichiers du Bureau, comme au lot précédent ; scripts de vérification inchangés. Les commandes standard continuent à exiger les références locales. Pas de nouvelle exécution des tests/builds du CMS pour ces modifications documentaires.
+
+**Suite inchangée : G3.3-D**, puis E/F. Ensuite NAV-A à E suivant le plan global ; style Studio à partir d'Adminify et du registre admin existant. Aucun commit/push réalisé dans ce tour. Le dépôt privé a été vérifié dans le tour précédent ; le jalon de sauvegarde proposé reste à exécuter sur demande.
+
+## 28 octobre 2026 — G3.3-B/C : listes publiques, 404, page des articles et référence Adminify
+
+**Point de reprise le plus récent.** Session de développement demandée par l'utilisateur, puis ajout de WP Adminify comme inspiration du style du Studio. Les lots B/C sont implémentés avec des recettes ciblées ; aucune parité globale annoncée.
+
+### Livré
+
+- Nouveau `routes/public_lists.rs` : recherche GET normalisée/bornée, archives catégorie/étiquette, pagination, états vides, vrais statuts 404 et formulaire sans JS. Filtres/totaux utilisent `entries::list(public_only)` ; ordre SQL stable avec ID de départage. Clés de cache distinctes par page/recherche/terme/locale.
+- `listing.html`, `pagination.html`, `404.html` sur disque et embarqués ; repli pour ces nouveaux templates lorsqu'un thème ne les fournit pas. Accueil articles paginé ; accueil statique limité à la page 1. Recherche/404 noindex dans le thème de base. Aucun nouveau JS public.
+- Collision découverte par test : `/api/v1/inconnu` pouvait emprunter la route publique générique. Espaces API/admin/uploads/public désormais refusés comme locale ; fallback API JSON explicite. Les services de fichiers gardent leur traitement.
+- `reading.page_for_posts` : choix d'une page publiée éligible distincte de l'accueil ; validation des IDs et des dates en transaction, verrou transactionnel dédié pour sérialiser ces réglages. URL de la page conservée, corps remplacé par l'index paginé des articles ; dépublication = 404. Pas de migration SQL.
+- Studio Lecture : sélecteur page des articles, aide, ancienne sélection indisponible signalée, chargement des pages au-delà des 100 premières et filtrage des échéances. Textes ajoutés au catalogue français. Pas de refonte globale du Studio.
+- [Cartographie WP Adminify](12_REFERENCE_ADMINIFY_STUDIO.md) : cinq pages du site consultées, page Personnalisation observée en navigateur ; 15 repères reliés aux tickets existants, direction visuelle proposée, priorités et recettes. Les fonctions marketing/Pro/add-ons et annonces futures ne sont pas certifiées. Aucun code/asset/plugin Adminify intégré.
+
+### Preuves de cette session
+
+- Tests unitaires workspace `--lib` : **47 réussis** (API 4, core 41, plugins 2), [sortie](../validations/reprise-g1-g2-2026-10-28/g33bc-unit.txt).
+- Régression intégrée PostgreSQL/HTTP/sauvegarde native : **1 scénario réussi**, [sortie](../validations/reprise-g1-g2-2026-10-28/g33bc-regression.txt). Nouvelles assertions : totaux de recherche sans draft/futur/expiré, pages distinctes après cache chaud, entrées invalides 400, page hors limite 404, XSS échappée, archive tag vide 200/page 2 404, terme inconnu, API JSON, accueil paginé ; configuration front/blog incompatible 422, index public paginé, corps non utilisé, accueil conservé, page blog passée brouillon 404.
+- Clippy workspace strict réussi, [sortie](../validations/reprise-g1-g2-2026-10-28/g33bc-clippy.txt) ; [serveur compilé](../validations/reprise-g1-g2-2026-10-28/g33bc-build.txt) ; [build Studio réussi](../validations/reprise-g1-g2-2026-10-28/g33bc-admin-build.txt) et [lint réussi](../validations/reprise-g1-g2-2026-10-28/g33bc-admin-lint.txt). Avertissement bundle >500 Ko conservé.
+- Navigateur sur nouvelle base artificielle : recherche cinq articles/trois pages, lien page suivante, saisie + Entrée et zéro résultat ; recherche à 375 px sans débordement mesuré (scrollWidth 360, innerWidth 375), page introuvable lisible. Après reconstruction : journal distinct, accueil statique, connexion artificielle au Studio, onglet Lecture avec sélecteurs corrects et message « Réglages enregistrés ! ». [Capture](../validations/reprise-g1-g2-2026-10-28/g33bc-lecture.png). Pas de recette exhaustive tous rôles/écrans/lecteurs d'écran ni preuve de charge.
+- PostgreSQL maintenu dans la même session que les tests, port 55492, données sous `scratch/g33a`. Les premiers essais échoués (collision API, fixtures) ne sont pas comptés comme réussis. Instances navigateur sur 55495 arrêtées et seules leurs bases supprimées par le script de recette ; cluster jetable arrêté, bases des tests échoués conservées.
+- Dépendances Studio existantes réutilisées par **jonction ignorée** `admin/node_modules` vers le dossier du Bureau. Aucun téléchargement ni installation ; cette jonction dépend du chemin de cette machine. Les assets Studio ont ensuite été recompilés depuis ce checkout, contrairement à la copie d'assets antérieure G3.3-A.
+
+### Suivi et suite
+
+Contrôles documentaires finaux : 432 tâches/38 composants et 114 menus cohérents ; 36 documents, 1 434 liens, 22 archives et 16 295 candidats vérifiés sans erreur, avec résolution en mémoire des références vers leurs fichiers réels au Bureau (scripts inchangés). Diff whitespace réussi.
+
+CSV cœur/thème/existant actualisés, vues régénérées ; WP-78/79/100 et TH-06/33 restent EN_COURS pour leurs écarts. Contrats effectifs documentés dans `11_REFERENCE_WORDPRESS_RF_BASE.md`. Référence Adminify indexée dans docs/README et plan global ; ses repères AD-* ne changent pas le nombre de tickets.
+
+**Prochain lot : G3.3-D**, flux RSS/Atom, taille de flux distincte et complet/extrait effectifs ; ensuite E indexation (canonical/robots/sitemap) puis F permaliens. Les réglages flux actuellement visibles ne prouvent pas leur application. Préserver filtres publics, URLs, cache et export. Avant nouvelle grosse session, relire le plan et ce journal, vérifier Git et le checkout sans écraser le travail non commité.
+
+Restent à approfondir : archives auteur/date/type, descendants de catégories, recherche avancée et bloc Recherche, options visuelles d'archives, langue réelle des contenus, changement concurrent de configuration/publication, grands corpus et coût de la requête temporelle du cache. Refonte Studio désormais cadrée avec Adminify, mais pas réalisée. Aucun commit/push ni nouveau ZIP ; le dossier du Bureau n'est pas présumé synchronisé.
+
+
+## 28 octobre 2026 — G3.3-A : visibilité publique et contrat des routes
+
+**Point de reprise le plus récent.** Correction du chargement administratif de l'accueil statique : `get_published_page` impose type page, statut publié, publication atteinte et dépublication non atteinte. Seul NotFound déclenche le repli sur les articles publics ; les erreurs serveur ne sont plus masquées. Listes, lecture par slug et anciens slugs excluent aussi les dépublications échues sans attendre le scheduler.
+
+Le cache Moka observe la dernière échéance atteinte des entrées publiées ; le marqueur entre dans sa clé et invalide les pages au changement temporel. Coût supplémentaire à mesurer sur gros corpus ; pas de promesse de performance. Pas de migration SQL. La recherche, les archives, les flux et les permaliens restent ouverts.
+
+- Régression PostgreSQL/HTTP/sauvegarde native : **1 scénario intégrateur réussi**, incluant les nouvelles assertions brouillon/futur/dépublié, listes/lecture publique et accueil, et échéance franchie sur cache chaud sans écriture ni scheduler. [Sortie](../validations/reprise-g1-g2-2026-10-28/g33a-regression.txt). Ce n'est pas une nouvelle exécution des 52 tests historiques.
+- Clippy `-p rustforge-api --all-targets -- -D warnings` réussi : [sortie](../validations/reprise-g1-g2-2026-10-28/g33a-clippy.txt). Compilation native MSVC réalisée hors sandbox après erreur `lib.exe` 1114. Diff whitespace contrôlé. Pas de recette navigateur ni nouveau build Studio.
+- PostgreSQL dédié initialisé sous `scratch/g33a/db` avec les binaires déjà disponibles ; port final 55492 ; serveur arrêté en fin de recette. Premiers essais de connexion et conflit de port exclus des résultats positifs. Données exclusivement artificielles ; bases de tests échoués conservées dans ce cluster jetable arrêté.
+- La première recette atteignait les assertions de visibilité puis échouait sur `/admin/` faute de `admin/dist`. Assets déjà compilés du dossier Bureau copiés dans le dossier ignoré de ce worktree pour la recette finale ; cela ne valide pas un build du Studio courant.
+- CSV cœur (`WP-78` maintenu EN_COURS, page d'articles distincte ouverte) et existant `EX-03` actualisés. Vues régénérées avec le renderer existant : résolution en mémoire des chemins de référence vers les fichiers réels du Bureau pour cette exécution seulement, sans modification du script ni copie des références. 432 tâches/38 composants cohérents. Les commandes standard continuent à signaler les références absentes du worktree.
+- Contrat des routes/options, limites de recherche/pagination, réservations et replis précisés dans `11_REFERENCE_WORDPRESS_RF_BASE.md`. Les routes proposées ne sont pas livrées.
+- Consigne utilisateur confirmée : alimenter les vérifications par developer.wordpress.org, wordpress.org/documentation et wordpress.org/blocks ; pages consultées le 28/10 et méthode de qualification ajoutées au cadrage. Utiliser les pages détaillées par ticket et distinguer spécification source de preuve RustForge.
+
+**Suite : G3.3-B**, archives catégories/étiquettes, recherche GET, pagination et vraie 404 selon le contrat. Vérifier les collisions de routes avant activation, compléter les sources détaillées des tickets, puis recette cache/visibilité/clavier/mobile. Le coût de l'observation temporelle et les cas concurrents de rendu restent à mesurer/étendre. Refonte globale du Studio, traductions et automatisations différées. Aucun commit/push/ZIP produit.
+
+
+## 28 octobre 2026 — Transmission préparée pour GPT-6.1 Sol (documentation uniquement)
+
+**Point de reprise le plus récent.** L'utilisateur demande de préparer la suite avant de repasser avec GPT-6.1 Sol. Aucun chantier de code ouvert dans ce tour. La lecture du journal a montré que le résumé de conversation était dépassé : G1/G2 et les premières fonctionnalités G3 ont déjà été réalisés et recettés dans les limites du rapport ci-dessous.
+
+- Checkout vérifié : `C:\Users\cleme\.codex\worktrees\32c4\CMS Rust`, HEAD détaché `0851da23`, nombreuses modifications et fichiers non suivis conservés. Le dossier du Bureau n'est pas présumé synchronisé.
+- Références `wordpress-plugins-ref` absentes de ce worktree mais présentes dans `C:\Users\cleme\Desktop\CMS Rust`. Pas de rescan, copie ou exécution des références. Les outils de vérification documentaire peuvent signaler ces chemins absents.
+- [Plan global](../PLAN_ACTION_GLOBAL.md) enrichi : reprise opérationnelle, sous-lots G3.3-A à F, critères de fin, fichiers d'entrée, dépendances des lots ultérieurs, commandes et message prêt à copier. Pas de nouveau fichier Markdown de stratégie ; matrices non modifiées et aucune tâche supplémentaire marquée livrée.
+- Lecture ciblée : l'accueil statique charge une entrée par `entries::get` et ne vérifie que `Published`, contrairement à la sélection publique qui vérifie aussi la date. **Premier geste Sol : reproduire ce risque avec une page future puis corriger/recetter**, y compris cache chaud. Aucun test de reproduction ni correction réalisé pendant cette préparation.
+- Autres écarts constatés : pagination de l'accueil non raccordée aux paramètres URL, clé de cache d'accueil sans page/recherche, liste sans restriction au type article. Ils précisent le prochain sous-lot ; ne pas confondre taille de liste et pagination complète.
+- Aucun test Rust/Node, build, serveur, base, archive, commit ou push lancé ici. Les **52 tests Rust, 8 tests Node et recettes navigateur** restent des preuves du [lot précédent](../validations/reprise-g1-g2-2026-10-28/RAPPORT.md), non des résultats nouveaux.
+- Contrôles documentaires de cette préparation : `git -c core.safecrlf=false diff --check` réussi ; `pilotage.py --check` signale 426 chemins de référence absents ; `menu-admin.py --check` s'arrête sur une source absente. `verifier-documentation.py`, relancé avec `PYTHONIOENCODING=utf-8`, examine 35 documents, 1 418 liens, 22 archives et 16 295 candidats : 450 erreurs de liens, toutes vers `wordpress-plugins-ref`, aucune autre erreur signalée. Les trois contrôles ne sont donc pas déclarés réussis globalement ; les références restent disponibles au Bureau. Aucun contournement ni modification des scripts pour masquer ces absences.
+
+**Suite :** lire la section « Reprise préparée pour GPT-6.1 Sol » du plan ; terminer G3.3-A puis G3.3-B avant flux/SEO/permaliens. Conserver la refonte visuelle pour plus tard, les traductions différées et AutomatorWP comme inspiration planifiée. Mettre à jour ce journal et les tableaux après chaque sous-lot.
+
 ## 28 octobre 2026 — Reprise ciblée G1/G2, corrections mobile/clavier et références WordPress
 
-**Point de reprise le plus récent.** Lecture de `reprise.txt`, du journal, du plan, des contrats, de l’existant et du menu. Aucun audit général ni rescan des références. Les estimations d’avancement du résumé précédent ne constituent pas une couverture validée. L’utilisateur demande de poursuivre dans l’ancienne conversation avec son historique : transmettre le résumé et conserver les modifications locales.
+**Lot précédent : preuves de recette.** Lecture de `reprise.txt`, du journal, du plan, des contrats, de l’existant et du menu. Aucun audit général ni rescan des références. Les estimations d’avancement du résumé précédent ne constituent pas une couverture validée. L’utilisateur demande de poursuivre dans l’ancienne conversation avec son historique : transmettre le résumé et conserver les modifications locales.
 
 ### Livré et vérifié dans cette conversation
 

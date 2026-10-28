@@ -40,7 +40,10 @@ pub async fn preview(
             "Texte limité à 512 Kio pour l’aperçu".into(),
         ));
     }
-    let blocks = input.get("blocks").cloned().unwrap_or(serde_json::Value::Null);
+    let blocks = input
+        .get("blocks")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let (body, body_html) = rustforge_core::document::project(body, &blocks)?;
     Ok(Json(serde_json::json!({"body":body,"body_html":body_html})))
 }

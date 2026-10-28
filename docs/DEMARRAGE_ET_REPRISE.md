@@ -8,16 +8,18 @@ Produit actuel : **RustForge CMS**, binaire et crates `rustforge`; version décl
 
 Les modifications sont dans le dossier du projet, avec les nouvelles migrations et les tests. Aucun commit, push, déploiement, changement de la configuration personnelle ou migration de la base du site n'a été effectué par ce lot. Le rapport initial reste un état historique, antérieur aux corrections.
 
-Lire dans cet ordre :
+Pour reprendre le développement actuel, lire dans cet ordre :
 
-1. [Feuille de route après modifications](FEUILLE_DE_ROUTE_APRES_CONSOLIDATION.md) : corrections, limites et prochain lot.
-2. Ce document : exploitation et commandes de reprise.
-3. [Audit initial](AUDIT_RUSTFORGE_V0.1.0_2026-10-27.md) : preuves et identifiants RF-01 à RF-26.
-4. [Tests de régression](../crates/rustforge-api/tests/consolidation.rs) : comportements réellement vérifiés.
+1. [Journal de reprise](pilotage/08_JOURNAL_REPRISE.md) : première entrée, état courant et limites.
+2. [Plan global](PLAN_ACTION_GLOBAL.md) : section « Reprise préparée pour GPT-6.1 Sol », étapes et message de transmission.
+3. [Contrats transverses](pilotage/04_CONTRATS_TRANSVERSES.md) et [existant](pilotage/07_ETAT_EXISTANT.md).
+4. [Tests de régression](../crates/rustforge-api/tests/consolidation.rs) et [rapport de recette](validations/reprise-g1-g2-2026-10-28/RAPPORT.md).
+
+Les procédures ci-dessous et l'[audit initial](AUDIT_RUSTFORGE_V0.1.0_2026-10-27.md) décrivent aussi des états historiques : le journal et le plan priment pour décider du prochain lot.
 
 Pour reprendre avec un autre assistant :
 
-> Lis docs/FEUILLE_DE_ROUTE_APRES_CONSOLIDATION.md puis docs/DEMARRAGE_ET_REPRISE.md et vérifie git status. Conserve les corrections en cours. Ne touche pas aux fichiers ignorés, aux configurations personnelles, aux bases existantes ou aux dossiers wordpress, theme-ref, plugins-ref. Commence par le prochain lot de la feuille de route et ses critères de validation. Ne présente pas les propositions du convertisseur comme des migrations validées.
+> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\32c4\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. Commence G3.3-A, puis G3.3-B. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
 
 ## Préparer une installation
 

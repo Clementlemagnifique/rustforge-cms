@@ -6,7 +6,7 @@ Décision de référence du 28 octobre 2026. Ce document précise la méthode; l
 
 Le projet contient déjà un CMS Rust, un moteur HTML MiniJinja, un cache Moka, PostgreSQL, un Studio React et plusieurs services métier. Le [tableau de l’existant](07_ETAT_EXISTANT.md) est la base des décisions. La priorité consiste à compléter et relier ce socle, en particulier l’édition de contenus, plutôt qu’à lancer un second moteur ou un second modèle de données.
 
-Le dossier `wordpress-plugins-ref` est une référence statique explicitement demandée. Il reste ignoré par Git, n’est ni livré ni exécuté. Le cœur local déclare `7.1.3`; les versions des trois thèmes et des 17 extensions sont figées par empreintes dans l’inventaire. Leur authenticité complète vis-à-vis des archives des éditeurs n’a pas été vérifiée.
+Le dossier `wordpress-plugins-ref` est une référence statique explicitement demandée. Il reste ignoré par Git, n’est ni livré ni exécuté. Le cœur local déclare `7.1.3`; les versions des trois thèmes et des 18 extensions sont consignées dans l’inventaire (Adminify : ajout ciblé partiel, sans scan lexical global). Leur authenticité complète vis-à-vis des archives des éditeurs n’a pas été vérifiée.
 
 ## Arbitrages retenus
 

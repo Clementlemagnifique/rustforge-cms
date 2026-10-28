@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% if blog_public == false %}
+    {% if blog_public == false or force_noindex %}
     <meta name="robots" content="noindex, nofollow">
     {% endif %}
     <title>{% block title %}Accueil{% endblock %} — {{ site_title }}</title>
@@ -31,6 +31,11 @@
             --tp-font-body: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
+        .rf-public-list { overflow-wrap:anywhere; }
+        .rf-search-controls, .rf-pagination { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin:1rem 0; }
+        .rf-search-controls input { box-sizing:border-box; max-width:100%; min-width:0; padding:.7rem; font:inherit; }
+        .rf-public-list article { border-bottom:1px solid #475569; padding:1rem 0; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline:3px solid var(--tp-accent); outline-offset:4px; }
         body {
             font-family: var(--tp-font-body);
             background-color: #0b0f19;
@@ -99,6 +104,7 @@
                     <a href="/{{ locale }}#publications">Publications</a>
                 {% endif %}
 
+                <a href="/{{ locale }}/search">Rechercher</a>
                 <a href="/admin" class="btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Studio Admin</a>
             </nav>
         </div>

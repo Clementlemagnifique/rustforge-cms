@@ -304,12 +304,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">— Sélectionner une page publiée —</option>
+                  {settings['reading.page_on_front'] && !pages.some((p) => p.id === settings['reading.page_on_front']) && (
+                    <option disabled value={settings['reading.page_on_front']}>{settingsMessages.unavailablePage}</option>
+                  )}
                   {pages.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} (/{p.slug})
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label htmlFor="rf-posts-page" className="text-[11px] text-slate-400 block mb-1">{settingsMessages.postsPage}</label>
+                <select id="rf-posts-page" value={settings['reading.page_for_posts'] || ''}
+                  onChange={(e) => setSetting('reading.page_for_posts', e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="">{settingsMessages.noPostsPage}</option>
+                  {settings['reading.page_for_posts'] && (!pages.some((p) => p.id === settings['reading.page_for_posts']) || settings['reading.page_for_posts'] === settings['reading.page_on_front']) && (
+                    <option disabled value={settings['reading.page_for_posts']}>{settingsMessages.unavailablePage}</option>
+                  )}
+                  {pages.filter((p) => p.id !== settings['reading.page_on_front']).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-2">{settingsMessages.postsPageHint}</p>
               </div>
             </div>
           )}

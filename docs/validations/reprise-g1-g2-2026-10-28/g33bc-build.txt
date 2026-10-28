@@ -1,0 +1,3 @@
+   Compiling rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\32c4\CMS Rust\crates\rustforge-api)
+   Compiling rustforge v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\32c4\CMS Rust\crates\rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.34s

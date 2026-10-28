@@ -67,10 +67,20 @@ pub struct ChatMessage {
 
 impl ChatMessage {
     pub fn system(content: impl Into<String>) -> Self {
-        Self { role: Role::System, content: content.into(), tool_calls: None, tool_name: None }
+        Self {
+            role: Role::System,
+            content: content.into(),
+            tool_calls: None,
+            tool_name: None,
+        }
     }
     pub fn tool_result(tool_name: impl Into<String>, content: impl Into<String>) -> Self {
-        Self { role: Role::Tool, content: content.into(), tool_calls: None, tool_name: Some(tool_name.into()) }
+        Self {
+            role: Role::Tool,
+            content: content.into(),
+            tool_calls: None,
+            tool_name: Some(tool_name.into()),
+        }
     }
 }
 
@@ -132,12 +142,21 @@ impl LlmClient {
             .send()
             .await
             .map_err(unreachable)?;
-        let tags: Tags = res.error_for_status().map_err(unreachable)?.json().await.map_err(unreachable)?;
+        let tags: Tags = res
+            .error_for_status()
+            .map_err(unreachable)?
+            .json()
+            .await
+            .map_err(unreachable)?;
         Ok(tags.models)
     }
 
     /// Envoie la conversation au modèle avec les outils disponibles ; renvoie la réponse de l'assistant.
-    pub async fn chat(&self, messages: &[ChatMessage], tools: &[ToolDefinition]) -> CoreResult<ChatMessage> {
+    pub async fn chat(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDefinition],
+    ) -> CoreResult<ChatMessage> {
         let tools: Vec<Value> = tools
             .iter()
             .map(|t| {
@@ -179,18 +198,25 @@ impl LlmClient {
                 .ok()
                 .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_string))
                 .unwrap_or(text);
-            return Err(CoreError::validation(format!("Ollama a répondu {status} : {detail}")));
+            return Err(CoreError::validation(format!(
+                "Ollama a répondu {status} : {detail}"
+            )));
         }
 
         #[derive(Deserialize)]
         struct ChatResponse {
             message: ChatMessage,
         }
-        let parsed: ChatResponse = res.json().await.map_err(|e| CoreError::Internal(e.into()))?;
+        let parsed: ChatResponse = res
+            .json()
+            .await
+            .map_err(|e| CoreError::Internal(e.into()))?;
         Ok(parsed.message)
     }
 }
 
 fn unreachable(e: reqwest::Error) -> CoreError {
-    CoreError::validation(format!("Ollama injoignable : {e}. Vérifiez que « ollama serve » est lancé."))
+    CoreError::validation(format!(
+        "Ollama injoignable : {e}. Vérifiez que « ollama serve » est lancé."
+    ))
 }

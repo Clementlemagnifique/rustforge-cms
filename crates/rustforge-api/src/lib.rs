@@ -283,7 +283,8 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/stats", stats_routes)
         .nest("/ai", ai_routes)
         .nest("/converter", converter_routes)
-        .nest("/public", public_routes);
+        .nest("/public", public_routes)
+        .fallback(|| async { crate::error::ApiError::NotFound });
 
     let mut router = Router::new()
         // Routes publiques SSR (< 1ms via cache Moka L1)
@@ -298,6 +299,12 @@ pub fn build_router(state: AppState) -> Router {
             }),
         )
         .route("/{locale}", get(routes::public::ssr_home))
+        .route("/{locale}/search", get(routes::public_lists::search))
+        .route(
+            "/{locale}/archive/{taxonomy}/{term}",
+            get(routes::public_lists::archive),
+        )
+        .fallback(routes::public_lists::fallback)
         .route(
             "/{locale}/{content_type}/{slug}",
             get(routes::public::ssr_single),

@@ -160,7 +160,7 @@ def inventory():
                 components.append(dict(kind=kind,slug=base.name,path=p.relative_to(ROOT).as_posix(),headers=fields))
                 break
     # Un lot désigne la ligne d'analyse générale, jamais une conversion validée.
-    plugin_ids = {'ai-editor':'AIED','all-in-one-wp-migration':'MIG','all-in-one-wp-security-and-firewall':'SEC',
+    plugin_ids = {'adminify':'ADM','ai-editor':'AIED','all-in-one-wp-migration':'MIG','all-in-one-wp-security-and-firewall':'SEC',
                   'codepress-admin-columns':'COL','easy-digital-downloads':'COM','filebird-pro':'MED',
                   'gpt3-ai-content-generator':'AIP','kanbanz':'KAN','loco-translate':'I18N','mailpoet':'MAIL',
                   'publishpress':'EDIT','sensei-lms':'LMS','the-events-calendar':'EVT','thedock-media':'IMG',

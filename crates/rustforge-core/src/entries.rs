@@ -28,6 +28,9 @@ const SELECT: &str =
 
 const MAX_REVISIONS: i64 = 30;
 
+/// Règle unique de visibilité, indépendante du passage du planificateur.
+const PUBLIC_VISIBILITY: &str = "e.status = 'published' AND e.published_at <= now() AND (e.scheduled_unpublish_at IS NULL OR e.scheduled_unpublish_at > now())";
+
 /// Filtres de liste (`?content_type=post&status=draft&q=rust&term=actu&page=2`).
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct EntryQuery {
@@ -56,7 +59,7 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &EntryQuery) {
         qb.push(" AND ct.slug = ").push_bind(ct.clone());
     }
     if q.public_only {
-        qb.push(" AND e.status = 'published' AND e.published_at <= now()");
+        qb.push(" AND ").push(PUBLIC_VISIBILITY);
     } else {
         match q.status {
             Some(status) => {
@@ -110,10 +113,10 @@ pub async fn list(db: &PgPool, q: &EntryQuery) -> CoreResult<Page<Entry>> {
         "updated"
     };
     let order = match q.order.as_deref().unwrap_or(default_order) {
-        "title" => " ORDER BY e.title ASC",
-        "created" => " ORDER BY e.created_at DESC",
-        "published" => " ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC",
-        _ => " ORDER BY e.updated_at DESC",
+        "title" => " ORDER BY e.title ASC, e.id ASC",
+        "created" => " ORDER BY e.created_at DESC, e.id DESC",
+        "published" => " ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC, e.id DESC",
+        _ => " ORDER BY e.updated_at DESC, e.id DESC",
     };
     qb.push(order);
     qb.push(" LIMIT ").push_bind(params.limit());
@@ -133,10 +136,22 @@ pub async fn get(db: &PgPool, id: Uuid) -> CoreResult<Entry> {
     Ok(entry)
 }
 
+/// Page publique sélectionnée comme accueil ; aucune erreur SQL n'est masquée.
+pub async fn get_published_page(db: &PgPool, id: Uuid) -> CoreResult<Entry> {
+    let mut entry = sqlx::query_as::<_, Entry>(&format!(
+        "{SELECT} WHERE e.id = $1 AND ct.slug = 'page' AND {PUBLIC_VISIBILITY}"
+    ))
+    .bind(id)
+    .fetch_one(db)
+    .await?;
+    attach_terms(db, std::slice::from_mut(&mut entry)).await?;
+    Ok(entry)
+}
+
 /// Entrée publiée et visible, par type et slug (API publique).
 pub async fn get_published(db: &PgPool, content_type: &str, slug: &str) -> CoreResult<Entry> {
     let mut entry = sqlx::query_as::<_, Entry>(&format!(
-        "{SELECT} WHERE ct.slug = $1 AND e.slug = $2 AND e.status = 'published' AND e.published_at <= now()"
+        "{SELECT} WHERE ct.slug = $1 AND e.slug = $2 AND {PUBLIC_VISIBILITY}"
     ))
     .bind(content_type)
     .bind(slug)
@@ -160,6 +175,7 @@ pub async fn resolve_slug_redirect(
          WHERE ct.slug = $1
            AND e.status = 'published'
            AND e.published_at <= now()
+           AND (e.scheduled_unpublish_at IS NULL OR e.scheduled_unpublish_at > now())
            AND e.slug <> $2
            AND COALESCE(e.fields->'_rf_vault'->'rf_old_slugs', '[]'::jsonb) ? $2
          ORDER BY e.updated_at DESC
@@ -871,10 +887,7 @@ mod tests {
     fn test_record_slug_history_prevents_loops_and_tracks_chains() {
         let mut fields = json!({});
         record_slug_history(&mut fields, "slug-initial", "slug-v2");
-        assert_eq!(
-            fields["_rf_vault"]["rf_old_slugs"],
-            json!(["slug-initial"])
-        );
+        assert_eq!(fields["_rf_vault"]["rf_old_slugs"], json!(["slug-initial"]));
         record_slug_history(&mut fields, "slug-v2", "slug-v3");
         assert_eq!(
             fields["_rf_vault"]["rf_old_slugs"],

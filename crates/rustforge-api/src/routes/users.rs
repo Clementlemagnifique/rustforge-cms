@@ -106,5 +106,7 @@ pub async fn revoke_sessions(
         return Err(ApiError::Forbidden);
     }
     let revoked = users::revoke_all_user_sessions(&state.db, id).await?;
-    Ok(Json(serde_json::json!({ "success": true, "revoked": revoked })))
+    Ok(Json(
+        serde_json::json!({ "success": true, "revoked": revoked }),
+    ))
 }

@@ -75,9 +75,7 @@ fn safe_url(raw: &str, image_only: bool) -> &str {
     if trimmed.is_empty()
         || trimmed.len() > 2048
         || trimmed.chars().any(|c| {
-            c.is_whitespace()
-                || c.is_control()
-                || matches!(c, '<' | '>' | '"' | '\'' | '\\' | '`')
+            c.is_whitespace() || c.is_control() || matches!(c, '<' | '>' | '"' | '\'' | '\\' | '`')
         })
     {
         return if image_only { "" } else { "#" };
@@ -145,30 +143,18 @@ impl Block {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(2)
                     .clamp(1, 6);
-                let text = escape_html(
-                    self.data
-                        .get("text")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                );
+                let text =
+                    escape_html(self.data.get("text").and_then(|v| v.as_str()).unwrap_or(""));
                 format!("<h{level} class=\"rf-heading tp-heading\">{text}</h{level}>")
             }
             BlockType::Paragraph => {
-                let text = escape_html(
-                    self.data
-                        .get("text")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                );
+                let text =
+                    escape_html(self.data.get("text").and_then(|v| v.as_str()).unwrap_or(""));
                 format!("<p class=\"rf-paragraph tp-paragraph\">{text}</p>")
             }
             BlockType::Quote => {
-                let text = escape_html(
-                    self.data
-                        .get("text")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                );
+                let text =
+                    escape_html(self.data.get("text").and_then(|v| v.as_str()).unwrap_or(""));
                 let author = escape_html(
                     self.data
                         .get("author")
@@ -183,12 +169,8 @@ impl Block {
                 format!("<blockquote class=\"rf-quote tp-quote\"><p>{text}</p>{cite}</blockquote>")
             }
             BlockType::Callout => {
-                let text = escape_html(
-                    self.data
-                        .get("text")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                );
+                let text =
+                    escape_html(self.data.get("text").and_then(|v| v.as_str()).unwrap_or(""));
                 let raw_variant = self
                     .data
                     .get("variant")
@@ -209,12 +191,8 @@ impl Block {
                 )
             }
             BlockType::Code => {
-                let code = escape_html(
-                    self.data
-                        .get("code")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                );
+                let code =
+                    escape_html(self.data.get("code").and_then(|v| v.as_str()).unwrap_or(""));
                 let lang = safe_identifier(
                     self.data
                         .get("language")
@@ -231,9 +209,7 @@ impl Block {
                     self.data.get("url").and_then(|v| v.as_str()).unwrap_or(""),
                     true,
                 ));
-                let alt = escape_html(
-                    self.data.get("alt").and_then(|v| v.as_str()).unwrap_or(""),
-                );
+                let alt = escape_html(self.data.get("alt").and_then(|v| v.as_str()).unwrap_or(""));
                 let caption = escape_html(
                     self.data
                         .get("caption")
@@ -345,10 +321,10 @@ impl Block {
                 let mut cols_html = String::new();
                 if let Some(cols) = inner {
                     for col in cols {
-                        let text = escape_html(
-                            col.get("text").and_then(|v| v.as_str()).unwrap_or(""),
-                        );
-                        cols_html.push_str(&format!("<div class=\"rf-column\"><p>{text}</p></div>"));
+                        let text =
+                            escape_html(col.get("text").and_then(|v| v.as_str()).unwrap_or(""));
+                        cols_html
+                            .push_str(&format!("<div class=\"rf-column\"><p>{text}</p></div>"));
                     }
                 }
                 format!("<div class=\"rf-columns tp-columns\">{cols_html}</div>")

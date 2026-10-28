@@ -14,10 +14,7 @@ use rustforge_core::{
     forms::{self, Form, FormInput, FormSubmission, SubmitFormPayload},
 };
 
-pub async fn list(
-    State(state): State<AppState>,
-    _auth: AuthUser,
-) -> ApiResult<Json<Vec<Form>>> {
+pub async fn list(State(state): State<AppState>, _auth: AuthUser) -> ApiResult<Json<Vec<Form>>> {
     let forms = forms::list_forms(&state.db).await?;
     Ok(Json(forms))
 }

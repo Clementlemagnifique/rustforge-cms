@@ -7,10 +7,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::ApiError,
-    state::AppState,
-};
+use crate::{error::ApiError, state::AppState};
 use rustforge_core::models::{Role, User};
 
 const JWT_EXPIRATION_MINUTES: i64 = 60 * 24; // 24h en dev
@@ -23,7 +20,11 @@ pub struct Claims {
     pub iat: usize,
 }
 
-pub fn create_token(user_id: Uuid, role: Role, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn create_token(
+    user_id: Uuid,
+    role: Role,
+    secret: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
     let exp = (now + Duration::minutes(JWT_EXPIRATION_MINUTES)).timestamp() as usize;
     let iat = now.timestamp() as usize;
@@ -35,13 +36,21 @@ pub fn create_token(user_id: Uuid, role: Role, secret: &str) -> Result<String, j
         iat,
     };
 
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
 }
 
 pub fn verify_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let mut validation = Validation::default();
     validation.validate_exp = true;
-    let data = decode::<Claims>(token, &DecodingKey::from_secret(secret.as_bytes()), &validation)?;
+    let data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &validation,
+    )?;
     Ok(data.claims)
 }
 
@@ -68,7 +77,8 @@ where
             .and_then(|val| val.strip_prefix("Bearer "))
             .ok_or(ApiError::Unauthorized)?;
 
-        let claims = verify_token(token, &app_state.jwt_secret).map_err(|_| ApiError::Unauthorized)?;
+        let claims =
+            verify_token(token, &app_state.jwt_secret).map_err(|_| ApiError::Unauthorized)?;
         let user = rustforge_core::users::get(&app_state.db, claims.sub)
             .await
             .map_err(|_| ApiError::Unauthorized)?;

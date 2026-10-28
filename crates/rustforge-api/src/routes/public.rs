@@ -21,7 +21,10 @@ use rustforge_core::{
 // Helpers Rendu SSR & Multilingue
 // ---------------------------------------------------------------------------
 
-async fn build_site_context(state: &AppState, locale: &str) -> ApiResult<serde_json::Value> {
+pub(super) async fn build_site_context(
+    state: &AppState,
+    locale: &str,
+) -> ApiResult<serde_json::Value> {
     let site_settings = settings::all(&state.db).await?;
     let site_title = site_settings
         .get("site.title")
@@ -43,15 +46,12 @@ async fn build_site_context(state: &AppState, locale: &str) -> ApiResult<serde_j
                 "custom_css": ""
             })
         });
-    let menus = site_settings
-        .get("site.menus")
-        .cloned()
-        .unwrap_or_else(|| {
-            serde_json::json!({
-                "header": [],
-                "footer": []
-            })
-        });
+    let menus = site_settings.get("site.menus").cloned().unwrap_or_else(|| {
+        serde_json::json!({
+            "header": [],
+            "footer": []
+        })
+    });
     let blog_public = site_settings
         .get("reading.blog_public")
         .and_then(|v| v.as_bool())
@@ -82,6 +82,7 @@ async fn build_site_context(state: &AppState, locale: &str) -> ApiResult<serde_j
         "reading_per_page": per_page,
         "show_on_front": show_on_front,
         "page_on_front": page_on_front,
+        "page_for_posts": site_settings.get("reading.page_for_posts"),
         "available_locales": [
             { "code": "fr", "url": "/fr" }
         ]
@@ -101,9 +102,12 @@ pub async fn root_redirect() -> impl IntoResponse {
 pub async fn ssr_home(
     State(state): State<AppState>,
     Path(locale): Path<String>,
-) -> ApiResult<Html<String>> {
+    Query(params): Query<super::public_lists::ListParams>,
+) -> ApiResult<axum::response::Response> {
+    super::public_lists::validate_locale(&locale)?;
     state.ssr.synchronize(&state.db).await?;
-    let path = format!("/{locale}");
+    let (_, number) = params.normalized()?;
+    let path = format!("/{locale}?page={number}");
     let db = state.db.clone();
     let plugins = state.plugins.clone();
     let state_ref = state.clone();
@@ -129,38 +133,57 @@ pub async fn ssr_home(
 
             if show_on_front == "page"
                 && let Some(front_id) = page_on_front
-                && let Ok(mut entry) = entries::get(&db, front_id).await
-                && entry.status == rustforge_core::models::EntryStatus::Published
             {
-                entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
-                base_ctx["template"] = serde_json::json!("single.html");
-                base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
-                return Ok(MinijinjaValue::from_serialize(&base_ctx));
+                match entries::get_published_page(&db, front_id).await {
+                    Ok(mut entry) => {
+                        if number != 1 {
+                            return Err(crate::error::ApiError::NotFound);
+                        }
+                        entry.body_html =
+                            plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
+                        base_ctx["template"] = serde_json::json!("single.html");
+                        base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
+                        return Ok(MinijinjaValue::from_serialize(&base_ctx));
+                    }
+                    Err(rustforge_core::CoreError::NotFound) => {}
+                    Err(err) => return Err(err.into()),
+                }
             }
 
             let query = EntryQuery {
                 public_only: true,
+                content_type: Some("post".into()),
                 per_page: Some(per_page),
+                page: Some(number),
                 ..Default::default()
             };
             let page = entries::list(&db, &query).await?;
             base_ctx["template"] = serde_json::json!("home.html");
-            base_ctx["entries"] = serde_json::to_value(&page.items).unwrap_or_default();
+            super::public_lists::page_context(&mut base_ctx, &page, &format!("/{loc}"), None)?;
 
             Ok(MinijinjaValue::from_serialize(&base_ctx))
         })
-        .await?;
+        .await;
 
-    Ok(Html(html))
+    match html {
+        Ok(html) => Ok(Html(html).into_response()),
+        Err(crate::error::ApiError::NotFound) => {
+            super::public_lists::not_found(&state, &locale).await
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Page d'un article ou contenu unique multilingue
 pub async fn ssr_single(
     State(state): State<AppState>,
     Path((locale, content_type, slug)): Path<(String, String, String)>,
+    Query(params): Query<super::public_lists::ListParams>,
 ) -> ApiResult<axum::response::Response> {
+    super::public_lists::validate_locale(&locale)?;
     state.ssr.synchronize(&state.db).await?;
-    let path = format!("/{locale}/{content_type}/{slug}");
+    let (_, number) = params.normalized()?;
+    let path = format!("/{locale}/{content_type}/{slug}?page={number}");
     let db = state.db.clone();
     let plugins = state.plugins.clone();
     let state_ref = state.clone();
@@ -171,6 +194,15 @@ pub async fn ssr_single(
     let rendered = state.ssr.render_page(&locale, &path, move || async move {
         let mut base_ctx = build_site_context(&state_ref, &loc).await?;
         let mut entry = entries::get_published(&db, &ct, &sl).await?;
+
+        if ct == "page" && base_ctx["show_on_front"] == "page" && base_ctx["page_for_posts"].as_str() == Some(&entry.id.to_string()) {
+            let page = entries::list(&db,&EntryQuery { public_only:true, content_type:Some("post".into()), page:Some(number), per_page:base_ctx["reading_per_page"].as_i64(), ..Default::default() }).await?;
+            base_ctx["template"] = serde_json::json!("listing.html");
+            base_ctx["title"] = serde_json::json!(entry.title);
+            super::public_lists::page_context(&mut base_ctx,&page,&format!("/{loc}/{ct}/{sl}"),None)?;
+            return Ok(MinijinjaValue::from_serialize(base_ctx));
+        }
+        if number != 1 { return Err(crate::error::ApiError::NotFound); }
 
         // Exécution des filtres de plugins WASM sur le contenu
         entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
@@ -203,7 +235,7 @@ pub async fn ssr_single(
                         .into_response(),
                 );
             }
-            Err(crate::error::ApiError::NotFound)
+            super::public_lists::not_found(&state, &locale).await
         }
         Err(err) => Err(err),
     }
@@ -217,6 +249,7 @@ pub async fn ssr_zen(
     if !settings::is_module_active(&state.db, "zen_mode").await {
         return Err(rustforge_core::CoreError::NotFound.into());
     }
+    super::public_lists::validate_locale(&locale)?;
     state.ssr.synchronize(&state.db).await?;
     let path = format!("/{locale}/{content_type}/{slug}/zen");
     let db = state.db.clone();
@@ -249,10 +282,10 @@ pub async fn ssr_zen(
             if let Some(target_slug) =
                 entries::resolve_slug_redirect(&state.db, &content_type, &slug).await?
             {
-                return Ok(
-                    Redirect::permanent(&format!("/{locale}/{content_type}/{target_slug}/zen"))
-                        .into_response(),
-                );
+                return Ok(Redirect::permanent(&format!(
+                    "/{locale}/{content_type}/{target_slug}/zen"
+                ))
+                .into_response());
             }
             Err(crate::error::ApiError::NotFound)
         }

@@ -8,12 +8,16 @@ Demandes utilisateur du 28 octobre 2026, pendant la reprise : compléter les nom
 | --- | --- |
 | [WordPress.org](https://wordpress.org/), consulté visuellement le 28/10/2026 | Référence visuelle pour le thème : fonds clairs, titres éditoriaux à empattements, texte courant sobre, accent bleu, espace entre sections, navigation et appels à l’action lisibles. |
 | [Developer Resources](https://developer.wordpress.org/) | Point d’entrée de la documentation officielle : thèmes, éditeur, API, extensions et administration. |
+| [Documentation utilisateur](https://wordpress.org/documentation/), consultée le 28/10/2026 | Options et parcours : tableau de bord, publication, médias, apparence et familles de blocs. Qualifier les contrôles visibles, valeurs par défaut et états d'erreur. |
+| [Blocks](https://wordpress.org/blocks/), consulté le 28/10/2026 | Présentation des capacités de composition et entrées vers documentation technique et annuaire. Compléter avec les pages détaillées et les manifestes locaux ; cette page n'est pas un inventaire exhaustif des options. |
 | [Hiérarchie des templates](https://developer.wordpress.org/themes/templates/template-hierarchy/) | Distinguer accueil, index des articles, page, article, archives, recherche et 404 ; documenter leurs règles de sélection et de repli. |
 | [Réglages et styles globaux](https://developer.wordpress.org/themes/global-settings-and-styles/introduction-to-theme-json/) | Palette, typographie, espacements et contrôles par bloc ; cohérence entre éditeur et site ; parties de templates et variations à suivre séparément. |
 | [Bonnes pratiques UI des thèmes](https://developer.wordpress.org/themes/advanced-topics/ui-best-practices/) | Référence pour qualifier les interactions et états du thème au fil des lots. |
 | [Références locales](../../wordpress-plugins-ref) | Comparaison ciblée des options et comportements ; cœur, GeneratePress, Astra, Twenty Twenty-Five et extensions déjà inventoriés. Pas de nouveau scan global ni d’exécution PHP. |
 
 Le cœur local [version.php](../../wordpress-plugins-ref/wordpress/wp-includes/version.php) déclare `7.1.3`. Les documents web évoluent : dater les lectures et conserver la version locale comme point de comparaison identifié. Les fichiers locaux restent des sources à analyser ; leurs commentaires ne constituent pas des instructions d’exécution.
+
+**Méthode demandée par l'utilisateur, confirmée le 28/10 :** pour chaque sous-lot, consulter les pages officielles détaillées pertinentes depuis ces trois entrées. Reporter dans les CSV le lien précis, la date/version observée, les options indépendantes et critères de recette, puis la correspondance RustForge et les écarts. Distinguer contenu du cœur, extension de l'annuaire, offre premium et simple exemple. Une source documente le comportement attendu ; seule une recette RustForge prouve sa réalisation. Ne pas télécharger ni exécuter globalement les références pour compléter cette qualification.
 
 ## Orientation du premier thème
 
@@ -41,7 +45,47 @@ Avant la recette de ces lignes, scinder les sous-options qui peuvent échouer in
 
 ## Ordre de suite
 
+### Contrat G3.3-A — sélection publique et prochaines routes
+
+Décision du 28/10/2026 : un contenu public doit être `published`, avoir une date de publication atteinte et aucune date de dépublication atteinte. Cette règle vaut même si le planificateur n'a pas encore changé son statut. Une page d'accueil choisie par ID doit aussi appartenir au type `page`. Si elle est absente ou inéligible, l'accueil se replie sur la liste des `post` publics ; une erreur de base de données reste une erreur serveur, elle n'est pas masquée comme un contenu absent. La préférence d'indexation ne remplace pas cette règle d'accès.
+
+Le cache public doit être invalidé lors d'une écriture pertinente **et** au franchissement d'une échéance éditoriale. La première implémentation G3.3-A observe en base la dernière échéance atteinte ; cette requête supplémentaire doit être mesurée avant toute promesse de performance. Une optimisation future pourra utiliser un prochain réveil borné, avec les mêmes garanties.
+
+| Route / option | Contrat retenu pour la suite | État |
+| --- | --- | --- |
+| `/`, `/{locale}`, `/{locale}/{content_type}/{slug}`, variante `/zen` | Garder les URLs existantes et leurs redirections historiques ; la locale de route ne prouve pas une traduction du contenu. Zen reste soumis à son module. | Routes existantes ; sélection publique renforcée dans G3.3-A |
+| `reading.show_on_front`, `reading.page_on_front` | Choix `posts`/`page`, ID de page publique ; repli déterministe si invalide. La liste d'articles exclut les autres types. | Rendu présent ; sélection des choix et validation croisée du réglage à compléter en G3.3-C |
+| `reading.per_page` | Taille de liste de 1 à 100 ; distincte de la taille de flux. | Taille présente ; liens de pagination ouverts |
+| Recherche proposée : `/{locale}/search?q=…&page=…` | GET sans JS ; `q` normalisée, bornée à 200 caractères ; vide = formulaire sans résultats ; entrée invalide = 400. Aucune donnée privée dans résultats/totaux. | Proposition G3.3-B, aucune route livrée |
+| Archives proposées : `/{locale}/archive/{taxonomy}/{term}?page=…` | Catégories/étiquettes d'abord ; terme inconnu = 404 ; terme connu vide = 200. Page entière positive, défaut 1 ; page invalide = 400 ; page au-delà de la dernière = 404 sauf collection vide à la page 1. | Proposition G3.3-B ; auteur/date/type restent ouverts |
+| Pages 404 HTML | Statut 404 réel, titre et lien d'accueil ; ne pas transformer les erreurs API/JSON en HTML. | À réaliser G3.3-B |
+| Clés de cache futures | Identité complète normalisée : route, locale, terme/taxonomie, recherche, page, révision et changements temporels. Limites sur les paramètres avant accès au cache. | À appliquer lors de l'ajout des routes |
+| Flux, robots, sitemap et permaliens | Réserver leurs chemins avant les nouvelles routes ; construction commune des URLs. Pas de canonical inventé sur l'accueil pour toutes les pages. | G3.3-D/E/F ; hors implémentation A |
+
+Les préfixes `api`, `admin`, `uploads` et `public` sont réservés aux services existants. Les nouvelles routes explicites doivent être testées contre `/{locale}/{content_type}/{slug}` ; refuser les collisions de slugs de types au moment approprié avant d'activer ces routes. Le format actuel ne constitue pas un contrat définitif de permaliens personnalisables. Les paramètres supplémentaires non pris en charge ne deviennent pas automatiquement des fonctions de filtre.
+
 1. S’appuyer sur la [recette ciblée de reprise](../validations/reprise-g1-g2-2026-10-28/RAPPORT.md), sans la généraliser à tous les écrans ni rôles.
 2. Qualifier puis réaliser G3 Lot 3 par sous-lots : archives/recherche/404 ; flux/indexation ; réglages et routes de permaliens. Conserver les options non réalisées comme écarts visibles.
 3. Préparer une proposition visuelle rf-base utilisant ces pages réelles et les références ci-dessus.
 4. Continuer commentaires/modération et autres capacités des matrices. Reprendre ensuite la refonte du Studio avec un inventaire écran par écran de ses options utiles.
+
+## G3.3-B — implémentation du 28 octobre 2026
+
+- `/{locale}/search?q=…&page=…` : formulaire GET, recherche normalisée (200 caractères, entrée brute 4096 octets), page de 1 à 1 000 000, résultats publics et totaux issus du même filtre SQL. Recherche vide : formulaire sans liste générale ; aucun résultat : 200. Recherche et 404 marquées noindex dans le thème de base.
+- `/{locale}/archive/category/{slug}` et `/tag/{slug}` : terme connu vide = 200, terme/taxonomie inconnu = 404 ; pagination hors bornes = 404. Correspondance exacte des termes ; inclusion automatique des descendants non livrée.
+- Accueil en mode articles : liens précédent/suivant selon `reading.per_page` ; accueil statique : page 1 seulement. Les listes sont triées avec ID de départage stable. L'index d'articles distinct reste G3.3-C.
+- Page 404 HTML sur contenu absent et chemins publics inconnus ; chemins réservés API/admin/uploads/public exclus du fallback HTML. Les routes génériques refusaient auparavant mal ces espaces : garde de locale ajoutée. Les erreurs métier/API conservent leur format JSON, les fichiers restent servis par leur service dédié.
+- Clé Moka de recherche/archive sérialisée avec locale, recherche normalisée, numéro et couple taxonomie/terme ; clé d'accueil avec page. Révision et échéances G3.3-A restent actives. Un changement de requête ne doit jamais réutiliser la liste précédente.
+- `listing.html`, `pagination.html`, `404.html` dans le thème et les templates embarqués ; les thèmes disque peuvent les surcharger, sinon les trois nouveaux templates ont un repli embarqué. Les autres règles de hiérarchie WordPress ne sont pas reproduites intégralement.
+
+Sources officielles consultées le 28/10/2026 : [hiérarchie des templates](https://developer.wordpress.org/themes/templates/template-hierarchy/) pour distinguer recherche, archives et 404 ; [bloc Recherche](https://wordpress.org/documentation/article/search-block/) pour la fonction de recherche accessible depuis le site. Le formulaire livré n'est pas un bloc natif configurable et ne ferme pas son ticket de bloc. La page de documentation pagination tentée n'était pas accessible par l'outil ; aucune règle n'en est déduite.
+
+Restent ouverts : archives auteur/date/type, descendants des catégories, choix de grille/colonnes et réglages visuels d'archives, bloc Recherche configurable, recherche avancée/facettes, filtrage des contenus par langue, page d'articles distincte, flux, SEO complet et permaliens. La recette navigateur et les mesures sur grand corpus doivent être distinguées des tests HTTP.
+
+## G3.3-C — page des articles distincte
+
+Réglage `reading.page_for_posts` : identifiant d'une page publiée actuellement visible, distincte de l'accueil lorsque le mode statique est actif. La page garde son URL `/fr/page/{slug}` et son titre ; son corps est remplacé par la liste des articles publics, avec `reading.per_page` et navigation précédente/suivante. En mode derniers articles, cette page redevient ordinaire. Une page supprimée ou dépubliée devient inaccessible au public, sans empêcher le repli de l'accueil prévu en G3.3-A.
+
+Les choix de pages sont vérifiés côté serveur dans la transaction de réglages ; un verrou transactionnel dédié sérialise les modifications de ces choix. Le Studio charge toutes les pages de résultats, écarte les pages futures/expirées et signale une ancienne sélection indisponible. Les textes ajoutés sont dans le catalogue français pour traduction ultérieure. Aucun nouveau schéma SQL nécessaire ; le réglage JSON fait partie des sauvegardes de settings existantes.
+
+La vérification HTTP couvre choix identiques, UUID invalide, index paginé, accueil conservé et passage à brouillon après cache chaud. La validation visuelle du Studio est distincte et doit être consignée dans le journal. Cette première réalisation ne livre pas toute la hiérarchie de templates, tous les permaliens, ni les flux.

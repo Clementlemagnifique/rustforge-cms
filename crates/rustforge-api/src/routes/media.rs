@@ -1,4 +1,3 @@
-
 use axum::{
     Json,
     extract::{Multipart, Path, Query, State},
@@ -76,28 +75,35 @@ pub async fn upload(
         return Err(ApiError::Forbidden);
     }
 
-    let folder_id = params.get("folder_id").and_then(|id| Uuid::parse_str(id).ok());
+    let folder_id = params
+        .get("folder_id")
+        .and_then(|id| Uuid::parse_str(id).ok());
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?
+    {
         let name = field.name().unwrap_or_default().to_string();
         if name != "file" {
             continue;
         }
 
-        let original_name = field
-            .file_name()
-            .unwrap_or("fichier")
-            .to_string();
+        let original_name = field.file_name().unwrap_or("fichier").to_string();
 
         let raw_mime = field
             .content_type()
             .unwrap_or("application/octet-stream")
             .to_string();
 
-        let raw_bytes = field.bytes().await.map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        let raw_bytes = field
+            .bytes()
+            .await
+            .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
         // Exécution du pipeline de traitement Rust (WebP + Sanitization SVG)
-        let processed = media_processor::process_upload(&raw_bytes, &original_name, &raw_mime).await?;
+        let processed =
+            media_processor::process_upload(&raw_bytes, &original_name, &raw_mime).await?;
 
         let now = Utc::now();
         let sub_dir = format!("{}/{:02}", now.format("%Y"), now.format("%m"));

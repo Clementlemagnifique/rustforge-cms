@@ -18,17 +18,27 @@ fn default_per_page() -> i64 {
 
 impl Default for PageParams {
     fn default() -> Self {
-        Self { page: 1, per_page: 20 }
+        Self {
+            page: 1,
+            per_page: 20,
+        }
     }
 }
 
 impl PageParams {
     pub fn new(page: Option<i64>, per_page: Option<i64>) -> Self {
-        Self { page: page.unwrap_or(1), per_page: per_page.unwrap_or(20) }.normalized()
+        Self {
+            page: page.unwrap_or(1),
+            per_page: per_page.unwrap_or(20),
+        }
+        .normalized()
     }
 
     pub fn normalized(self) -> Self {
-        Self { page: self.page.max(1), per_page: self.per_page.clamp(1, 100) }
+        Self {
+            page: self.page.max(1),
+            per_page: self.per_page.clamp(1, 100),
+        }
     }
 
     pub fn limit(&self) -> i64 {
@@ -52,8 +62,18 @@ pub struct Page<T> {
 
 impl<T> Page<T> {
     pub fn new(items: Vec<T>, total: i64, params: PageParams) -> Self {
-        let total_pages = if total == 0 { 0 } else { (total + params.per_page - 1) / params.per_page };
-        Self { items, total, page: params.page, per_page: params.per_page, total_pages }
+        let total_pages = if total == 0 {
+            0
+        } else {
+            (total + params.per_page - 1) / params.per_page
+        };
+        Self {
+            items,
+            total,
+            page: params.page,
+            per_page: params.per_page,
+            total_pages,
+        }
     }
 
     pub fn map<U>(self, f: impl FnMut(T) -> U) -> Page<U> {
@@ -73,10 +93,22 @@ mod tests {
 
     #[test]
     fn pagination_math() {
-        let p = PageParams { page: 3, per_page: 10 }.normalized();
+        let p = PageParams {
+            page: 3,
+            per_page: 10,
+        }
+        .normalized();
         assert_eq!(p.offset(), 20);
         let page = Page::new(vec![1, 2], 21, p);
         assert_eq!(page.total_pages, 3);
-        assert_eq!(PageParams { page: 0, per_page: 1000 }.normalized().per_page, 100);
+        assert_eq!(
+            PageParams {
+                page: 0,
+                per_page: 1000
+            }
+            .normalized()
+            .per_page,
+            100
+        );
     }
 }

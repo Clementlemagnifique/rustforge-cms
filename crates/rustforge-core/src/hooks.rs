@@ -17,7 +17,12 @@ pub mod names {
     /// Action — une entrée a été supprimée définitivement. Payload : JSON `{id}`.
     pub const ENTRY_DELETED: &str = "entry.deleted";
 
-    pub const ALL: &[&str] = &[CONTENT_RENDER, ENTRY_BEFORE_SAVE, ENTRY_PUBLISHED, ENTRY_DELETED];
+    pub const ALL: &[&str] = &[
+        CONTENT_RENDER,
+        ENTRY_BEFORE_SAVE,
+        ENTRY_PUBLISHED,
+        ENTRY_DELETED,
+    ];
 }
 
 #[async_trait]

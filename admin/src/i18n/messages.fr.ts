@@ -256,6 +256,11 @@ export const usersMessages = {
 } as const;
 
 export const settingsMessages = {
+  unavailablePage: 'Page sélectionnée indisponible : choisir une autre page',
+  postsPage: 'Page des articles (distincte de l’accueil)',
+  noPostsPage: '— Aucune page des articles —',
+  postsPageHint: 'Le contenu de cette page est remplacé par la liste paginée des articles.',
+
   title: 'Réglages du site (Général, Lecture & Écriture)',
   subtitle:
     'Configurez l’identité du site, la page d’accueil, la pagination publique, l’indexation SEO et les options par défaut d’inscription et de rédaction.',

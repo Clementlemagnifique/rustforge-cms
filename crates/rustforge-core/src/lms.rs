@@ -126,7 +126,8 @@ pub async fn get_course_by_slug(db: &PgPool, slug: &str) -> CoreResult<Course> {
 }
 
 pub async fn create_course(db: &PgPool, input: CourseInput) -> CoreResult<Course> {
-    let slug = input.slug
+    let slug = input
+        .slug
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| slugify(&input.title));
     let desc = input.description.unwrap_or_default();
@@ -158,7 +159,8 @@ pub async fn create_course(db: &PgPool, input: CourseInput) -> CoreResult<Course
 
 pub async fn update_course(db: &PgPool, id: Uuid, input: CourseInput) -> CoreResult<Course> {
     let current = get_course(db, id).await?;
-    let slug = input.slug
+    let slug = input
+        .slug
         .filter(|s| !s.trim().is_empty())
         .unwrap_or(current.slug);
     let desc = input.description.unwrap_or(current.description);
@@ -176,7 +178,7 @@ pub async fn update_course(db: &PgPool, id: Uuid, input: CourseInput) -> CoreRes
             product_id = $9, updated_at = now()
         WHERE id = $1
         RETURNING *
-        "#
+        "#,
     )
     .bind(id)
     .bind(input.title)
@@ -207,14 +209,18 @@ pub async fn delete_course(db: &PgPool, id: Uuid) -> CoreResult<()> {
 
 pub async fn list_course_modules(db: &PgPool, course_id: Uuid) -> CoreResult<Vec<CourseModule>> {
     Ok(sqlx::query_as::<_, CourseModule>(
-        "SELECT * FROM lms_modules WHERE course_id = $1 ORDER BY sort_order ASC, created_at ASC"
+        "SELECT * FROM lms_modules WHERE course_id = $1 ORDER BY sort_order ASC, created_at ASC",
     )
     .bind(course_id)
     .fetch_all(db)
     .await?)
 }
 
-pub async fn create_module(db: &PgPool, course_id: Uuid, input: ModuleInput) -> CoreResult<CourseModule> {
+pub async fn create_module(
+    db: &PgPool,
+    course_id: Uuid,
+    input: ModuleInput,
+) -> CoreResult<CourseModule> {
     let desc = input.description.unwrap_or_default();
     let sort = input.sort_order.unwrap_or(0);
 
@@ -223,7 +229,7 @@ pub async fn create_module(db: &PgPool, course_id: Uuid, input: ModuleInput) -> 
         INSERT INTO lms_modules (course_id, title, description, sort_order)
         VALUES ($1, $2, $3, $4)
         RETURNING *
-        "#
+        "#,
     )
     .bind(course_id)
     .bind(input.title)
@@ -237,7 +243,7 @@ pub async fn create_module(db: &PgPool, course_id: Uuid, input: ModuleInput) -> 
 
 pub async fn list_course_lessons(db: &PgPool, course_id: Uuid) -> CoreResult<Vec<Lesson>> {
     Ok(sqlx::query_as::<_, Lesson>(
-        "SELECT * FROM lms_lessons WHERE course_id = $1 ORDER BY sort_order ASC, created_at ASC"
+        "SELECT * FROM lms_lessons WHERE course_id = $1 ORDER BY sort_order ASC, created_at ASC",
     )
     .bind(course_id)
     .fetch_all(db)
@@ -245,7 +251,8 @@ pub async fn list_course_lessons(db: &PgPool, course_id: Uuid) -> CoreResult<Vec
 }
 
 pub async fn create_lesson(db: &PgPool, course_id: Uuid, input: LessonInput) -> CoreResult<Lesson> {
-    let slug = input.slug
+    let slug = input
+        .slug
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| slugify(&input.title));
     let content = input.content.unwrap_or_default();
@@ -286,7 +293,7 @@ pub async fn enroll_user(db: &PgPool, course_id: Uuid, user_id: Uuid) -> CoreRes
         VALUES ($1, $2, 0)
         ON CONFLICT (course_id, user_id) DO UPDATE SET progress_pct = lms_enrollments.progress_pct
         RETURNING *
-        "#
+        "#,
     )
     .bind(course_id)
     .bind(user_id)
@@ -298,7 +305,7 @@ pub async fn enroll_user(db: &PgPool, course_id: Uuid, user_id: Uuid) -> CoreRes
 
 pub async fn is_user_enrolled(db: &PgPool, course_id: Uuid, user_id: Uuid) -> CoreResult<bool> {
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM lms_enrollments WHERE course_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM lms_enrollments WHERE course_id = $1 AND user_id = $2)",
     )
     .bind(course_id)
     .bind(user_id)
@@ -315,23 +322,32 @@ pub async fn get_user_enrollments(db: &PgPool, user_id: Uuid) -> CoreResult<Vec<
         JOIN lms_enrollments e ON e.course_id = c.id
         WHERE e.user_id = $1
         ORDER BY e.created_at DESC
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_all(db)
     .await?)
 }
 
-pub async fn update_progress(db: &PgPool, course_id: Uuid, user_id: Uuid, progress_pct: i32) -> CoreResult<()> {
+pub async fn update_progress(
+    db: &PgPool,
+    course_id: Uuid,
+    user_id: Uuid,
+    progress_pct: i32,
+) -> CoreResult<()> {
     let progress = progress_pct.clamp(0, 100);
-    let completed = if progress >= 100 { Some(Utc::now()) } else { None };
+    let completed = if progress >= 100 {
+        Some(Utc::now())
+    } else {
+        None
+    };
 
     sqlx::query(
         r#"
         UPDATE lms_enrollments
         SET progress_pct = $3, completed_at = COALESCE($4, completed_at)
         WHERE course_id = $1 AND user_id = $2
-        "#
+        "#,
     )
     .bind(course_id)
     .bind(user_id)

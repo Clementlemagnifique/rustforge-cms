@@ -34,8 +34,12 @@ impl From<sqlx::Error> for CoreError {
             sqlx::Error::Database(db) => match db.code().as_deref() {
                 // unique_violation
                 Some("23505") => CoreError::Conflict(match db.constraint() {
-                    Some(c) if c.contains("email") => "cette adresse e-mail est déjà utilisée".into(),
-                    Some(c) if c.contains("username") => "ce nom d'utilisateur est déjà pris".into(),
+                    Some(c) if c.contains("email") => {
+                        "cette adresse e-mail est déjà utilisée".into()
+                    }
+                    Some(c) if c.contains("username") => {
+                        "ce nom d'utilisateur est déjà pris".into()
+                    }
                     Some(c) if c.contains("slug") => "ce slug est déjà utilisé".into(),
                     _ => "cette ressource existe déjà".into(),
                 }),

@@ -60,6 +60,14 @@ Le RFIR reste le pivot. Un export éditorial n’est pas une sauvegarde complèt
 
 ## Actions IA et absence de perte silencieuse
 
+### Navigation publique et navigation du Studio
+
+Les menus publics (`WP-46`, `TH-15/17`, `MOD-NAV-01`) restent rendus par Rust/MiniJinja. Avant toute extension, versionner le modèle et migrer les liens plats `site.menus.header/footer` sans perte. Prévoir IDs stables, références de contenus, emplacements du thème, limites serveur de taille/profondeur, interdiction des cycles, sauvegarde atomique et export/restauration. Invalider Moka lors de changements de menu, de cible, de thème et de module. Les éléments personnalisés par session ne doivent pas entrer dans un cache public commun. Une désactivation ou une cible supprimée doit être signalée et conserver la configuration récupérable.
+
+Le registre de navigation du Studio conserve ses capacités et ses routes ; ses préférences de présentation ne peuvent pas modifier les autorisations serveur. Les schémas public et admin restent distincts, même si un composant d'arbre est partagé. Détails et recettes : [Adminify et QuadMenu](12_REFERENCE_ADMINIFY_STUDIO.md), lots NAV-A à E. Contrat cible, non livré par cet audit.
+
+### Outils IA
+
 Déclarer entrées/sorties, effets, permissions, préconditions, coût, idempotence et compensation pour chaque outil. Les plans existants sont le point de départ. Refuser les réponses invalides, les références introuvables, les actions devenues obsolètes et toute instruction issue du contenu qui dépasse les droits de l’utilisateur.
 
 Une action de masse affiche un diff et les éléments ignorés. Une action irréversible appelle une validation proportionnée. La génération de Rust/WASM reste une phase séparée : revue, compilation, tests, quotas et permissions avant installation; ni REA, ni un AST hypothétique, ni un prompt ne prouvent la fidélité d’une conversion.

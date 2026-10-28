@@ -217,6 +217,17 @@
         "License": "GPL v2 or later",
         "Requires at least": "5.5"
       }
+    },
+    {
+      "kind": "module",
+      "slug": "adminify",
+      "path": "wordpress-plugins-ref/plugins-ref/adminify/adminify.php",
+      "headers": {
+        "Plugin Name": "Adminify – White Label, Admin Menu Editor, Login Customizer",
+        "Version": "4.3.3",
+        "License": "GPLv3 or later"
+      },
+      "coverage": "Lecture ciblée partielle des cinq fichiers listés dans incremental_reviews; candidats lexicaux non rescannés."
     }
   ],
   "scan": "Statique ciblé; menus/options/blocs et PHP propriétaire des thèmes/extensions, sans exécution.",
@@ -15771,7 +15782,12 @@
     "wordpress-plugins-ref/plugins-ref/wpforms-lite/vendor_prefixed/true/punycode/src/Exception/LabelOutOfBoundsException.php": "c9009d6a9d0f3195af81c7b5c92e8a3a889e6bc667e76f4ff09d35079c660799",
     "wordpress-plugins-ref/plugins-ref/wpforms-lite/vendor_prefixed/true/punycode/src/Exception/OutOfBoundsException.php": "52c06623376a0d54a3d5d4cb632e19f35091365fbc0a6dbb9df2d2c424fdb5ad",
     "wordpress-plugins-ref/plugins-ref/wpforms-lite/readme.txt": "e20912f644ef5b025258f38e087c8a6ed6c074e94a5598dc40177fcef070f09a",
-    "wordpress-plugins-ref/wordpress/wp-includes/version.php": "ca7ffa8bd6bfb717b5ab87cef133c12c3cfd187a028b8303e7fcbf1b06157bff"
+    "wordpress-plugins-ref/wordpress/wp-includes/version.php": "ca7ffa8bd6bfb717b5ab87cef133c12c3cfd187a028b8303e7fcbf1b06157bff",
+    "wordpress-plugins-ref/plugins-ref/adminify/adminify.php": "b9444a1d2ef1fac08e73a3de586322810cb68ffd86603e6da2a7c81f74945bf7",
+    "wordpress-plugins-ref/plugins-ref/adminify/readme.txt": "32ade1b1a8289a15c7342633d911ed1e7e228b777cc45b953ba1371eb5180b65",
+    "wordpress-plugins-ref/plugins-ref/adminify/Inc/Admin/AdminSettings.php": "f2c2485b0467d920b2d99b611d97427f776a75e3312af9b54bbb635049df0526",
+    "wordpress-plugins-ref/plugins-ref/adminify/Inc/Modules/MenuEditor/MenuEditor.php": "63a7aee72b4f1d92c6ee90f68165ce1f74ca9a899ff8af495c249cb3910e5015",
+    "wordpress-plugins-ref/plugins-ref/adminify/Inc/Modules/MenuEditor/MenuEditorOptions.php": "c38f795144587f9b1b2928abc224eb9f154fd4586d66ec4180b781956723c065"
   },
   "blocks": [
     {
@@ -23717,5 +23733,19 @@
     "coeur": 1848,
     "theme": 4283,
     "module": 10164
-  }
+  },
+  "incremental_reviews": [
+    {
+      "origin": "adminify",
+      "date": "2026-10-28",
+      "files": [
+        "adminify.php",
+        "readme.txt",
+        "Inc/Admin/AdminSettings.php",
+        "Inc/Modules/MenuEditor/MenuEditor.php",
+        "Inc/Modules/MenuEditor/MenuEditorOptions.php"
+      ],
+      "mode": "En-têtes et portions ciblées; empreintes des fichiers complets; sans exécution ni scan lexical. Les counts et registre_sources restent le socle antérieur."
+    }
+  ]
 }

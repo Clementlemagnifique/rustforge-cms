@@ -365,11 +365,18 @@ impl DataMorphImporter {
                 fields_map.insert("wp_tags".to_string(), tag_val);
             }
 
-            fields_map.entry("_source_publication".to_string()).or_insert_with(||serde_json::json!({"status":entry.status,"published_at":entry.published_at}));
+            fields_map
+                .entry("_source_publication".to_string())
+                .or_insert_with(
+                    || serde_json::json!({"status":entry.status,"published_at":entry.published_at}),
+                );
             let fields_json = serde_json::Value::Object(fields_map);
             let excerpt_str = entry.excerpt.as_deref().unwrap_or("");
-            let blocks = doc.metadata.get(&format!("entry_blocks:{}", entry.source_id))
-                .cloned().unwrap_or_else(|| serde_json::json!([]));
+            let blocks = doc
+                .metadata
+                .get(&format!("entry_blocks:{}", entry.source_id))
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!([]));
 
             // Transmutation souveraine des blocs : <!-- wp:* --> -> <!-- rf:* -->
             let clean_raw_content = entry

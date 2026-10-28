@@ -11,10 +11,7 @@ use crate::{
 };
 use rustforge_core::galleries::{self, Gallery, GalleryInput, GalleryItem, GalleryItemInput};
 
-pub async fn list(
-    State(state): State<AppState>,
-    _auth: AuthUser,
-) -> ApiResult<Json<Vec<Gallery>>> {
+pub async fn list(State(state): State<AppState>, _auth: AuthUser) -> ApiResult<Json<Vec<Gallery>>> {
     let galleries = galleries::list_galleries(&state.db).await?;
     Ok(Json(galleries))
 }

@@ -149,7 +149,8 @@ pub async fn list(
 ) -> CoreResult<Page<User>> {
     let params = params.normalized();
     let pattern = search.map(|s| format!("%{}%", s.trim()));
-    let filter = "($1::text IS NULL OR email ILIKE $1 OR username ILIKE $1 OR display_name ILIKE $1)
+    let filter =
+        "($1::text IS NULL OR email ILIKE $1 OR username ILIKE $1 OR display_name ILIKE $1)
                   AND ($2::user_role IS NULL OR role = $2)";
     let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM users WHERE {filter}"))
         .bind(&pattern)

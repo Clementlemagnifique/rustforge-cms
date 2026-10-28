@@ -14,7 +14,8 @@ use crate::{
     models::{Taxonomy, Term},
 };
 
-const TERM_SELECT: &str = "SELECT t.id, t.taxonomy_id, tx.slug AS taxonomy, t.parent_id, t.name, t.slug,
+const TERM_SELECT: &str =
+    "SELECT t.id, t.taxonomy_id, tx.slug AS taxonomy, t.parent_id, t.name, t.slug,
         t.description, t.created_at,
         (SELECT count(*) FROM entry_terms et JOIN entries e ON e.id = et.entry_id
           WHERE et.term_id = t.id AND e.status <> 'trash') AS entry_count
@@ -127,7 +128,9 @@ async fn validate_term_parent_hierarchy(
                 .fetch_optional(db)
                 .await?;
         let Some((parent_taxonomy_id, next_parent)) = row else {
-            return Err(CoreError::validation("le terme parent sélectionné est introuvable"));
+            return Err(CoreError::validation(
+                "le terme parent sélectionné est introuvable",
+            ));
         };
         if parent_taxonomy_id != taxonomy_id {
             return Err(CoreError::validation(
@@ -169,7 +172,13 @@ pub async fn create_term(db: &PgPool, input: TermInput) -> CoreResult<Term> {
         validate_term_parent_hierarchy(db, None, taxonomy_id, hierarchical, input.parent_id)
             .await?;
 
-    let slug = crate::slugify(input.slug.as_deref().filter(|s| !s.is_empty()).unwrap_or(name));
+    let slug = crate::slugify(
+        input
+            .slug
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(name),
+    );
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO terms (taxonomy_id, parent_id, name, slug, description) VALUES ($1, $2, $3, $4, $5) RETURNING id",
     )

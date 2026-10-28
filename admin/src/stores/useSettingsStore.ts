@@ -49,9 +49,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         api.entries.list({ content_type: 'page', status: 'published', per_page: 100 }),
         api.terms.list('category'),
       ]);
+      const allPages = [...pagesRes.items];
+      for (let page = 2; page <= pagesRes.total_pages; page += 1) {
+        const next = await api.entries.list({ content_type: 'page', status: 'published', per_page: 100, page });
+        allPages.push(...next.items);
+      }
+      const now = Date.now();
       set({
         settings,
-        pages: pagesRes.items,
+        pages: allPages.filter((p) => p.published_at && new Date(p.published_at).getTime() <= now
+          && (!p.scheduled_unpublish_at || new Date(p.scheduled_unpublish_at).getTime() > now)),
         categories,
         loading: false,
       });

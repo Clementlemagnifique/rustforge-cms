@@ -1,10 +1,10 @@
-# RustForge CMS — Modules — 17 références locales et une référence web
+# RustForge CMS — Modules — 18 références locales et deux références web
 
 > Vue générée depuis le CSV homonyme. Modifier le CSV puis lancer `python scripts/pilotage.py`. Une ligne À FAIRE ne devient pas livrée parce que du code similaire existe.
 
 [Plan directeur](00_PLAN_DIRECTEUR.md) · [Existant](07_ETAT_EXISTANT.md) · [Contrats](04_CONTRATS_TRANSVERSES.md) · [CSV complet](03_MODULES.csv)
 
-154 tâches. Les critères ci-dessous complètent la définition de terminé du plan directeur. Le CSV contient aussi les dépendances, preuves sources, phases, cibles et champs de validation. Les références premium ou externes sont signalées dans l’arbitrage; elles ne sont pas présumées présentes.
+156 tâches. Les critères ci-dessous complètent la définition de terminé du plan directeur. Le CSV contient aussi les dépendances, preuves sources, phases, cibles et champs de validation. Les références premium ou externes sont signalées dans l’arbitrage; elles ne sont pas présumées présentes.
 
 Les liens de sources pointent vers le dossier local ignoré par Git. Les empreintes sont conservées dans `inventaire_references.json`. Les candidats lexicaux à qualifier figurent dans `registre_sources.csv`.
 
@@ -251,3 +251,15 @@ Les liens de sources pointent vers le dossier local ignoré par Git. Les emprein
 | <a id="mod-auto-04"></a>MOD-AUTO-04 / G5 | Variables et résultats typés<br>[Référence web](https://automatorwp.com/) | rf.automation · Retenir la logique; composer événements/jobs/capacités existants · Off; futur module | [EX-34](07_ETAT_EXISTANT.md#ex-34), [EX-12](07_ETAT_EXISTANT.md#ex-12), [EX-26](07_ETAT_EXISTANT.md#ex-26) : Structures et contrats partiels; référence web analysée, aucun paquet local ajouté | Données référencées par clés stables, validation des entrées/sorties et masquage des secrets; aucune dépendance aux libellés traduits. | A_FAIRE |
 | <a id="mod-auto-05"></a>MOD-AUTO-05 / G5 | Historique, simulation et diagnostic<br>[Référence web](https://automatorwp.com/) | rf.automation · Retenir la logique; composer événements/jobs/capacités existants · Off; futur module | [EX-34](07_ETAT_EXISTANT.md#ex-34), [EX-12](07_ETAT_EXISTANT.md#ex-12), [EX-26](07_ETAT_EXISTANT.md#ex-26) : Structures et contrats partiels; référence web analysée, aucun paquet local ajouté | Simuler sans effets, inspecter les étapes, expliquer un refus, rejouer selon droits sans doubler une commande ou un email. | A_FAIRE |
 | <a id="mod-auto-06"></a>MOD-AUTO-06 / G5 | Connecteurs et activation<br>[Référence web](https://automatorwp.com/) | rf.automation · Retenir la logique; composer événements/jobs/capacités existants · Off; futur module | [EX-34](07_ETAT_EXISTANT.md#ex-34), [EX-12](07_ETAT_EXISTANT.md#ex-12), [EX-26](07_ETAT_EXISTANT.md#ex-26) : Structures et contrats partiels; référence web analysée, aucun paquet local ajouté | Webhooks signés, destinations bornées, secrets masqués; modules inactifs non invocables; gratuit/Pro/externe qualifié séparément. | A_FAIRE |
+
+## Personnalisation du Studio
+
+| ID / phase | Fonction et options | Cible / arbitrage | Existant | Recette attendue | État |
+| --- | --- | --- | --- | --- | --- |
+| <a id="mod-adm-01"></a>MOD-ADM-01 / G3 | Qualifier Adminify Lite et mutualiser les options<br>[adminify.php:1](../../wordpress-plugins-ref/plugins-ref/adminify/adminify.php#L1) | rf.admin.preferences · Composer les capacités natives; référence fonctionnelle, aucun portage PHP · Socle natif; options avancées volontaires | [EX-01](07_ETAT_EXISTANT.md#ex-01) : Audit ciblé documenté; fonctionnalités avancées non livrées | Qualifier Free/Pro par option; répartir menus, styles, médias et duplication dans les services existants; export/reset des préférences et droits serveur vérifiés. | A_FAIRE |
+
+## Navigation publique avancée
+
+| ID / phase | Fonction et options | Cible / arbitrage | Existant | Recette attendue | État |
+| --- | --- | --- | --- | --- | --- |
+| <a id="mod-nav-01"></a>MOD-NAV-01 / G3 | Qualifier et composer les menus enrichis<br>[Référence web](https://quadmenu.com/documentation/) | rf.theme.navigation · Composer les capacités natives; référence fonctionnelle, aucun portage PHP · Socle natif; options avancées volontaires | [EX-36](07_ETAT_EXISTANT.md#ex-36) : Audit ciblé documenté; fonctionnalités avancées non livrées | Exécuter NAV-A à E dans 12_REFERENCE_ADMINIFY_STUDIO.md; migration des menus plats, SSR accessible, colonnes et modules sans perte; qualifier Free/Pro et budgets. | A_FAIRE |

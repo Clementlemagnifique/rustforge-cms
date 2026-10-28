@@ -35,6 +35,7 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "site.menus",
         "reading.show_on_front",
         "reading.page_on_front",
+        "reading.page_for_posts",
         "reading.per_page",
         "reading.blog_public",
     ];
@@ -202,7 +203,10 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         let valid = !trimmed.is_empty()
             && trimmed.len() <= 254
             && trimmed.split_once('@').is_some_and(|(local, domain)| {
-                !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+                !local.is_empty()
+                    && domain.contains('.')
+                    && !domain.starts_with('.')
+                    && !domain.ends_with('.')
             });
         if !valid {
             return Err(CoreError::validation(
@@ -227,6 +231,55 @@ pub async fn update(
         validate_setting_value(k, v)?;
     }
     let mut tx = db.begin().await?;
+    if values.keys().any(|k| {
+        matches!(
+            k.as_str(),
+            "reading.show_on_front" | "reading.page_on_front" | "reading.page_for_posts"
+        )
+    }) {
+        sqlx::query("SELECT pg_advisory_xact_lock(72430651)")
+            .execute(&mut *tx)
+            .await?;
+        let rows: Vec<(String, Value)> =
+            sqlx::query_as("SELECT key,value FROM settings WHERE key LIKE 'reading.%'")
+                .fetch_all(&mut *tx)
+                .await?;
+        let mut merged: BTreeMap<String, Value> = rows.into_iter().collect();
+        merged.extend(values.clone());
+        let mut selected = Vec::new();
+        for key in ["reading.page_on_front", "reading.page_for_posts"] {
+            let value = merged.get(key).unwrap_or(&Value::Null);
+            if value.is_null() || value.as_str() == Some("") {
+                selected.push(None);
+                continue;
+            }
+            let id = value
+                .as_str()
+                .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                .ok_or_else(|| {
+                    CoreError::validation(
+                        "La page choisie doit être un identifiant de page valide.",
+                    )
+                })?;
+            let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM entries e JOIN content_types ct ON ct.id=e.content_type_id WHERE e.id=$1 AND ct.slug='page' AND e.status='published' AND e.published_at<=now() AND (e.scheduled_unpublish_at IS NULL OR e.scheduled_unpublish_at>now()))").bind(id).fetch_one(&mut *tx).await?;
+            if !valid {
+                return Err(CoreError::validation(
+                    "Choisissez une page publiée et actuellement visible.",
+                ));
+            }
+            selected.push(Some(id));
+        }
+        if merged.get("reading.show_on_front").and_then(Value::as_str) == Some("page") {
+            if selected[0].is_none() {
+                return Err(CoreError::validation("Choisissez une page d’accueil."));
+            }
+            if selected[0] == selected[1] {
+                return Err(CoreError::validation(
+                    "L’accueil et la page des articles doivent être distincts.",
+                ));
+            }
+        }
+    }
     for (key, value) in values {
         if value.is_null() {
             sqlx::query("DELETE FROM settings WHERE key = $1")
