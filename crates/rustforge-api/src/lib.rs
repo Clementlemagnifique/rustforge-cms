@@ -225,6 +225,13 @@ pub fn build_router(state: AppState) -> Router {
             get(routes::ecommerce::list_discounts).post(routes::ecommerce::create_discount),
 
         )
+        .route(
+
+            "/discounts/{id}",
+
+            delete(routes::ecommerce::delete_discount),
+
+        )
         .route("/orders", get(routes::ecommerce::list_orders))
         .route("/orders/{id}", get(routes::ecommerce::get_order))
         .route(
@@ -232,6 +239,27 @@ pub fn build_router(state: AppState) -> Router {
             "/orders/{id}/complete",
 
             post(routes::ecommerce::complete_order),
+
+        )
+        .route(
+
+            "/orders/{id}/refund",
+
+            post(routes::ecommerce::refund_order),
+
+        )
+        .route(
+
+            "/orders/{id}/cancel",
+
+            post(routes::ecommerce::cancel_order),
+
+        )
+        .route(
+
+            "/settings",
+
+            get(routes::ecommerce::get_settings).put(routes::ecommerce::update_settings),
 
         )
         .route(

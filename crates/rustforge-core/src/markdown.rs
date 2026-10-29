@@ -46,7 +46,14 @@ pub fn render(markdown: &str) -> String {
     };
 
     ammonia::Builder::default()
-        .add_generic_attributes(["id", "class", "data-pattern", "data-pattern-title", "aria-hidden"])
+        .add_generic_attributes([
+            "id",
+            "class",
+            "data-pattern",
+            "data-pattern-title",
+            "aria-hidden",
+            "data-product-id",
+        ])
         .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
         .add_tag_attributes("details", ["open"])

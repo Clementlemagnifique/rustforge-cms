@@ -1551,7 +1551,7 @@
     "roles": [
       "admin"
     ],
-    "state": "partial",
+    "state": "ready",
     "design": "module",
     "features": [],
     "tasks": [
@@ -1564,12 +1564,12 @@
     "id": "rf_products",
     "parent": "rf_commerce",
     "label": "Produits numériques",
-    "route": null,
+    "route": "ecommerce:products",
     "module": "ecommerce",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "list",
     "features": [
       "Prix",
@@ -1587,12 +1587,12 @@
     "id": "rf_orders",
     "parent": "rf_commerce",
     "label": "Commandes",
-    "route": null,
+    "route": "ecommerce:orders",
     "module": "ecommerce",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "list",
     "features": [
       "États",
@@ -1634,12 +1634,12 @@
     "id": "rf_discounts",
     "parent": "rf_commerce",
     "label": "Codes de réduction",
-    "route": null,
+    "route": "ecommerce:discounts",
     "module": "ecommerce",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "editor",
     "features": [
       "Conditions",
@@ -1678,12 +1678,12 @@
     "id": "rf_commerce_settings",
     "parent": "rf_commerce",
     "label": "Réglages boutique",
-    "route": null,
+    "route": "ecommerce:settings",
     "module": "ecommerce",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "settings",
     "features": [
       "Passerelles",

@@ -86,6 +86,7 @@ enum Kind {
     Spacer,
     Cover,
     Group,
+    Product,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -209,20 +210,26 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns | Kind::Spacer)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
-            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover | Kind::Product)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table | Kind::Product)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
             || (matches!(block.rf_type, Kind::Quote | Kind::Table)
                 && (!block.rf_alt.is_empty() || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group)
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group | Kind::Product)
                 && !block.rf_style.is_empty())
-            || (!matches!(block.rf_type, Kind::Pattern) && !block.rf_ref.is_empty())
+            || (!matches!(block.rf_type, Kind::Pattern | Kind::Product) && !block.rf_ref.is_empty())
         {
             return Err(CoreError::validation(
                 "Données incompatibles avec le type du bloc",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::Product) && block.rf_text.trim().is_empty() {
+            return Err(CoreError::validation(
+                "Le bloc produit requiert un titre de produit",
             ));
         }
 
@@ -474,6 +481,29 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                 };
                 let content = safe_rich_text(&block.rf_text);
                 format!("<div class=\"rf-group rf-group-{style}\">\n\n{content}\n\n</div>")
+            }
+            Kind::Product => {
+                let title = literal(block.rf_text.trim());
+                let price = literal(block.rf_caption.trim());
+                let btn_label = if block.rf_alt.trim().is_empty() {
+                    "Acheter"
+                } else {
+                    block.rf_alt.trim()
+                };
+                let url = if block.rf_url.trim().is_empty() {
+                    "#"
+                } else {
+                    validate_safe_url(&block.rf_url, false)?
+                };
+                let style = match block.rf_style.as_str() {
+                    "compact" => "compact",
+                    "cta" => "cta",
+                    _ => "card",
+                };
+                let product_id = block.rf_ref.trim().replace('"', "&quot;");
+                format!(
+                    "<div class=\"rf-product-card rf-product-{style}\" data-product-id=\"{product_id}\"><div class=\"rf-product-details\"><h3 class=\"rf-product-title\">{title}</h3><div class=\"rf-product-price\">{price}</div></div><a href=\"{url}\" class=\"rf-btn rf-btn-primary\">{btn_label}</a></div>"
+                )
             }
         });
     }
@@ -853,7 +883,60 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             continue;
         }
 
-        // 13. Paragraphe
+        // 13. Produit Boutique (<div class="rf-product-card...")
+        if trimmed.starts_with("<div class=\"rf-product-card") {
+            let style = if trimmed.contains("rf-product-compact") {
+                "compact".to_string()
+            } else if trimmed.contains("rf-product-cta") {
+                "cta".to_string()
+            } else {
+                "card".to_string()
+            };
+            let product_id = if let Some(pos) = trimmed.find("data-product-id=\"") {
+                let sub = &trimmed[pos + 17..];
+                sub.split('"').next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+            let title = if let Some(pos) = trimmed.find("rf-product-title\">") {
+                let sub = &trimmed[pos + 18..];
+                sub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            } else {
+                String::new()
+            };
+            let price = if let Some(pos) = trimmed.find("rf-product-price\">") {
+                let sub = &trimmed[pos + 18..];
+                sub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            } else {
+                String::new()
+            };
+            let (url, btn_label) = if let Some(pos) = trimmed.find("<a href=\"") {
+                let sub = &trimmed[pos + 9..];
+                let u = sub.split('"').next().unwrap_or("").to_string();
+                let label = if let Some(lpos) = sub.find('>') {
+                    let lsub = &sub[lpos + 1..];
+                    lsub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                } else {
+                    "Acheter".to_string()
+                };
+                (u, label)
+            } else {
+                (String::new(), "Acheter".to_string())
+            };
+
+            let mut b = Block::new(next_id()?, Kind::Product);
+            b.rf_style = style;
+            b.rf_ref = product_id;
+            b.rf_text = title;
+            b.rf_caption = price;
+            b.rf_url = if url == "#" { String::new() } else { url };
+            b.rf_alt = btn_label;
+            blocks.push(b);
+            idx += 1;
+            continue;
+        }
+
+        // 14. Paragraphe
         let mut para_lines = Vec::new();
         while idx < lines.len() {
             let t = lines[idx].trim();
@@ -1217,5 +1300,40 @@ mod tests {
         assert_eq!(p_blocks[0]["rf_caption"], "Composants");
         assert_eq!(p_blocks[1]["rf_type"], "spacer");
         assert_eq!(p_blocks[1]["rf_style"], "xl");
+    }
+
+    #[test]
+    fn test_product_block() {
+        let prod_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"prod1",
+                "rf_type":"product",
+                "rf_text":"Livre Rust & Systèmes Souverains",
+                "rf_caption":"39,00 €",
+                "rf_ref":"prod-uuid-1234",
+                "rf_url":"https://example.com/checkout?product=prod-uuid-1234",
+                "rf_alt":"Acheter le guide",
+                "rf_style":"card"
+            }
+        ]});
+        let (body, html) = project("", &prod_doc).unwrap();
+        assert!(body.contains("rf-product-card rf-product-card"));
+        assert!(body.contains("data-product-id=\"prod-uuid-1234\""));
+        assert!(body.contains("Livre Rust &amp; Systèmes Souverains"));
+        assert!(body.contains("39,00 €"));
+        assert!(body.contains("Acheter le guide"));
+        assert!(html.contains("rf-product-card"));
+        assert!(html.contains("data-product-id=\"prod-uuid-1234\""));
+
+        // Roundtrip from_markdown
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "product");
+        assert_eq!(blocks[0]["rf_text"], "Livre Rust & Systèmes Souverains");
+        assert_eq!(blocks[0]["rf_caption"], "39,00 €");
+        assert_eq!(blocks[0]["rf_ref"], "prod-uuid-1234");
+        assert_eq!(blocks[0]["rf_alt"], "Acheter le guide");
+        assert_eq!(blocks[0]["rf_style"], "card");
     }
 }

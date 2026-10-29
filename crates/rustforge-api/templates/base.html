@@ -461,6 +461,15 @@
         .rf-group-muted { background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.08); }
         .rf-group-highlight { background: rgba(79, 70, 229, 0.06); border: 1px solid rgba(79, 70, 229, 0.3); }
 
+        /* Bloc Produit E-Commerce (MOD-COM-02) */
+        .rf-product-card { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem 1.5rem; border-radius: var(--tp-radius); margin: 1.5rem 0; flex-wrap: wrap; }
+        .rf-product-card.rf-product-card { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+        .rf-product-card.rf-product-compact { padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); }
+        .rf-product-card.rf-product-cta { padding: 2rem; background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(79, 70, 229, 0.35); }
+        .rf-product-details { flex: 1; min-width: 200px; }
+        .rf-product-title { margin: 0; font-size: 1.2rem; font-weight: 700; color: #f8fafc; font-family: var(--tp-font-heading); }
+        .rf-product-price { margin-top: 0.25rem; font-size: 1.15rem; font-weight: 700; color: var(--tp-accent, #10b981); }
+
         {% if design_tokens.custom_css %}
 
         {{ design_tokens.custom_css }}

@@ -358,6 +358,8 @@ export function NativeBlockEditor({
                     ? `🌄 ${b.rf_text ? b.rf_text.split('\n')[0] : b.rf_url || 'Couverture'}`
                     : b.rf_type === 'group'
                     ? `🗂 [${b.rf_style || 'card'}] ${b.rf_text ? b.rf_text.slice(0, 30) : 'Groupe'}`
+                    : b.rf_type === 'product'
+                    ? `🛒 ${b.rf_text || 'Produit'} (${b.rf_caption || '0,00 €'})`
                     : b.rf_text;
                 return (
                   <li
@@ -1160,6 +1162,78 @@ export function NativeBlockEditor({
                   rows={4}
                   className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
                 />
+              </div>
+            ) : block.rf_type === 'product' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.productTitle} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_text}
+                      onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                      placeholder="Nom du produit"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.productPrice} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_caption || ''}
+                      onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                      placeholder="29,00 €"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.productButtonText} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_alt || ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="Acheter maintenant"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.productStyle} :</label>
+                    <select
+                      value={block.rf_style || 'card'}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    >
+                      <option value="card">{text.productStyleCard}</option>
+                      <option value="compact">{text.productStyleCompact}</option>
+                      <option value="cta">{text.productStyleCta}</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.productUrl} :</label>
+                  <input
+                    type="text"
+                    value={block.rf_url || ''}
+                    onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                    placeholder="https://... ou /boutique/... ou #checkout"
+                    className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  />
+                </div>
+                <div className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${
+                  block.rf_style === 'cta'
+                    ? 'bg-gradient-to-r from-indigo-950/60 to-emerald-950/40 border-indigo-500/30'
+                    : block.rf_style === 'compact'
+                    ? 'bg-white/5 border-white/10 py-1.5'
+                    : 'bg-black/30 border-white/10'
+                }`}>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate text-xs">{block.rf_text || 'Produit sans titre'}</p>
+                    <p className="text-emerald-400 font-mono font-bold text-xs">{block.rf_caption || '0,00 €'}</p>
+                  </div>
+                  <span className="rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white shadow shrink-0">
+                    {block.rf_alt || 'Acheter'}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="space-y-1.5">

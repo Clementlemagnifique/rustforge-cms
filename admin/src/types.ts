@@ -311,3 +311,101 @@ export interface FormSubmissionItem {
   created_at: string;
 }
 
+export interface ProductItem {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  description: string;
+  price_cents: number;
+  featured_media_id: string | null;
+  file_path?: string | null;
+  file_name?: string | null;
+  download_limit: number;
+  course_id?: string | null;
+  status: 'draft' | 'published' | 'archived';
+  sales_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductInput {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  description?: string;
+  price_cents: number;
+  featured_media_id?: string | null;
+  file_path?: string | null;
+  file_name?: string | null;
+  download_limit?: number;
+  course_id?: string | null;
+  status?: 'draft' | 'published' | 'archived';
+}
+
+export interface DiscountItem {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'fixed_amount';
+  amount: number;
+  max_uses: number | null;
+  uses_count: number;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DiscountInput {
+  code: string;
+  discount_type?: 'percentage' | 'fixed_amount';
+  amount: number;
+  max_uses?: number | null;
+  expires_at?: string | null;
+  is_active?: boolean;
+}
+
+export interface OrderItem {
+  id: string;
+  order_number: string;
+  customer_email: string;
+  customer_name: string;
+  user_id?: string | null;
+  subtotal_cents: number;
+  discount_cents: number;
+  total_cents: number;
+  currency: string;
+  gateway: string;
+  gateway_tx_id?: string | null;
+  status: 'pending' | 'completed' | 'refunded' | 'failed';
+  discount_id?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderLineItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  title: string;
+  price_cents: number;
+  download_count: number;
+  created_at: string;
+}
+
+export interface OrderWithItems {
+  order: OrderItem;
+  items: OrderLineItem[];
+}
+
+export interface CommerceSettings {
+  currency: string;
+  currency_symbol: string;
+  gateway_mode: string;
+  stripe_public_key: string;
+  stripe_secret_key: string;
+  tax_rate_percent: number;
+  require_login: boolean;
+  default_download_limit: number;
+}
+

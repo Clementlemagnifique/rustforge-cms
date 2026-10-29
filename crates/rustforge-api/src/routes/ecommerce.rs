@@ -108,6 +108,18 @@ pub async fn create_discount(
     Ok(Json(discount))
 }
 
+pub async fn delete_discount(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<()>> {
+    if !auth.user.role.can_edit_others() {
+        return Err(ApiError::Forbidden);
+    }
+    ecommerce::delete_discount(&state.db, id).await?;
+    Ok(Json(()))
+}
+
 // ---------------------------------------------------------------------------
 // Administration : Commandes
 // ---------------------------------------------------------------------------
@@ -146,6 +158,55 @@ pub async fn complete_order(
     }
     let order = ecommerce::complete_order(&state.db, id).await?;
     Ok(Json(order))
+}
+
+pub async fn refund_order(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<OrderWithItems>> {
+    if !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    let order = ecommerce::refund_order(&state.db, id).await?;
+    Ok(Json(order))
+}
+
+pub async fn cancel_order(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<OrderWithItems>> {
+    if !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    let order = ecommerce::cancel_order(&state.db, id).await?;
+    Ok(Json(order))
+}
+
+// ---------------------------------------------------------------------------
+// Administration : Réglages Boutique
+// ---------------------------------------------------------------------------
+
+pub async fn get_settings(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+) -> ApiResult<Json<ecommerce::CommerceSettings>> {
+    rustforge_core::security::require_editor(_auth.user.role)?;
+    let settings = ecommerce::get_commerce_settings(&state.db).await?;
+    Ok(Json(settings))
+}
+
+pub async fn update_settings(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<ecommerce::CommerceSettings>,
+) -> ApiResult<Json<ecommerce::CommerceSettings>> {
+    if !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    let settings = ecommerce::update_commerce_settings(&state.db, input).await?;
+    Ok(Json(settings))
 }
 
 #[derive(Debug, Serialize)]

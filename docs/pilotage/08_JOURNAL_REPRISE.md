@@ -989,6 +989,30 @@ Livrables et validations :
   - Frontend : Oxlint 0 avertissement / 0 erreur, TypeScript `tsc -b` et Vite build réussis.
   - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
 
+## 29 octobre 2026 — Phase 4 : Module E-Commerce Souverain et Vente Numérique (MOD-COM-01 à MOD-COM-05)
+
+Demande : Intégration complète de la boutique et de la vente dématérialisée inspirée de WooCommerce / Easy Digital Downloads, en pur Rust souverain, avec téléchargements signés par HMAC-SHA256, intégration au schéma de document `rf.document/1` (bloc produit) et interface de pilotage sobre et ergonomique Studio.
+
+Livrables et validations :
+- **Tâches qualifiées et validées** :
+  - `MOD-COM-01` (Contrat vente et état existant) : Cadrage des devises (`EUR`, `USD`, `GBP`, `CHF`), montants entiers en cents, passerelles et isolation des fichiers protégés hors du dossier d'uploads public.
+  - `MOD-COM-02` (Produits et fichiers protégés) : Catalogue de produits numériques, gestion des quotas de téléchargement, liaisons automatiques avec les cours LMS, et ajout du bloc natif `Kind::Product` (`"product"`) dans `rf.document/1` avec rendu `.rf-product-card`, conversion bidirectionnelle et styles (`card`, `compact`, `cta`).
+  - `MOD-COM-03` (Panier et checkout) : Calcul du sous-total, remises et taxes côté serveur, validation transactionnelle avec exclusion des tentatives de surpassement ou dépassement d'entier.
+  - `MOD-COM-04` (Paiement et webhooks) : Gestion des passerelles (simulation/test, virement manuel et Stripe sandbox/live), finalisation idempotente et vérification stricte HMAC des liens de téléchargement expirables.
+  - `MOD-COM-05` (Commandes, clients et remboursements) : Cycle de vie complet des commandes (`pending` -> `completed`, annulation `failed`, remboursement `refunded` avec décrémentation atomique des compteurs de vente et traçabilité).
+- **Interface Studio (`admin/src/components/EcommerceView.tsx`)** :
+  - Écran complet et sobre inspiré des retours UX WordPress / Adminify :
+    - Onglet 1 : Produits (recherche, filtres par statut, modal de création/édition, quotas et fichiers liés).
+    - Onglet 2 : Commandes (filtres d'état, récapitulatif détaillé, boutons d'action rapide : valider, rembourser, annuler).
+    - Onglet 3 : Codes promotionnels (pourcentage ou montant fixe, expiration, suivi d'utilisation).
+    - Onglet 4 : Réglages généraux de la boutique (devises, taux de TVA, passerelle de test/Stripe, quota par défaut).
+  - Intégration de la navigation Studio (`crates/rustforge-api/src/admin_navigation.json` mis à jour vers l'état `ready`).
+- **Vérifications qualité réussies** :
+  - Tests unitaires Rust : 73 tests `rustforge-core`, 19 tests `rustforge-api`, 2 tests `rustforge-plugins`, 2 tests `rustforge`, 3 tests de consolidation (99 tests réussis).
+  - Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+  - Frontend : Oxlint 0 avertissement / 0 erreur, Vite build réussi en 508ms (`dist/assets/index-*.js`).
+  - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
+
 ## Modèle pour le prochain lot
 
 Copier une entrée avec : date; objectif; IDs des tâches; composants réutilisés; code et migrations modifiés; critères exécutés et résultats; preuves; écarts ouverts; décision de passage; prochain geste précis. Conserver les limites et les opérations non testées.

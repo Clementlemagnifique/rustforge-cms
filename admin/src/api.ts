@@ -612,4 +612,67 @@ export const api = {
         method: 'POST',
       }),
   },
+
+  ecommerce: {
+    products: {
+      list: () => request<import('./types').ProductItem[]>('/ecommerce/products'),
+      get: (id: string) => request<import('./types').ProductItem>(`/ecommerce/products/${id}`),
+      create: (data: import('./types').ProductInput) =>
+        request<import('./types').ProductItem>('/ecommerce/products', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      update: (id: string, data: import('./types').ProductInput) =>
+        request<import('./types').ProductItem>(`/ecommerce/products/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      delete: (id: string) =>
+        request<void>(`/ecommerce/products/${id}`, {
+          method: 'DELETE',
+        }),
+    },
+    discounts: {
+      list: () => request<import('./types').DiscountItem[]>('/ecommerce/discounts'),
+      create: (data: import('./types').DiscountInput) =>
+        request<import('./types').DiscountItem>('/ecommerce/discounts', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      delete: (id: string) =>
+        request<void>(`/ecommerce/discounts/${id}`, {
+          method: 'DELETE',
+        }),
+    },
+    orders: {
+      list: (params?: { limit?: number; offset?: number }) => {
+        const q = new URLSearchParams();
+        if (params?.limit) q.set('limit', String(params.limit));
+        if (params?.offset) q.set('offset', String(params.offset));
+        const qs = q.toString();
+        return request<import('./types').OrderItem[]>(`/ecommerce/orders${qs ? `?${qs}` : ''}`);
+      },
+      get: (id: string) => request<import('./types').OrderWithItems>(`/ecommerce/orders/${id}`),
+      complete: (id: string) =>
+        request<import('./types').OrderWithItems>(`/ecommerce/orders/${id}/complete`, {
+          method: 'POST',
+        }),
+      refund: (id: string) =>
+        request<import('./types').OrderWithItems>(`/ecommerce/orders/${id}/refund`, {
+          method: 'POST',
+        }),
+      cancel: (id: string) =>
+        request<import('./types').OrderWithItems>(`/ecommerce/orders/${id}/cancel`, {
+          method: 'POST',
+        }),
+    },
+    settings: {
+      get: () => request<import('./types').CommerceSettings>('/ecommerce/settings'),
+      update: (data: import('./types').CommerceSettings) =>
+        request<import('./types').CommerceSettings>('/ecommerce/settings', {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+    },
+  },
 };

@@ -36,6 +36,7 @@ import { TaxonomiesView } from './components/TaxonomiesView';
 import { UsersView } from './components/UsersView';
 import { CommentsView } from './components/CommentsView';
 import { FormsView } from './components/FormsView';
+import { EcommerceView } from './components/EcommerceView';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -289,6 +290,27 @@ export const App: React.FC = () => {
                 currentView === 'rf_submissions' ||
                 currentView === 'rf_form_settings') && (
                 <FormsView key="forms-view" />
+              )}
+              {(currentView === 'ecommerce' ||
+                currentView === 'module:ecommerce' ||
+                currentView.startsWith('ecommerce') ||
+                currentView === 'rf_commerce' ||
+                currentView === 'rf_products' ||
+                currentView === 'rf_orders' ||
+                currentView === 'rf_discounts' ||
+                currentView === 'rf_commerce_settings') && (
+                <EcommerceView
+                  key={currentView}
+                  initialTab={
+                    currentView === 'rf_orders' || currentView === 'ecommerce:orders'
+                      ? 'orders'
+                      : currentView === 'rf_discounts' || currentView === 'ecommerce:discounts'
+                      ? 'discounts'
+                      : currentView === 'rf_commerce_settings' || currentView === 'ecommerce:settings'
+                      ? 'settings'
+                      : 'products'
+                  }
+                />
               )}
 
               {currentView === 'ai-studio' && (

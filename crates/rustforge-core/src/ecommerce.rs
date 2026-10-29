@@ -337,6 +337,14 @@ pub async fn create_discount(db: &PgPool, input: DiscountInput) -> CoreResult<Di
     Ok(d)
 }
 
+pub async fn delete_discount(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    sqlx::query("DELETE FROM ecommerce_discounts WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn validate_discount(
     db: &PgPool,
     code: &str,
@@ -638,6 +646,83 @@ pub async fn complete_order(db: &PgPool, order_id: Uuid) -> CoreResult<OrderWith
     get_order(db, order.id).await
 }
 
+pub async fn refund_order(db: &PgPool, order_id: Uuid) -> CoreResult<OrderWithItems> {
+    let mut tx = db.begin().await?;
+    let status: OrderStatus =
+        sqlx::query_scalar("SELECT status FROM ecommerce_orders WHERE id = $1 FOR UPDATE")
+            .bind(order_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if status == OrderStatus::Refunded {
+        tx.rollback().await?;
+        return get_order(db, order_id).await;
+    }
+    if status != OrderStatus::Completed {
+        return Err(CoreError::Conflict(
+            "Seule une commande terminée peut être remboursée.".into(),
+        ));
+    }
+    let order = sqlx::query_as::<_, Order>(
+        r#"
+        UPDATE ecommerce_orders
+        SET status = 'refunded'::order_status, updated_at = now()
+        WHERE id = $1
+        RETURNING *
+        "#,
+    )
+    .bind(order_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let items =
+        sqlx::query_as::<_, OrderItem>("SELECT * FROM ecommerce_order_items WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_all(&mut *tx)
+            .await?;
+
+    for item in &items {
+        sqlx::query("UPDATE ecommerce_products SET sales_count = GREATEST(sales_count - 1, 0) WHERE id = $1")
+            .bind(item.product_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+    get_order(db, order.id).await
+}
+
+pub async fn cancel_order(db: &PgPool, order_id: Uuid) -> CoreResult<OrderWithItems> {
+    let mut tx = db.begin().await?;
+    let status: OrderStatus =
+        sqlx::query_scalar("SELECT status FROM ecommerce_orders WHERE id = $1 FOR UPDATE")
+            .bind(order_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if status == OrderStatus::Failed {
+        tx.rollback().await?;
+        return get_order(db, order_id).await;
+    }
+    if status != OrderStatus::Pending {
+        return Err(CoreError::Conflict(
+            "Seule une commande en attente peut être annulée.".into(),
+        ));
+    }
+    let order = sqlx::query_as::<_, Order>(
+        r#"
+        UPDATE ecommerce_orders
+        SET status = 'failed'::order_status, updated_at = now()
+        WHERE id = $1
+        RETURNING *
+        "#,
+    )
+    .bind(order_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    get_order(db, order.id).await
+}
+
 // ---------------------------------------------------------------------------
 // Liens de téléchargement sécurisés (Tokens HMAC signés)
 // ---------------------------------------------------------------------------
@@ -742,4 +827,57 @@ fn validate_product(input: &ProductInput) -> CoreResult<()> {
         crate::security::relative_path(path)?;
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Réglages Boutique
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommerceSettings {
+    pub currency: String,
+    pub currency_symbol: String,
+    pub gateway_mode: String,
+    pub stripe_public_key: String,
+    pub stripe_secret_key: String,
+    pub tax_rate_percent: f64,
+    pub require_login: bool,
+    pub default_download_limit: i32,
+}
+
+impl Default for CommerceSettings {
+    fn default() -> Self {
+        Self {
+            currency: "EUR".to_string(),
+            currency_symbol: "€".to_string(),
+            gateway_mode: "test".to_string(),
+            stripe_public_key: String::new(),
+            stripe_secret_key: String::new(),
+            tax_rate_percent: 20.0,
+            require_login: false,
+            default_download_limit: 5,
+        }
+    }
+}
+
+pub async fn get_commerce_settings(db: &PgPool) -> CoreResult<CommerceSettings> {
+    let val = crate::settings::get(db, "ecommerce.settings").await?;
+    if let Some(v) = val
+        && let Ok(settings) = serde_json::from_value::<CommerceSettings>(v)
+    {
+        return Ok(settings);
+    }
+    Ok(CommerceSettings::default())
+}
+
+pub async fn update_commerce_settings(
+    db: &PgPool,
+    settings: CommerceSettings,
+) -> CoreResult<CommerceSettings> {
+    let val = serde_json::to_value(&settings)
+        .map_err(|e| CoreError::validation(format!("réglages boutique invalides: {e}")))?;
+    let mut map = std::collections::BTreeMap::new();
+    map.insert("ecommerce.settings".to_string(), val);
+    crate::settings::update(db, map).await?;
+    Ok(settings)
 }

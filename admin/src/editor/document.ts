@@ -17,6 +17,7 @@ export const BLOCK_TYPES = [
   'spacer',
   'cover',
   'group',
+  'product',
 ] as const;
 export type BlockKind = typeof BLOCK_TYPES[number];
 export interface NativeBlock {
@@ -70,6 +71,13 @@ export function newBlock(kind: BlockKind): NativeBlock {
   } else if (kind === 'group') {
     base.rf_style = 'card';
     base.rf_text = 'Contenu de la carte encadrée';
+  } else if (kind === 'product') {
+    base.rf_style = 'card';
+    base.rf_text = 'Produit numérique';
+    base.rf_caption = '29,00 €';
+    base.rf_ref = '';
+    base.rf_url = '';
+    base.rf_alt = 'Acheter';
   }
   return base;
 }
