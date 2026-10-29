@@ -4746,6 +4746,24 @@ async fn postgres_http_and_native_backup_regressions() {
     sqlx::query("DELETE FROM comments WHERE id=$1").bind(Uuid::parse_str(scoped.1["id"].as_str().unwrap()).unwrap()).execute(&db).await.unwrap();
     assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.comment_registration":false})).await.0,200);
 
+    // Préférences visiteur effectives : opt-in local et avatars sans requête externe.
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
+        "discussion.show_comments_cookies_opt_in":true,"discussion.avatar_default":"identicon"
+    })).await.0,200);
+    let visitor_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert_eq!(visitor_html.0,200);
+    let visitor_html=visitor_html.1.as_str().unwrap();
+    assert!(visitor_html.contains("id=\"comment-remember\""));
+    assert!(visitor_html.contains("viewBox=\"0 0 16 16\""));
+    assert!(!visitor_html.contains("gravatar.com"));
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"blank"})).await.0,200);
+    let blank_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert!(!blank_html.1.as_str().unwrap().contains("class=\"rf-comment-avatar\""));
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"unsupported"})).await.0,422);
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"mystery","discussion.show_comments_cookies_opt_in":false})).await.0,200);
+    let no_remember=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert!(!no_remember.1.as_str().unwrap().contains("id=\"comment-remember\""));
+
     let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
     assert_eq!(before_count,after_count);
 

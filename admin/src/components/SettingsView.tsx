@@ -746,7 +746,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 <input
                   type="number"
                   min={1}
-                  max={500}
+                  max={100}
                   value={settings['discussion.comments_per_page'] ?? 50}
                   onChange={(e) =>
                     setSetting('discussion.comments_per_page', parseInt(e.target.value, 10) || 50)
@@ -884,6 +884,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
             </div>
           </div>
 
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">{discussionSettingsMessages.privacySection}</h4>
+            <label className="flex items-start gap-2.5 text-xs text-slate-300">
+              <input type="checkbox" checked={settings['discussion.show_comments_cookies_opt_in'] === true}
+                onChange={(e) => setSetting('discussion.show_comments_cookies_opt_in', e.target.checked)} />
+              {discussionSettingsMessages.rememberIdentity}
+            </label>
+            <p className="text-xs text-slate-400">{discussionSettingsMessages.rememberIdentityHint}</p>
+            <p className="text-xs text-amber-300" role="note">{discussionSettingsMessages.emailUnavailable}</p>
+          </div>
           {/* Avatars (`WP-86`, `WP-87`) */}
           <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
             <div>
@@ -914,6 +924,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   onChange={(e) => setSetting('discussion.avatar_default', e.target.value)}
                   className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
                 >
+                  {settings['discussion.avatar_default'] && !['mystery', 'blank', 'identicon', 'retro'].includes(settings['discussion.avatar_default']) && <option value={settings['discussion.avatar_default']} disabled>{discussionSettingsMessages.unavailableAvatar}</option>}
                   <option value="mystery">Mystère (Silhouette par défaut)</option>
                   <option value="blank">Vide (Transparent)</option>
                   <option value="identicon">Identicon (Motif géométrique)</option>

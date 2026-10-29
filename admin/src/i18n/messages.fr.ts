@@ -402,6 +402,11 @@ export const discussionSettingsMessages = {
   disallowedKeys: 'Mots-clés interdits / Liste noire (un mot ou une IP par ligne : met directement dans la corbeille)',
   disallowedKeysHint:
     'Tout commentaire contenant un de ces termes sera automatiquement rejeté et envoyé à la corbeille sans notification.',
+  privacySection: 'Confidentialité locale',
+  rememberIdentity: 'Proposer au visiteur de mémoriser son identité sur cet appareil pendant 30 jours',
+  rememberIdentityHint: 'Choix facultatif, décochable à tout moment ; aucun mot de passe, jeton ou commentaire mémorisé.',
+  emailUnavailable: 'Les notifications par e-mail ne sont pas encore disponibles : elles nécessitent le futur service de tâches et de messagerie.',
+  unavailableAvatar: 'Valeur historique indisponible : choisir un avatar local',
   avatarsSection: 'Affichage des avatars',
   showAvatars: 'Afficher les avatars dans les commentaires publics',
   avatarDefault: 'Avatar par défaut pour les utilisateurs sans image de profil',

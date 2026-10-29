@@ -48,7 +48,7 @@
         <div class="rf-comments-list" style="display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 3.5rem;">
             {% macro comment_node(comment) %}
             <article class="rf-comment-item" style="padding:1rem;border-left:2px solid var(--tp-accent);margin-bottom:1rem">
-                {% if discussion.show_avatars %}<span class="rf-comment-avatar" aria-hidden="true">{{ comment.author_name | first | upper }}</span>{% endif %}
+                {% if discussion.show_avatars and comment.avatar_svg %}<span class="rf-comment-avatar" aria-hidden="true">{{ comment.avatar_svg | safe }}</span>{% endif %}
                 <strong>{% if comment.author_url %}<a href="{{ comment.author_url }}" rel="nofollow noopener noreferrer">{{ comment.author_name }}</a>{% else %}{{ comment.author_name }}{% endif %}</strong>
                 <time>{{ comment.created_at }}</time>
                 {{ comment.content_html | safe }}
@@ -103,10 +103,13 @@
 
                     <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
                         <span>Site web (optionnel)</span>
-                        <input type="url" name="author_url" maxlength="255" placeholder="https://…" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.6rem 0.8rem; color: white; font-size: 0.9rem;" />
+                        <input type="url" name="author_url" maxlength="2048" placeholder="https://…" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.6rem 0.8rem; color: white; font-size: 0.9rem;" />
                     </label>
                 </div>
 
+                {% if discussion.remember_identity and not discussion.require_registration %}
+                <label><input id="comment-remember" type="checkbox"> Mémoriser mon nom, mon e-mail et mon site sur cet appareil pendant 30 jours. <span>Décochez pour les oublier.</span></label>
+                {% endif %}
                 <label style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; color: #94a3b8;">
                     <span>Votre commentaire <strong style="color: #f43f5e;">*</strong></span>
                     <textarea name="content" required rows="4" maxlength="4096" placeholder="Écrivez votre message…" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--tp-radius); padding: 0.75rem 0.8rem; color: white; font-size: 0.9rem; resize: vertical;"></textarea>

@@ -59,6 +59,8 @@ pub struct DiscussionPolicy {
     pub depth: usize,
     pub newest_first: bool,
     pub show_avatars: bool,
+    pub avatar_default: String,
+    pub remember_identity: bool,
     pub close_old: bool,
     pub close_days: i64,
     pub paginated: bool,
@@ -79,10 +81,12 @@ impl DiscussionPolicy {
             depth: number("discussion.thread_comments_depth", 3).clamp(1, 5) as usize,
             newest_first: values.get("discussion.comment_order").and_then(|v| v.as_str()) == Some("desc"),
             show_avatars: flag("discussion.show_avatars", true),
+            avatar_default: values.get("discussion.avatar_default").and_then(|v| v.as_str()).unwrap_or("mystery").into(),
+            remember_identity: flag("discussion.show_comments_cookies_opt_in", false),
             close_old: flag("discussion.close_comments_for_old_posts", false),
             close_days: number("discussion.close_comments_days", 14).max(0),
             paginated: flag("discussion.page_comments", false),
-            per_page: number("discussion.comments_per_page", 50).clamp(1, 1000),
+            per_page: number("discussion.comments_per_page", 50).clamp(1, 100),
             default_last: values.get("discussion.default_comments_page").and_then(|v| v.as_str()) == Some("newest"),
         }
     }
@@ -90,6 +94,33 @@ impl DiscussionPolicy {
         self.open && !(self.close_old && published_at.is_some_and(|date|
             Utc::now() >= date + chrono::Duration::days(self.close_days.min(365000))))
     }
+}
+
+/// SVG local dérivé uniquement de l'UUID public du commentaire, jamais de l'e-mail.
+pub fn avatar_svg(style: &str, id: Uuid) -> String {
+    if style == "blank" { return String::new(); }
+    let bytes = id.as_bytes();
+    let hue = u32::from(bytes[0]) * 360 / 256;
+    let color = format!("hsl({hue},55%,45%)");
+    let mut svg = String::from("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"32\" height=\"32\" aria-hidden=\"true\">");
+    svg.push_str("<rect width=\"16\" height=\"16\" rx=\"2\" fill=\"#e2e8f0\"/>");
+    if matches!(style, "identicon" | "retro") {
+        let size = if style == "retro" { 8 } else { 5 };
+        let cell = 14.0 / f64::from(size);
+        for y in 0..size {
+            for x in 0..size {
+                let mirror_x = x.min(size-1-x);
+                let seed = (y*4+mirror_x) as usize;
+                if bytes[seed % 16] & (1 << (seed % 8)) != 0 {
+                    svg.push_str(&format!("<rect x=\"{}\" y=\"{}\" width=\"{cell}\" height=\"{cell}\" fill=\"{color}\"/>",1.0+f64::from(x)*cell,1.0+f64::from(y)*cell));
+                }
+            }
+        }
+    } else {
+        svg.push_str(&format!("<circle cx=\"8\" cy=\"5\" r=\"3\" fill=\"{color}\"/><path d=\"M2 15a6 6 0 0 1 12 0\" fill=\"{color}\"/>"));
+    }
+    svg.push_str("</svg>");
+    svg
 }
 
 /// Seuls les liens web absolus sont acceptés pour un auteur public.
@@ -728,6 +759,21 @@ mod tests {
         assert!(formatted.contains("&amp;"));
         assert!(formatted.contains("&gt; 42"));
         assert!(formatted.contains("<p>"));
+    }
+
+    #[test]
+    fn native_avatars_are_local_deterministic_and_non_personal() {
+        let id = Uuid::from_bytes([255; 16]);
+        assert!(avatar_svg("blank", id).is_empty());
+        assert_eq!(avatar_svg("identicon", id), avatar_svg("identicon", id));
+        assert_ne!(avatar_svg("mystery", id), avatar_svg("retro", id));
+        assert_eq!(avatar_svg("unsupported", id), avatar_svg("mystery", id));
+        for style in ["mystery", "identicon", "retro"] {
+            let svg = avatar_svg(style, id);
+            assert!(!svg.contains("<image"));
+            assert!(!svg.contains("href="));
+            assert!(!svg.contains("script"));
+        }
     }
 
     #[test]

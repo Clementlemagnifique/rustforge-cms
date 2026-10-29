@@ -55,6 +55,7 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "discussion.comments_per_page",
         "discussion.comment_order",
         "discussion.show_avatars",
+        "discussion.show_comments_cookies_opt_in",
         "discussion.avatar_default",
     ];
     let rows: Vec<(String, Value)> = sqlx::query_as(
@@ -505,8 +506,10 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         return Err(CoreError::validation("La liste de modération ou de mots interdits est limitée à 16 Kio."));
     } else if key == "discussion.show_avatars" && !value.is_boolean() {
         return Err(CoreError::validation("discussion.show_avatars doit être un booléen."));
-    } else if key == "discussion.avatar_default" && !value.is_string() {
-        return Err(CoreError::validation("discussion.avatar_default doit être une chaîne."));
+    } else if key == "discussion.show_comments_cookies_opt_in" && !value.is_boolean() {
+        return Err(CoreError::validation("La mémorisation de l'identité doit être un booléen."));
+    } else if key == "discussion.avatar_default" && !value.as_str().is_some_and(|s| matches!(s, "mystery" | "blank" | "identicon" | "retro")) {
+        return Err(CoreError::validation("Avatar local inconnu : mystery, blank, identicon ou retro attendu."));
     }
     Ok(())
 }

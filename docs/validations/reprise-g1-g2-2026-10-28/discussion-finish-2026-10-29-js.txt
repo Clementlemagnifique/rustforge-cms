@@ -1,0 +1,18 @@
+✔ connexion conserve le brouillon, efface le mot de passe et utilise textContent (2.0503ms)
+✔ identifiants refusés : erreur lisible, champ protégé, brouillon préservé (0.6049ms)
+✔ envoi authentifié limité au commentaire, sans cookies, puis déconnexion locale (0.88ms)
+✔ expiration : reconnexion proposée sans perdre le commentaire (0.7409ms)
+✔ visiteur : aucun bearer, erreur réseau sans perte (0.639ms)
+✔ page fermée : aucun formulaire, script inactif (0.9392ms)
+✔ identité enregistrée uniquement après choix explicite et envoi réussi (1.8263ms)
+✔ identité valide restaurée ; identité expirée ou désactivée oubliée (1.8472ms)
+✔ stockage bloqué et absence de consentement ne bloquent pas le commentaire (1.1732ms)
+✔ session authentifiée : aucune identité de compte persistée (0.8949ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.002

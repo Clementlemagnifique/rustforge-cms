@@ -87,3 +87,12 @@ Plusieurs assistants se sont succédé sur `admin/src/`, laissant des composants
 3. **Découpage modulaire et taille des composants** :
    - Structurer `admin/src/` par domaine (`stores/`, `editor/`, `components/`) en extrayant les sous-vues (barre de filtres, ligne d’édition rapide, panneau de publication, modale médiathèque) pour éviter tout fichier de plus de 250–300 lignes.
    - N’ajouter aucune bibliothèque lourde redondante (pas de Redux, pas de second routeur ou framework CSS concurrent).
+
+
+## Contrat cible jobs et mail — jalon M1 du 29/10/2026
+
+Le socle existant n'a pas de dispatcher durable ni de transport d'e-mail. Le futur rf.jobs sera partagé par notifications, médias, migrations et automatisations. Les enqueues dépendant d'une écriture métier appartiennent à sa transaction, via outbox ou mécanisme équivalent. Versionner les payloads et leur politique de reprise ; limiter taille, concurrence et tentatives. Les baux expirés sont récupérables ; l'arrêt du processus ne doit pas perdre un job accepté. Ne jamais marquer une notification envoyée avant confirmation du transport.
+
+Transport mail interchangeable, mode capture local pour recette, aucune connexion externe implicite. Séparer secrets et données restaurables. Réévaluer destinataires, droits et préférences au moment de l'envoi ; expurger les journaux et prévoir rétention/suppression. La sauvegarde des jobs ne doit pas rejouer silencieusement des envois déjà délivrés : définir les statuts et l'action de l'opérateur après restauration. Un fournisseur sans idempotence peut accepter deux fois un message après crash ; cette limite doit être visible et testée.
+
+Le [plan global](../PLAN_ACTION_GLOBAL.md) détaille M1-A à F et les critères de sortie. Ce contrat est une cible ; aucune file ni notification n'est livrée par cette entrée documentaire.

@@ -300,6 +300,17 @@ pub async fn ssr_home(
     }
 }
 
+fn decorate_comment_avatars(value: &mut Value, style: &str) {
+    if let Some(items) = value.as_array_mut() {
+        for item in items {
+            if let Some(id) = item.get("id").and_then(Value::as_str).and_then(|id| uuid::Uuid::parse_str(id).ok()) {
+                item["avatar_svg"] = serde_json::json!(rustforge_core::comments::avatar_svg(style, id));
+            }
+            if let Some(children) = item.get_mut("children") { decorate_comment_avatars(children, style); }
+        }
+    }
+}
+
 async fn render_single_entry(
     state: AppState,
     locale: String,
@@ -341,6 +352,7 @@ async fn render_single_entry(
             base_ctx["discussion"] = serde_json::to_value(&discussion).unwrap_or_default();
             base_ctx["comments_count"] = serde_json::json!(comments_page.total);
             base_ctx["comments"] = serde_json::to_value(&comments_page.items).unwrap_or_default();
+            if discussion.show_avatars { decorate_comment_avatars(&mut base_ctx["comments"], &discussion.avatar_default); }
             base_ctx["comment_page"] = serde_json::json!(comments_page.page);
             base_ctx["comment_pages"] = serde_json::json!(comments_page.total_pages);
             if comments_page.page > 1 {

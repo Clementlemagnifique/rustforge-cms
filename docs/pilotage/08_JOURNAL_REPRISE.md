@@ -1,5 +1,30 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Préférences visiteur achevées, frontière du grand jalon M1
+
+**Point de reprise le plus récent.** L'utilisateur demande d'avancer jusqu'à la prochaine grosse étape. Inspection du code : aucun transport mail ni dispatcher durable existant ; le scheduler est éditorial et EX-34 décrit des tables préparatoires. Les notifications ne peuvent pas être honnêtement clôturées sur ce socle. Les dernières options visiteur sont livrées et le prochain grand jalon **M1 — jobs durables et messagerie transactionnelle** est préparé dans le plan global, sans nouveau MD stratégique.
+
+### Livré
+
+- `discussion.show_comments_cookies_opt_in` : option Studio et serveur validée ; proposition explicite, décochée par défaut, de mémoriser nom/e-mail/site pendant **30 jours** dans le stockage local du navigateur. Aucun cookie, mot de passe, jeton ou corps de commentaire enregistré. La clé est propre à RustForge et le schéma n'accepte que ces champs et l'expiration.
+- Écriture uniquement après consentement ET succès du commentaire invité. Décocher efface l'enregistrement ; données expirées/malformées ou option désactivée sont effacées à la prochaine exécution du script sur une page de commentaire ouverte. Stockage bloqué = le commentaire reste fonctionnel. Les sessions authentifiées ne persistent pas leur identité. Les champs déjà remplis ne sont pas écrasés par la restauration.
+- Avatars **entièrement locaux** : silhouette mystery, blank sans marqueur, motif géométrique identicon, motif pixel retro. SVG généré avec valeurs numériques et chaînes constantes, à partir du seul UUID public du commentaire ; aucun hash d'e-mail ni requête Gravatar. Une même personne peut avoir des motifs différents sur ses commentaires : ce n'est pas une image de profil vérifiée. Les valeurs historiques inconnues sont rendues par une silhouette et signalées dans le Studio ; les nouvelles écritures inconnues sont refusées.
+- Le thème embarqué/default affiche réellement le choix. Option globale show_avatars Off reste effective. Mémorisation non proposée quand l'inscription est obligatoire. Notifications e-mail signalées indisponibles dans les Réglages, sans faux bouton d'envoi ni transport exécuté.
+- Correction de cohérence : taille de page limitée à 100 dans le Studio et la politique, comme la validation serveur existante. Aucun schéma de DB ni dépendance ajouté, aucune configuration personnelle ni envoi externe.
+
+### Validation et preuves
+
+**72 tests unitaires Rust** (API 17, core 53, plugins 2), **4 tests intégrés PostgreSQL/HTTP/capsule**, **10 tests JavaScript**, Clippy strict workspace/all-targets, build TypeScript/Vite et lint Studio réussis. Preuves [Rust](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-unit.txt), [HTTP](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-integration.txt), [JavaScript](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-js.txt), [Clippy](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-clippy.txt), [build Studio](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-admin-build.txt), [lint](../validations/reprise-g1-g2-2026-10-28/discussion-finish-2026-10-29-admin-lint.txt).
+
+Les recettes couvrent opt-in présent/absent, mémorisation après succès uniquement, refus/réseau sans perte, expiration/retrait du consentement, absence de données de session, stockage indisponible, avatar local effectif et blank sans image, valeur d'avatar invalide refusée. Premier essai intégré a découvert un débordement de calcul de couleur en u16 ; calcul élargi en u32 et test d'UUID maximal ajouté, puis suites relancées avec succès. Les preuves conservées sont celles du passage final. Cluster jetable arrêté. Bundle Studio >500 Ko toujours signalé. Pas de recette navigateur réelle ni de charge ; les tests JS utilisent un DOM simulé.
+
+### Prochaine grosse étape et reprise
+
+Lire **M1-A à F dans docs/PLAN_ACTION_GLOBAL.md** et le contrat jobs/mail ajouté à `04_CONTRATS_TRANSVERSES.md`. Premier geste : M1-A/B, contrat et file durable partagée (`WP-108`, EX-12/34) avec migration additive, baux, reprise/concurrence, idempotence, rétention et sauvegarde. Ensuite transport en capture locale et notifications (`WP-85`, MOD-MAIL-01/07), puis diagnostic. Aucun compte externe nécessaire pour développer et tester. Aucun envoi réel sans autorisation explicite.
+
+WP-85 reste ouvert ; WP-87 reste EN_COURS pour recette navigateur, consentement inter-onglets/rechargement et arbitrage explicite du classement des avatars (sans objet pour les motifs natifs, pas de service externe intégré). Les statuts de parité ne sont pas gonflés. Après M1 : STAB-07/08 éditeur/motifs et références dynamiques des menus. Changements à sauvegarder sur la branche `fix/consolidation-2026-10-29`, sans modifier main ni pousser dans ce tour.
+
+
 ## 29 octobre 2026 — STAB-05C : connexion publique réservée aux commentaires
 
 **Point de reprise le plus récent.** Connexion depuis l'article et retour direct au commentaire, sans passage par le Studio. Les moteurs d'authentification, mots de passe, JWT et limiteur existants sont réutilisés ; pas de cookie, migration SQL ni dépendance ajoutée.

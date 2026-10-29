@@ -19,7 +19,7 @@ Les procédures ci-dessous et l'[audit initial](AUDIT_RUSTFORGE_V0.1.0_2026-10-2
 
 Pour reprendre avec un autre assistant :
 
-> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\32c4\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. Commence G3.3-A, puis G3.3-B. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
+> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. Commence M1-A/B (contrat et file de jobs durable), selon le tableau M1 du plan global. Les lots de lecture publique et de consolidation Discussion sont déjà présents ; ne les redémarre pas. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
 
 ## Préparer une installation
 
