@@ -82,6 +82,10 @@ enum Kind {
     Columns,
     MediaText,
     Pattern,
+    Table,
+    Spacer,
+    Cover,
+    Group,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -200,20 +204,20 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             return Err(CoreError::validation("Contenu de bloc trop volumineux"));
         }
         let text = literal(&block.rf_text);
-        if (!matches!(block.rf_type, Kind::List | Kind::Columns | Kind::Pattern)
+        if (!matches!(block.rf_type, Kind::List | Kind::Columns | Kind::Pattern | Kind::Table)
             && (!block.rf_items.is_empty() || block.rf_ordered))
-            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns)
+            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns | Kind::Spacer)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
-            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
-            || (matches!(block.rf_type, Kind::Quote)
+            || (matches!(block.rf_type, Kind::Quote | Kind::Table)
                 && (!block.rf_alt.is_empty() || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button)
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group)
                 && !block.rf_style.is_empty())
             || (!matches!(block.rf_type, Kind::Pattern) && !block.rf_ref.is_empty())
         {
@@ -232,6 +236,19 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
         if matches!(block.rf_type, Kind::MediaText) && block.rf_url.is_empty() {
             return Err(CoreError::validation(
                 "L'URL du média est requise pour le bloc média & texte",
+            ));
+        }
+        if matches!(block.rf_type, Kind::Cover) && block.rf_url.is_empty() {
+            return Err(CoreError::validation(
+                "L'URL de l'image est requise pour le bloc couverture",
+            ));
+        }
+        if matches!(block.rf_type, Kind::Table)
+            && block.rf_items.is_empty()
+            && block.rf_text.is_empty()
+        {
+            return Err(CoreError::validation(
+                "Le bloc tableau doit comporter des lignes ou du contenu",
             ));
         }
         if matches!(block.rf_type, Kind::Pattern) {
@@ -403,6 +420,60 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                         .join("\n\n")
                 };
                 format!("<div class=\"rf-synced-pattern\" data-pattern=\"{r}\" data-pattern-title=\"{safe_title}\">\n\n{inner}\n\n</div>")
+            }
+            Kind::Table => {
+                let mut table_lines = Vec::new();
+                if !block.rf_items.is_empty() {
+                    let header = &block.rf_items[0];
+                    let cols: Vec<&str> = header.split('|').map(|col| col.trim()).collect();
+                    let col_count = cols.len().max(1);
+                    table_lines.push(format!("| {} |", cols.join(" | ")));
+                    table_lines.push(format!("| {} |", vec!["---"; col_count].join(" | ")));
+                    for row in &block.rf_items[1..] {
+                        let row_cols: Vec<&str> = row.split('|').map(|col| col.trim()).collect();
+                        table_lines.push(format!("| {} |", row_cols.join(" | ")));
+                    }
+                } else if !block.rf_text.is_empty() {
+                    table_lines.push(block.rf_text.clone());
+                }
+                let table_md = table_lines.join("\n");
+                let cite = block.rf_caption.trim();
+                if cite.is_empty() {
+                    table_md
+                } else {
+                    format!("{table_md}\n\n*Tableau : {}*", literal(cite).replace('\n', " "))
+                }
+            }
+            Kind::Spacer => {
+                let style = match block.rf_style.as_str() {
+                    "sm" => "sm",
+                    "lg" => "lg",
+                    "xl" => "xl",
+                    _ => "md",
+                };
+                format!("<div class=\"rf-spacer rf-spacer-{style}\" aria-hidden=\"true\"></div>")
+            }
+            Kind::Cover => {
+                let url = validate_safe_url(&block.rf_url, true)?;
+                let alt = literal(block.rf_alt.trim()).replace('\n', " ");
+                let style = match block.rf_style.as_str() {
+                    "light" => "light",
+                    "primary" => "primary",
+                    "gradient" => "gradient",
+                    _ => "dark",
+                };
+                let content = safe_rich_text(&block.rf_text);
+                format!("<div class=\"rf-cover rf-cover-{style}\"><div class=\"rf-cover-bg\"><img src=\"{url}\" alt=\"{alt}\" /></div><div class=\"rf-cover-content\">\n\n{content}\n\n</div></div>")
+            }
+            Kind::Group => {
+                let style = match block.rf_style.as_str() {
+                    "bordered" => "bordered",
+                    "muted" => "muted",
+                    "highlight" => "highlight",
+                    _ => "card",
+                };
+                let content = safe_rich_text(&block.rf_text);
+                format!("<div class=\"rf-group rf-group-{style}\">\n\n{content}\n\n</div>")
             }
         });
     }
@@ -647,7 +718,142 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             continue;
         }
 
-        // 9. Paragraphe
+        // 9. Tableau GFM (| col 1 | col 2 |)
+        if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.contains('|') {
+            let mut t_rows = Vec::new();
+            while idx < lines.len() {
+                let cand = lines[idx].trim();
+                if cand.starts_with('|') && cand.ends_with('|') {
+                    // Ignorer la ligne de séparateur standard | --- | --- |
+                    let inner = &cand[1..cand.len() - 1];
+                    let is_separator = inner.split('|').all(|c| {
+                        let t = c.trim();
+                        !t.is_empty() && t.chars().all(|ch| ch == '-' || ch == ':')
+                    });
+                    if !is_separator {
+                        let row_clean = inner
+                            .split('|')
+                            .map(|c| c.trim())
+                            .collect::<Vec<_>>()
+                            .join(" | ");
+                        t_rows.push(row_clean);
+                    }
+                    idx += 1;
+                } else {
+                    break;
+                }
+            }
+            let mut caption = String::new();
+            let mut lookahead = idx;
+            while lookahead < lines.len() && lines[lookahead].trim().is_empty() {
+                lookahead += 1;
+            }
+            if lookahead < lines.len() {
+                let next_t = lines[lookahead].trim();
+                if let Some(rest) = next_t
+                    .strip_prefix("*Tableau : ")
+                    .and_then(|s| s.strip_suffix('*'))
+                {
+                    caption = rest.trim().to_string();
+                    idx = lookahead + 1;
+                }
+            }
+            if !t_rows.is_empty() {
+                let mut b = Block::new(next_id()?, Kind::Table);
+                b.rf_items = t_rows;
+                b.rf_caption = caption;
+                blocks.push(b);
+                continue;
+            }
+        }
+
+        // 10. Espaceur (<div class="rf-spacer rf-spacer-...")
+        if trimmed.starts_with("<div class=\"rf-spacer") {
+            let style = if trimmed.contains("rf-spacer-sm") {
+                "sm".to_string()
+            } else if trimmed.contains("rf-spacer-lg") {
+                "lg".to_string()
+            } else if trimmed.contains("rf-spacer-xl") {
+                "xl".to_string()
+            } else {
+                "md".to_string()
+            };
+            let mut b = Block::new(next_id()?, Kind::Spacer);
+            b.rf_style = style;
+            blocks.push(b);
+            idx += 1;
+            continue;
+        }
+
+        // 11. Couverture (<div class="rf-cover rf-cover-...")
+        if trimmed.starts_with("<div class=\"rf-cover") {
+            let style = if trimmed.contains("rf-cover-light") {
+                "light".to_string()
+            } else if trimmed.contains("rf-cover-primary") {
+                "primary".to_string()
+            } else if trimmed.contains("rf-cover-gradient") {
+                "gradient".to_string()
+            } else {
+                "dark".to_string()
+            };
+            let mut url = String::new();
+            let mut alt = String::new();
+            if let Some(src_pos) = trimmed.find("src=\"") {
+                let rest = &trimmed[src_pos + 5..];
+                if let Some(src_end) = rest.find('"') {
+                    url = rest[..src_end].to_string();
+                }
+            }
+            if let Some(alt_pos) = trimmed.find("alt=\"") {
+                let rest = &trimmed[alt_pos + 5..];
+                if let Some(alt_end) = rest.find('"') {
+                    alt = rest[..alt_end].to_string();
+                }
+            }
+            let mut content = String::new();
+            if let Some(content_pos) = trimmed.find("<div class=\"rf-cover-content\">") {
+                let rest = &trimmed[content_pos + 30..];
+                if let Some(content_end) = rest.rfind("</div></div>") {
+                    content = rest[..content_end].trim().to_string();
+                }
+            }
+            let mut b = Block::new(next_id()?, Kind::Cover);
+            b.rf_style = style;
+            b.rf_url = url;
+            b.rf_alt = alt;
+            b.rf_text = content;
+            blocks.push(b);
+            idx += 1;
+            continue;
+        }
+
+        // 12. Groupe / Carte (<div class="rf-group rf-group-...")
+        if trimmed.starts_with("<div class=\"rf-group") {
+            let style = if trimmed.contains("rf-group-bordered") {
+                "bordered".to_string()
+            } else if trimmed.contains("rf-group-muted") {
+                "muted".to_string()
+            } else if trimmed.contains("rf-group-highlight") {
+                "highlight".to_string()
+            } else {
+                "card".to_string()
+            };
+            let mut content = String::new();
+            if let Some(content_start) = trimmed.find('>') {
+                let rest = &trimmed[content_start + 1..];
+                if let Some(content_end) = rest.rfind("</div>") {
+                    content = rest[..content_end].trim().to_string();
+                }
+            }
+            let mut b = Block::new(next_id()?, Kind::Group);
+            b.rf_style = style;
+            b.rf_text = content;
+            blocks.push(b);
+            idx += 1;
+            continue;
+        }
+
+        // 13. Paragraphe
         let mut para_lines = Vec::new();
         while idx < lines.len() {
             let t = lines[idx].trim();
@@ -659,6 +865,8 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                 || t.starts_with("- ")
                 || t.starts_with("* ")
                 || t.starts_with("+ ")
+                || (t.starts_with('|') && t.ends_with('|'))
+                || t.starts_with("<div class=\"rf-")
                 || (t.chars().take_while(|&c| c == '#').count() >= 1
                     && t.chars().take_while(|&c| c == '#').count() <= 6
                     && t[t.chars().take_while(|&c| c == '#').count()..].starts_with(' '))
@@ -943,5 +1151,71 @@ mod tests {
         assert!(html.contains("<ol>"));
         assert!(html.contains("<li>Étape A</li>"));
         assert!(html.contains("<li>Étape B</li>"));
+    }
+    #[test]
+    fn test_phase1_structural_blocks() {
+        // Table block (WP-B099)
+        let table_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"t1",
+                "rf_type":"table",
+                "rf_items":["Produit | Prix | Stock", "RustForge | Gratuit | Illimité", "Support | Inclus | 24/7"],
+                "rf_caption":"Tarifs 2026"
+            }
+        ]});
+        let (body, html) = project("", &table_doc).unwrap();
+        assert!(body.contains("| Produit | Prix | Stock |"));
+        assert!(body.contains("Tarifs 2026"));
+        assert!(html.contains("<table>"));
+        assert!(html.contains("<th>Produit</th>"));
+        assert!(html.contains("<td>RustForge</td>"));
+        assert!(html.contains("Tarifs 2026"));
+
+        // Spacer block (WP-B095)
+        let spacer_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"sp1","rf_type":"spacer","rf_style":"lg"}
+        ]});
+        let (_, html) = project("", &spacer_doc).unwrap();
+        assert!(html.contains("class=\"rf-spacer rf-spacer-lg\""));
+        assert!(html.contains("aria-hidden=\"true\""));
+
+        // Cover block (WP-B025)
+        let cover_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"cov1",
+                "rf_type":"cover",
+                "rf_url":"/uploads/banner.webp",
+                "rf_alt":"Bannière d'accueil",
+                "rf_text":"# Titre du Hero\n\nSous-titre inspirant",
+                "rf_style":"gradient"
+            }
+        ]});
+        let (_, html) = project("", &cover_doc).unwrap();
+        assert!(html.contains("rf-cover rf-cover-gradient"));
+        assert!(html.contains("/uploads/banner.webp"));
+        assert!(html.contains("Titre du Hero"));
+
+        // Group block (WP-B039)
+        let group_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"grp1",
+                "rf_type":"group",
+                "rf_text":"Texte dans une carte encadrée avec **gras**.",
+                "rf_style":"card"
+            }
+        ]});
+        let (_, html) = project("", &group_doc).unwrap();
+        assert!(html.contains("rf-group rf-group-card"));
+        assert!(html.contains("<strong>gras</strong>"));
+
+        // Roundtrip from_markdown pour Table et Spacer
+        let md_source = "| Nom | Version |\n| --- | --- |\n| RustForge | 1.0 |\n\n*Tableau : Composants*\n\n<div class=\"rf-spacer rf-spacer-xl\" aria-hidden=\"true\"></div>";
+        let parsed = from_markdown(md_source).unwrap();
+        let p_blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(p_blocks.len(), 2);
+        assert_eq!(p_blocks[0]["rf_type"], "table");
+        assert_eq!(p_blocks[0]["rf_caption"], "Composants");
+        assert_eq!(p_blocks[1]["rf_type"], "spacer");
+        assert_eq!(p_blocks[1]["rf_style"], "xl");
     }
 }

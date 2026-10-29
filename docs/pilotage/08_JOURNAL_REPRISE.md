@@ -1,8 +1,23 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Blocs de Structure, Tableaux & Conteneurs Cœur : validation intégrale de WP-B029, WP-B095, WP-B099 et WP-B103
+
+**Point de reprise le plus récent.** Phase 1 du plan d'exhaustivité validée. Implémentation complète des blocs structurants dans l'enveloppe souveraine `rf.document/1` et l'éditeur Studio :
+- **Tableau GFM & HTML (`core/table` — `WP-B103`)** : gestion des colonnes et lignes avec séparateur pipe, caption optionnelle, rendu `<table>` accessible assaini par Ammonia et conversion bidirectionnelle Markdown GFM.
+- **Espaceur Vertical (`core/spacer` — `WP-B099`)** : hauteurs prédéfinies (`sm` 16px, `md` 32px, `lg` 64px, `xl` 96px), attribut `aria-hidden="true"`, et règle visuelle dans le Studio.
+- **Bannière de Couverture (`core/cover` — `WP-B029`)** : image de fond avec sélection médiathèque, styles d'overlay (`dark`, `light`, `primary`, `gradient`), texte/titre contrasté.
+- **Groupe / Carte (`core/group` — `WP-B036`)** : conteneur de mise en page avec variantes visuelles (`card`, `bordered`, `muted`, `highlight`) et texte riche.
+
+### Validations et métriques
+- 72 tests unitaires `rustforge-core` réussis (dont `test_phase1_structural_blocks`).
+- 98 tests validés sur l'ensemble de l'espace de travail.
+- Clippy strict : 0 avertissement sur tous les packages (`-D warnings`).
+- Frontend : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 581ms.
+- Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants).
+
 ## 29 octobre 2026 — Identité, Réglages Généraux & Défauts Éditoriaux : validation intégrale de WP-69, WP-70, WP-71, WP-72, WP-73, WP-74 et WP-75
 
-**Point de reprise le plus récent.** Lot complet Identité & Réglages Généraux (`WP-69`, `WP-70`, `WP-71`, `WP-72`, `WP-73`, `WP-74`, `WP-75`) livré, documenté et qualifié. Implémentation du pipeline souverain d'icône de site et favicon multi-formats en WebP (`WP-74`), du moteur de formatage date/heure compatible WordPress avec prévisualisation dynamique (`WP-73`), des contrôles d'inscription publique strictement bornés (`WP-72`), de la distinction d'URL d'installation vs accueil public (`WP-70`), de l'application automatique des catégories et formats par défaut (`WP-75`), et modernisation soignée de l'interface Studio inspirée des standards d'ergonomie et de sobriété (Adminify, WordPress, Astra/GeneratePress).
+Lot complet Identité & Réglages Généraux (`WP-69`, `WP-70`, `WP-71`, `WP-72`, `WP-73`, `WP-74`, `WP-75`) livré, documenté et qualifié. Implémentation du pipeline souverain d'icône de site et favicon multi-formats en WebP (`WP-74`), du moteur de formatage date/heure compatible WordPress avec prévisualisation dynamique (`WP-73`), des contrôles d'inscription publique strictement bornés (`WP-72`), de la distinction d'URL d'installation vs accueil public (`WP-70`), de l'application automatique des catégories et formats par défaut (`WP-75`), et modernisation soignée de l'interface Studio inspirée des standards d'ergonomie et de sobriété (Adminify, WordPress, Astra/GeneratePress).
 
 ### Livré et protections
 

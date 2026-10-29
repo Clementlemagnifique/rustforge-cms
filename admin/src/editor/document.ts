@@ -13,6 +13,10 @@ export const BLOCK_TYPES = [
   'columns',
   'media_text',
   'pattern',
+  'table',
+  'spacer',
+  'cover',
+  'group',
 ] as const;
 export type BlockKind = typeof BLOCK_TYPES[number];
 export interface NativeBlock {
@@ -52,6 +56,20 @@ export function newBlock(kind: BlockKind): NativeBlock {
   } else if (kind === 'pattern') {
     base.rf_ref = '';
     base.rf_caption = 'Motif synchronisé';
+  } else if (kind === 'table') {
+    base.rf_items = ['Colonne 1 | Colonne 2', 'Valeur 1 | Valeur 2'];
+    base.rf_caption = '';
+  } else if (kind === 'spacer') {
+    base.rf_style = 'md';
+  } else if (kind === 'cover') {
+    base.rf_url = '';
+    base.rf_alt = '';
+    base.rf_caption = '';
+    base.rf_style = 'dark';
+    base.rf_text = '# Titre principal';
+  } else if (kind === 'group') {
+    base.rf_style = 'card';
+    base.rf_text = 'Contenu de la carte encadrée';
   }
   return base;
 }
@@ -90,11 +108,11 @@ export function readDocument(value: unknown): NativeDocument | null {
       rf_items: (block.rf_items as string[]) ?? [],
     };
     if (typeof block.rf_url === 'string') parsed.rf_url = block.rf_url;
-    else if (kind === 'image' || kind === 'button' || kind === 'media_text') parsed.rf_url = '';
+    else if (kind === 'image' || kind === 'button' || kind === 'media_text' || kind === 'cover') parsed.rf_url = '';
     if (typeof block.rf_alt === 'string') parsed.rf_alt = block.rf_alt;
-    else if (kind === 'image' || kind === 'media_text') parsed.rf_alt = '';
+    else if (kind === 'image' || kind === 'media_text' || kind === 'cover') parsed.rf_alt = '';
     if (typeof block.rf_caption === 'string') parsed.rf_caption = block.rf_caption;
-    else if (kind === 'image' || kind === 'quote') parsed.rf_caption = '';
+    else if (kind === 'image' || kind === 'quote' || kind === 'table' || kind === 'cover') parsed.rf_caption = '';
     else if (kind === 'details') parsed.rf_caption = 'Détails';
     if (typeof block.rf_media_id === 'string' && block.rf_media_id) parsed.rf_media_id = block.rf_media_id;
     if (typeof block.rf_ref === 'string') parsed.rf_ref = block.rf_ref;
@@ -102,8 +120,14 @@ export function readDocument(value: unknown): NativeDocument | null {
     else if (kind === 'callout') parsed.rf_style = 'info';
     else if (kind === 'button') parsed.rf_style = 'primary';
     else if (kind === 'media_text') parsed.rf_style = 'media-left';
+    else if (kind === 'spacer') parsed.rf_style = 'md';
+    else if (kind === 'cover') parsed.rf_style = 'dark';
+    else if (kind === 'group') parsed.rf_style = 'card';
     if (kind === 'columns' && (!Array.isArray(block.rf_items) || block.rf_items.length === 0)) {
       parsed.rf_items = ['Colonne 1', 'Colonne 2'];
+    }
+    if (kind === 'table' && (!Array.isArray(block.rf_items) || block.rf_items.length === 0)) {
+      parsed.rf_items = ['Colonne 1 | Colonne 2', 'Valeur 1 | Valeur 2'];
     }
     result.push(parsed);
   }

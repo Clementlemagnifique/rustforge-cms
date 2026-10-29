@@ -350,6 +350,14 @@ export function NativeBlockEditor({
                     ? `${b.rf_items.length} colonnes`
                     : b.rf_type === 'media_text'
                     ? `📷 ${b.rf_alt || b.rf_url || 'Média'} + Texte`
+                    : b.rf_type === 'table'
+                    ? `📊 ${b.rf_caption || `${b.rf_items.length} lignes`}`
+                    : b.rf_type === 'spacer'
+                    ? `↕ Espaceur (${b.rf_style || 'md'})`
+                    : b.rf_type === 'cover'
+                    ? `🌄 ${b.rf_text ? b.rf_text.split('\n')[0] : b.rf_url || 'Couverture'}`
+                    : b.rf_type === 'group'
+                    ? `🗂 [${b.rf_style || 'card'}] ${b.rf_text ? b.rf_text.slice(0, 30) : 'Groupe'}`
                     : b.rf_text;
                 return (
                   <li
@@ -922,6 +930,236 @@ export function NativeBlockEditor({
                     </ul>
                   </div>
                 )}
+              </div>
+            ) : block.rf_type === 'spacer' ? (
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-400">{text.spacerHeight} :</span>
+                  <select
+                    value={block.rf_style || 'md'}
+                    onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                    className="rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  >
+                    <option value="sm">{text.spacerSm}</option>
+                    <option value="md">{text.spacerMd}</option>
+                    <option value="lg">{text.spacerLg}</option>
+                    <option value="xl">{text.spacerXl}</option>
+                  </select>
+                </div>
+                <div
+                  className="w-full rounded border border-dashed border-white/15 bg-white/5 flex items-center justify-center text-[10px] text-slate-500 font-mono transition-all"
+                  style={{
+                    height:
+                      block.rf_style === 'sm'
+                        ? '16px'
+                        : block.rf_style === 'lg'
+                        ? '64px'
+                        : block.rf_style === 'xl'
+                        ? '96px'
+                        : '32px',
+                  }}
+                >
+                  ↕ {block.rf_style === 'sm' ? '16px' : block.rf_style === 'lg' ? '64px' : block.rf_style === 'xl' ? '96px' : '32px'}
+                </div>
+              </div>
+            ) : block.rf_type === 'table' ? (
+              <div className="space-y-3 text-xs">
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.tableCaption}</span>
+                  <input
+                    type="text"
+                    maxLength={1024}
+                    value={block.rf_caption ?? ''}
+                    onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                    placeholder="Ex: Comparatif des forfaits 2026"
+                    className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-white"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.tableRows}</span>
+                  <textarea
+                    aria-label={name}
+                    value={block.rf_items.join('\n')}
+                    onChange={e => edit(block.rf_id, { rf_items: e.target.value.split('\n') })}
+                    rows={Math.max(4, block.rf_items.length + 1)}
+                    placeholder="Colonne 1 | Colonne 2 | Colonne 3&#10;Ligne 1 A | Ligne 1 B | Ligne 1 C"
+                    className="w-full rounded-lg border border-white/10 bg-black/25 p-3 font-mono text-xs text-white"
+                  />
+                </label>
+                {block.rf_items.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-2">
+                    <table className="w-full text-left text-xs border-collapse">
+                      {block.rf_caption && (
+                        <caption className="pb-2 text-[11px] font-semibold text-slate-400 text-left">
+                          {block.rf_caption}
+                        </caption>
+                      )}
+                      <thead>
+                        <tr className="border-b border-white/10 text-slate-300">
+                          {block.rf_items[0].split('|').map((col, cIdx) => (
+                            <th key={cIdx} className="p-1.5 font-semibold">
+                              {col.trim()}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {block.rf_items.slice(1).map((row, rIdx) => (
+                          <tr key={rIdx} className="border-b border-white/5 hover:bg-white/5 text-slate-400">
+                            {row.split('|').map((cell, cIdx) => (
+                              <td key={cIdx} className="p-1.5">
+                                {cell.trim()}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : block.rf_type === 'cover' ? (
+              <div className="space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">{text.coverStyle} :</span>
+                    <select
+                      value={block.rf_style || 'dark'}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    >
+                      <option value="dark">{text.coverDark}</option>
+                      <option value="light">{text.coverLight}</option>
+                      <option value="primary">{text.coverPrimary}</option>
+                      <option value="gradient">{text.coverGradient}</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {mediaLibrary.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPickerBlockId(pickerBlockId === block.rf_id ? null : block.rf_id)}
+                        className="rounded border border-indigo-400/30 bg-indigo-500/10 px-2.5 py-1 text-indigo-200 hover:bg-indigo-500/20"
+                      >
+                        {text.pickMedia}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {pickerBlockId === block.rf_id && mediaLibrary.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-lg border border-white/10 bg-black/30 p-2 max-h-48 overflow-y-auto">
+                    {mediaLibrary
+                      .filter(m => m.mime_type.startsWith('image/'))
+                      .map(m => {
+                        const mediaUrl = m.url || `/uploads/${m.path}`;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              edit(block.rf_id, {
+                                rf_url: mediaUrl,
+                                rf_alt: block.rf_alt || m.alt || m.original_name,
+                                rf_media_id: m.id,
+                              });
+                              setPickerBlockId(null);
+                            }}
+                            className="flex flex-col items-start gap-1 rounded border border-white/10 bg-white/5 p-2 text-left hover:border-indigo-400"
+                          >
+                            <span className="truncate w-full font-medium text-slate-200">{m.original_name}</span>
+                            <span className="truncate w-full text-[10px] text-slate-400 font-mono">{mediaUrl}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{text.imageUrl}</span>
+                    <input
+                      type="text"
+                      value={block.rf_url ?? ''}
+                      onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                      placeholder="/uploads/banner.webp"
+                      className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 font-mono text-xs text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">{text.imageAlt}</span>
+                    <input
+                      type="text"
+                      maxLength={512}
+                      value={block.rf_alt ?? ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="Description du visuel"
+                      className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-white"
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.coverTitle}</span>
+                  <textarea
+                    aria-label={name}
+                    maxLength={65536}
+                    value={block.rf_text}
+                    onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                    rows={3}
+                    placeholder="# Titre principal du hero\n\nSous-titre inspirant..."
+                    className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
+                  />
+                </label>
+              </div>
+            ) : block.rf_type === 'group' ? (
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">{text.groupStyle} :</span>
+                  <select
+                    value={block.rf_style || 'card'}
+                    onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                    className="rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  >
+                    <option value="card">{text.groupCard}</option>
+                    <option value="bordered">{text.groupBordered}</option>
+                    <option value="muted">{text.groupMuted}</option>
+                    <option value="highlight">{text.groupHighlight}</option>
+                  </select>
+                </div>
+                <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}**texte en gras**` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-bold text-slate-200 hover:bg-white/10"
+                    title="Insérer une emphase forte (Gras)"
+                  >
+                    B
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}*texte en italique*` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 italic text-slate-200 hover:bg-white/10"
+                    title="Insérer une emphase (Italique)"
+                  >
+                    I
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => edit(block.rf_id, { rf_text: `${block.rf_text}${block.rf_text ? ' ' : ''}\`code\`` })}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-slate-200 hover:bg-white/10"
+                    title="Insérer du code en ligne"
+                  >
+                    {'<>'}
+                  </button>
+                </div>
+                <textarea
+                  aria-label={name}
+                  maxLength={65536}
+                  value={block.rf_text}
+                  onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
+                />
               </div>
             ) : (
               <div className="space-y-1.5">
