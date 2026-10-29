@@ -87,6 +87,7 @@ enum Kind {
     Cover,
     Group,
     Product,
+    Course,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -210,17 +211,17 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns | Kind::Spacer)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
-            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover | Kind::Product)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover | Kind::Product | Kind::Course)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table | Kind::Product)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table | Kind::Product | Kind::Course)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
             || (matches!(block.rf_type, Kind::Quote | Kind::Table)
                 && (!block.rf_alt.is_empty() || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group | Kind::Product)
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group | Kind::Product | Kind::Course)
                 && !block.rf_style.is_empty())
-            || (!matches!(block.rf_type, Kind::Pattern | Kind::Product) && !block.rf_ref.is_empty())
+            || (!matches!(block.rf_type, Kind::Pattern | Kind::Product | Kind::Course) && !block.rf_ref.is_empty())
         {
             return Err(CoreError::validation(
                 "Données incompatibles avec le type du bloc",
@@ -230,6 +231,12 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
         if matches!(block.rf_type, Kind::Product) && block.rf_text.trim().is_empty() {
             return Err(CoreError::validation(
                 "Le bloc produit requiert un titre de produit",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::Course) && block.rf_text.trim().is_empty() {
+            return Err(CoreError::validation(
+                "Le bloc formation requiert un titre de formation",
             ));
         }
 
@@ -503,6 +510,29 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                 let product_id = block.rf_ref.trim().replace('"', "&quot;");
                 format!(
                     "<div class=\"rf-product-card rf-product-{style}\" data-product-id=\"{product_id}\"><div class=\"rf-product-details\"><h3 class=\"rf-product-title\">{title}</h3><div class=\"rf-product-price\">{price}</div></div><a href=\"{url}\" class=\"rf-btn rf-btn-primary\">{btn_label}</a></div>"
+                )
+            }
+            Kind::Course => {
+                let title = literal(block.rf_text.trim());
+                let meta = literal(block.rf_caption.trim());
+                let btn_label = if block.rf_alt.trim().is_empty() {
+                    "Accéder à la formation"
+                } else {
+                    block.rf_alt.trim()
+                };
+                let url = if block.rf_url.trim().is_empty() {
+                    "#"
+                } else {
+                    validate_safe_url(&block.rf_url, false)?
+                };
+                let style = match block.rf_style.as_str() {
+                    "compact" => "compact",
+                    "hero" => "hero",
+                    _ => "card",
+                };
+                let course_id = block.rf_ref.trim().replace('"', "&quot;");
+                format!(
+                    "<div class=\"rf-course-card rf-course-{style}\" data-course-id=\"{course_id}\"><div class=\"rf-course-details\"><h3 class=\"rf-course-title\">{title}</h3><div class=\"rf-course-meta\">{meta}</div></div><a href=\"{url}\" class=\"rf-btn rf-btn-primary\">{btn_label}</a></div>"
                 )
             }
         });
@@ -936,7 +966,60 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             continue;
         }
 
-        // 14. Paragraphe
+        // 14. Formation LMS (<div class="rf-course-card...")
+        if trimmed.starts_with("<div class=\"rf-course-card") {
+            let style = if trimmed.contains("rf-course-compact") {
+                "compact".to_string()
+            } else if trimmed.contains("rf-course-hero") {
+                "hero".to_string()
+            } else {
+                "card".to_string()
+            };
+            let course_id = if let Some(pos) = trimmed.find("data-course-id=\"") {
+                let sub = &trimmed[pos + 16..];
+                sub.split('"').next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+            let title = if let Some(pos) = trimmed.find("rf-course-title\">") {
+                let sub = &trimmed[pos + 17..];
+                sub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            } else {
+                String::new()
+            };
+            let meta = if let Some(pos) = trimmed.find("rf-course-meta\">") {
+                let sub = &trimmed[pos + 16..];
+                sub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            } else {
+                String::new()
+            };
+            let (url, btn_label) = if let Some(pos) = trimmed.find("<a href=\"") {
+                let sub = &trimmed[pos + 9..];
+                let u = sub.split('"').next().unwrap_or("").to_string();
+                let label = if let Some(lpos) = sub.find('>') {
+                    let lsub = &sub[lpos + 1..];
+                    lsub.split('<').next().unwrap_or("").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                } else {
+                    "Accéder à la formation".to_string()
+                };
+                (u, label)
+            } else {
+                (String::new(), "Accéder à la formation".to_string())
+            };
+
+            let mut b = Block::new(next_id()?, Kind::Course);
+            b.rf_style = style;
+            b.rf_ref = course_id;
+            b.rf_text = title;
+            b.rf_caption = meta;
+            b.rf_url = if url == "#" { String::new() } else { url };
+            b.rf_alt = btn_label;
+            blocks.push(b);
+            idx += 1;
+            continue;
+        }
+
+        // 15. Paragraphe
         let mut para_lines = Vec::new();
         while idx < lines.len() {
             let t = lines[idx].trim();
@@ -1334,6 +1417,41 @@ mod tests {
         assert_eq!(blocks[0]["rf_caption"], "39,00 €");
         assert_eq!(blocks[0]["rf_ref"], "prod-uuid-1234");
         assert_eq!(blocks[0]["rf_alt"], "Acheter le guide");
+        assert_eq!(blocks[0]["rf_style"], "card");
+    }
+
+    #[test]
+    fn test_course_block() {
+        let course_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"crs1",
+                "rf_type":"course",
+                "rf_text":"Maîtriser Rust & Axum de A à Z",
+                "rf_caption":"24 leçons • 8h30",
+                "rf_ref":"course-uuid-4567",
+                "rf_url":"https://example.com/formations/rust-axum",
+                "rf_alt":"Commencer le cours",
+                "rf_style":"card"
+            }
+        ]});
+        let (body, html) = project("", &course_doc).unwrap();
+        assert!(body.contains("rf-course-card rf-course-card"));
+        assert!(body.contains("data-course-id=\"course-uuid-4567\""));
+        assert!(body.contains("Maîtriser Rust &amp; Axum de A à Z"));
+        assert!(body.contains("24 leçons • 8h30"));
+        assert!(body.contains("Commencer le cours"));
+        assert!(html.contains("rf-course-card"));
+        assert!(html.contains("data-course-id=\"course-uuid-4567\""));
+
+        // Roundtrip from_markdown
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "course");
+        assert_eq!(blocks[0]["rf_text"], "Maîtriser Rust & Axum de A à Z");
+        assert_eq!(blocks[0]["rf_caption"], "24 leçons • 8h30");
+        assert_eq!(blocks[0]["rf_ref"], "course-uuid-4567");
+        assert_eq!(blocks[0]["rf_alt"], "Commencer le cours");
         assert_eq!(blocks[0]["rf_style"], "card");
     }
 }

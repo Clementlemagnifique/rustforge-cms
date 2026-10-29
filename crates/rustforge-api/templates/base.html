@@ -470,6 +470,15 @@
         .rf-product-title { margin: 0; font-size: 1.2rem; font-weight: 700; color: #f8fafc; font-family: var(--tp-font-heading); }
         .rf-product-price { margin-top: 0.25rem; font-size: 1.15rem; font-weight: 700; color: var(--tp-accent, #10b981); }
 
+        /* Bloc Formation LMS (MOD-LMS-02) */
+        .rf-course-card { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem 1.5rem; border-radius: var(--tp-radius); margin: 1.5rem 0; flex-wrap: wrap; }
+        .rf-course-card.rf-course-card { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+        .rf-course-card.rf-course-compact { padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); }
+        .rf-course-card.rf-course-hero { padding: 2.25rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(79, 70, 229, 0.12)); border: 1px solid rgba(16, 185, 129, 0.35); }
+        .rf-course-details { flex: 1; min-width: 200px; }
+        .rf-course-title { margin: 0; font-size: 1.2rem; font-weight: 700; color: #f8fafc; font-family: var(--tp-font-heading); }
+        .rf-course-meta { margin-top: 0.25rem; font-size: 0.9rem; font-weight: 500; color: #94a3b8; }
+
         {% if design_tokens.custom_css %}
 
         {{ design_tokens.custom_css }}

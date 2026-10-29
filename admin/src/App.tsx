@@ -37,6 +37,7 @@ import { UsersView } from './components/UsersView';
 import { CommentsView } from './components/CommentsView';
 import { FormsView } from './components/FormsView';
 import { EcommerceView } from './components/EcommerceView';
+import { LmsView } from './components/LmsView';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -309,6 +310,28 @@ export const App: React.FC = () => {
                       : currentView === 'rf_commerce_settings' || currentView === 'ecommerce:settings'
                       ? 'settings'
                       : 'products'
+                  }
+                />
+              )}
+
+              {(currentView === 'lms' ||
+                currentView === 'module:lms' ||
+                currentView.startsWith('lms') ||
+                currentView === 'rf_lms' ||
+                currentView === 'rf_lms_courses' ||
+                currentView === 'rf_lms_lessons' ||
+                currentView === 'rf_lms_learners' ||
+                currentView === 'rf_lms_settings') && (
+                <LmsView
+                  key={currentView}
+                  initialTab={
+                    currentView === 'rf_lms_lessons' || currentView === 'lms:lessons'
+                      ? 'curriculum'
+                      : currentView === 'rf_lms_learners' || currentView === 'lms:learners'
+                      ? 'learners'
+                      : currentView === 'rf_lms_settings' || currentView === 'lms:settings'
+                      ? 'settings'
+                      : 'courses'
                   }
                 />
               )}

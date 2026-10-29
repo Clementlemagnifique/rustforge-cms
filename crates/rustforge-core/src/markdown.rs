@@ -53,6 +53,7 @@ pub fn render(markdown: &str) -> String {
             "data-pattern-title",
             "aria-hidden",
             "data-product-id",
+            "data-course-id",
         ])
         .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])

@@ -360,6 +360,8 @@ export function NativeBlockEditor({
                     ? `🗂 [${b.rf_style || 'card'}] ${b.rf_text ? b.rf_text.slice(0, 30) : 'Groupe'}`
                     : b.rf_type === 'product'
                     ? `🛒 ${b.rf_text || 'Produit'} (${b.rf_caption || '0,00 €'})`
+                    : b.rf_type === 'course'
+                    ? `🎓 ${b.rf_text || 'Formation'} (${b.rf_caption || 'Cours'})`
                     : b.rf_text;
                 return (
                   <li
@@ -1232,6 +1234,78 @@ export function NativeBlockEditor({
                   </div>
                   <span className="rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white shadow shrink-0">
                     {block.rf_alt || 'Acheter'}
+                  </span>
+                </div>
+              </div>
+            ) : block.rf_type === 'course' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.courseTitle} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_text}
+                      onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                      placeholder="Nom de la formation"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.courseMeta} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_caption || ''}
+                      onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                      placeholder="12 leçons • 3h30"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.courseButtonText} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_alt || ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="Accéder à la formation"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.courseStyle} :</label>
+                    <select
+                      value={block.rf_style || 'card'}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    >
+                      <option value="card">{text.courseStyleCard}</option>
+                      <option value="compact">{text.courseStyleCompact}</option>
+                      <option value="hero">{text.courseStyleHero}</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.courseUrl} :</label>
+                  <input
+                    type="text"
+                    value={block.rf_url || ''}
+                    onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                    placeholder="https://... ou /formations/... ou #start"
+                    className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  />
+                </div>
+                <div className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${
+                  block.rf_style === 'hero'
+                    ? 'bg-gradient-to-r from-emerald-950/60 to-indigo-950/40 border-emerald-500/30'
+                    : block.rf_style === 'compact'
+                    ? 'bg-white/5 border-white/10 py-1.5'
+                    : 'bg-black/30 border-white/10'
+                }`}>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate text-xs">{block.rf_text || 'Formation sans titre'}</p>
+                    <p className="text-slate-400 text-[11px] mt-0.5">{block.rf_caption || '0 leçon'}</p>
+                  </div>
+                  <span className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white shadow shrink-0">
+                    {block.rf_alt || 'Accéder à la formation'}
                   </span>
                 </div>
               </div>

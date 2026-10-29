@@ -1013,6 +1013,31 @@ Livrables et validations :
   - Frontend : Oxlint 0 avertissement / 0 erreur, Vite build réussi en 508ms (`dist/assets/index-*.js`).
   - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
 
+## 29 octobre 2026 — Phase 5 : Module Formation Souverain et LMS (MOD-LMS-01 à MOD-LMS-05)
+
+Demande : Intégration complète du module de formation et d'apprentissage en ligne (LMS) inspiré de Sensei LMS et Tutor LMS, en pur Rust souverain, avec hiérarchie cours / modules / leçons, suivi de progression, intégration bidirectionnelle e-commerce (inscriptions automatiques post-commande), bloc de document `rf.document/1` (`Kind::Course`) et interface d'administration claire et intuitive dans le Studio.
+
+Livrables et validations :
+- **Tâches qualifiées et validées** :
+  - `MOD-LMS-01` (Activation et intégrité du module) : Architecture du domaine LMS dans `crates/rustforge-core/src/lms.rs`, routes et contrôleurs sécurisés dans `crates/rustforge-api/src/routes/lms.rs`, isolation et cohérence des tables relationnelles (`lms_courses`, `lms_modules`, `lms_lessons`, `lms_enrollments`, `lms_progress`).
+  - `MOD-LMS-02` (Cours, modules et leçons) : CRUD complet pour les cours, modules de chapitrage et leçons individuelles, gestion du contenu Markdown, vidéos optionnelles, durée estimée et prévisualisation libre. Ajout du bloc souverain `Kind::Course` (`"course"`) dans le moteur `crates/rustforge-core/src/document.rs` avec projection HTML `.rf-course-card`, styles (`card`, `compact`, `hero`), assainissement Ammonia (`data-course-id`), désérialisation Markdown bidirectionnelle et test unitaire `test_course_block`.
+  - `MOD-LMS-03` (Catalogue et mode apprentissage) : Vues catalogue et affichage de la fiche cours, styles CSS dédiés dans `crates/rustforge-api/templates/base.html`, mode lecture pour les leçons avec aperçu public sans distraction.
+  - `MOD-LMS-04` (Inscriptions et accès) : Gestion des inscriptions apprenants, inscription manuelle par l'administrateur, inscription automatique lors de la finalisation de commande e-commerce (`complete_order()` dans `crates/rustforge-core/src/ecommerce.rs:625`), contrôle d'accès strict.
+  - `MOD-LMS-05` (Progression et reprise) : Calcul et enregistrement de la progression individuelle (% d'avancement, leçons achevées, horodatage de complétion, reprise de lecture multi-appareils).
+- **Interface Studio (`admin/src/components/LmsView.tsx`)** :
+  - Composant Studio sobre, pilotable et sans artifice inspiré des standards WordPress / Adminify :
+    - Onglet 1 : Formations (catalogue de cours, recherche, filtre par statut, modal de création/modification, liaison avec produit e-commerce).
+    - Onglet 2 : Programme & Leçons (sélecteur de cours, modules en accordéon, liste ordonnée des leçons avec badges vidéo, durée et statut preview).
+    - Onglet 3 : Apprenants & Suivi (liste des étudiants inscrits, jauge de progression visuelle en %, statut terminé/en cours, modal d'inscription manuelle).
+    - Onglet 4 : Réglages formation (politique d'accès, documentation de l'interconnexion automatique E-Commerce <-> LMS).
+  - Navigation Studio (`crates/rustforge-api/src/admin_navigation.json`) actualisée avec état `ready` pour `rf_lms`, `rf_lms_courses`, `rf_lms_lessons`, `rf_lms_learners` et `rf_lms_settings`.
+  - Éditeur de blocs (`NativeBlockEditor.tsx`, `types.ts`, `messages.fr.ts`) enrichi du nouveau bloc Formation.
+- **Vérifications qualité réussies** :
+  - Tests unitaires Rust : 74 tests `rustforge-core`, 19 tests `rustforge-api`, 2 tests `rustforge-plugins`, 2 tests `rustforge`, 3 tests de consolidation (100 tests réussis).
+  - Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+  - Frontend : Oxlint 0 avertissement / 0 erreur, Vite build réussi en 495ms (`dist/assets/index-*.js`).
+  - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
+
 ## Modèle pour le prochain lot
 
 Copier une entrée avec : date; objectif; IDs des tâches; composants réutilisés; code et migrations modifiés; critères exécutés et résultats; preuves; écarts ouverts; décision de passage; prochain geste précis. Conserver les limites et les opérations non testées.

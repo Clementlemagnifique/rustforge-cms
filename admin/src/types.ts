@@ -409,3 +409,76 @@ export interface CommerceSettings {
   default_download_limit: number;
 }
 
+export interface CourseItem {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  content: string;
+  featured_media_id: string | null;
+  price_cents: number;
+  is_published: boolean;
+  created_by?: string | null;
+  product_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CourseInput {
+  title: string;
+  slug?: string;
+  description?: string;
+  content?: string;
+  featured_media_id?: string | null;
+  price_cents?: number;
+  is_published?: boolean;
+  product_id?: string | null;
+}
+
+export interface CourseModuleItem {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface LessonItem {
+  id: string;
+  course_id: string;
+  module_id: string | null;
+  title: string;
+  slug: string;
+  content: string;
+  video_url?: string | null;
+  duration_min: number;
+  is_preview: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LessonInput {
+  module_id?: string | null;
+  title: string;
+  slug?: string;
+  content?: string;
+  video_url?: string | null;
+  duration_min?: number;
+  is_preview?: boolean;
+  sort_order?: number;
+}
+
+export interface EnrollmentDetails {
+  id: string;
+  course_id: string;
+  user_id: string;
+  username: string;
+  email: string;
+  display_name: string;
+  progress_pct: number;
+  completed_at: string | null;
+  created_at: string;
+}
+

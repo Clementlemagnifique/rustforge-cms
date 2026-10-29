@@ -301,6 +301,34 @@ pub fn build_router(state: AppState) -> Router {
             get(routes::lms::list_lessons).post(routes::lms::create_lesson),
 
         )
+        .route(
+
+            "/courses/{course_id}/modules/{module_id}",
+
+            delete(routes::lms::delete_module),
+
+        )
+        .route(
+
+            "/courses/{course_id}/lessons/{lesson_id}",
+
+            put(routes::lms::update_lesson).delete(routes::lms::delete_lesson),
+
+        )
+        .route(
+
+            "/courses/{id}/enrollments",
+
+            get(routes::lms::list_course_enrollments).post(routes::lms::admin_enroll_user),
+
+        )
+        .route(
+
+            "/enrollments",
+
+            get(routes::lms::list_all_enrollments),
+
+        )
         .route("/my-courses", get(routes::lms::my_courses))
         .route("/courses/{id}/progress", post(routes::lms::update_progress));
 

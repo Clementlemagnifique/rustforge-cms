@@ -1320,7 +1320,7 @@
     "roles": [
       "admin"
     ],
-    "state": "partial",
+    "state": "ready",
     "design": "module",
     "features": [],
     "tasks": [
@@ -1333,12 +1333,12 @@
     "id": "rf_lms_courses",
     "parent": "rf_lms",
     "label": "Cours",
-    "route": null,
+    "route": "lms:courses",
     "module": "lms",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "list",
     "features": [
       "Recherche",
@@ -1356,12 +1356,12 @@
     "id": "rf_lms_lessons",
     "parent": "rf_lms",
     "label": "Modules et leçons",
-    "route": null,
+    "route": "lms:lessons",
     "module": "lms",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "editor",
     "features": [
       "Ordre",
@@ -1404,12 +1404,12 @@
     "id": "rf_lms_learners",
     "parent": "rf_lms",
     "label": "Apprenants",
-    "route": null,
+    "route": "lms:learners",
     "module": "lms",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "list",
     "features": [
       "Inscrire",
@@ -1473,12 +1473,12 @@
     "id": "rf_lms_settings",
     "parent": "rf_lms",
     "label": "Réglages formation",
-    "route": null,
+    "route": "lms:settings",
     "module": "lms",
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "settings",
     "features": [
       "Accès",
@@ -2625,3 +2625,4 @@
     "label_key": "rf.admin.automation_settings"
   }
 ]
+

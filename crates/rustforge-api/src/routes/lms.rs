@@ -91,6 +91,18 @@ pub async fn create_module(
     Ok(Json(m))
 }
 
+pub async fn delete_module(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((_course_id, module_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<()>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    lms::delete_module(&state.db, module_id).await?;
+    Ok(Json(()))
+}
+
 pub async fn list_lessons(
     State(state): State<AppState>,
     _auth: AuthUser,
@@ -116,6 +128,72 @@ pub async fn create_lesson(
     }
     let lesson = lms::create_lesson(&state.db, course_id, input).await?;
     Ok(Json(lesson))
+}
+
+pub async fn update_lesson(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((_course_id, lesson_id)): Path<(Uuid, Uuid)>,
+    Json(input): Json<LessonInput>,
+) -> ApiResult<Json<Lesson>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let lesson = lms::update_lesson(&state.db, lesson_id, input).await?;
+    Ok(Json(lesson))
+}
+
+pub async fn delete_lesson(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((_course_id, lesson_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<()>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    lms::delete_lesson(&state.db, lesson_id).await?;
+    Ok(Json(()))
+}
+
+pub async fn list_course_enrollments(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(course_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<lms::EnrollmentDetails>>> {
+    if !auth.user.role.can_edit_others() {
+        return Err(ApiError::Forbidden);
+    }
+    let enrollments = lms::list_course_enrollments(&state.db, course_id).await?;
+    Ok(Json(enrollments))
+}
+
+pub async fn list_all_enrollments(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<lms::EnrollmentDetails>>> {
+    if !auth.user.role.can_edit_others() {
+        return Err(ApiError::Forbidden);
+    }
+    let enrollments = lms::list_all_enrollments(&state.db, 100).await?;
+    Ok(Json(enrollments))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EnrollUserPayload {
+    pub user_id: Uuid,
+}
+
+pub async fn admin_enroll_user(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(course_id): Path<Uuid>,
+    Json(payload): Json<EnrollUserPayload>,
+) -> ApiResult<Json<lms::Enrollment>> {
+    if !auth.user.role.can_edit_others() {
+        return Err(ApiError::Forbidden);
+    }
+    let enrollment = lms::enroll_user(&state.db, course_id, payload.user_id).await?;
+    Ok(Json(enrollment))
 }
 
 pub async fn my_courses(

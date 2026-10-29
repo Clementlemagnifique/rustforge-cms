@@ -241,6 +241,14 @@ pub async fn create_module(
     Ok(m)
 }
 
+pub async fn delete_module(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    sqlx::query("DELETE FROM lms_modules WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn list_course_lessons(db: &PgPool, course_id: Uuid) -> CoreResult<Vec<Lesson>> {
     Ok(sqlx::query_as::<_, Lesson>(
         "SELECT * FROM lms_lessons WHERE course_id = $1 ORDER BY sort_order ASC, created_at ASC",
@@ -280,6 +288,60 @@ pub async fn create_lesson(db: &PgPool, course_id: Uuid, input: LessonInput) -> 
     .await?;
 
     Ok(lesson)
+}
+
+pub async fn update_lesson(
+    db: &PgPool,
+    id: Uuid,
+    input: LessonInput,
+) -> CoreResult<Lesson> {
+    let current = sqlx::query_as::<_, Lesson>("SELECT * FROM lms_lessons WHERE id = $1")
+        .bind(id)
+        .fetch_optional(db)
+        .await?
+        .ok_or(CoreError::NotFound)?;
+
+    let slug = input
+        .slug
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(current.slug);
+    let content = input.content.unwrap_or(current.content);
+    let dur = input.duration_min.unwrap_or(current.duration_min);
+    let prev = input.is_preview.unwrap_or(current.is_preview);
+    let sort = input.sort_order.unwrap_or(current.sort_order);
+    let mod_id = input.module_id.or(current.module_id);
+
+    let updated = sqlx::query_as::<_, Lesson>(
+        r#"
+        UPDATE lms_lessons
+        SET title = $2, slug = $3, content = $4, video_url = $5,
+            duration_min = $6, is_preview = $7, sort_order = $8,
+            module_id = $9, updated_at = now()
+        WHERE id = $1
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(input.title)
+    .bind(slug)
+    .bind(content)
+    .bind(input.video_url.or(current.video_url))
+    .bind(dur)
+    .bind(prev)
+    .bind(sort)
+    .bind(mod_id)
+    .fetch_one(db)
+    .await?;
+
+    Ok(updated)
+}
+
+pub async fn delete_lesson(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    sqlx::query("DELETE FROM lms_lessons WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -357,4 +419,55 @@ pub async fn update_progress(
     .await?;
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct EnrollmentDetails {
+    pub id: Uuid,
+    pub course_id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub display_name: String,
+    pub progress_pct: i32,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub async fn list_course_enrollments(
+    db: &PgPool,
+    course_id: Uuid,
+) -> CoreResult<Vec<EnrollmentDetails>> {
+    Ok(sqlx::query_as::<_, EnrollmentDetails>(
+        r#"
+        SELECT e.id, e.course_id, e.user_id, u.username, u.email, u.display_name,
+               e.progress_pct, e.completed_at, e.created_at
+        FROM lms_enrollments e
+        JOIN users u ON u.id = e.user_id
+        WHERE e.course_id = $1
+        ORDER BY e.created_at DESC
+        "#,
+    )
+    .bind(course_id)
+    .fetch_all(db)
+    .await?)
+}
+
+pub async fn list_all_enrollments(
+    db: &PgPool,
+    limit: i64,
+) -> CoreResult<Vec<EnrollmentDetails>> {
+    Ok(sqlx::query_as::<_, EnrollmentDetails>(
+        r#"
+        SELECT e.id, e.course_id, e.user_id, u.username, u.email, u.display_name,
+               e.progress_pct, e.completed_at, e.created_at
+        FROM lms_enrollments e
+        JOIN users u ON u.id = e.user_id
+        ORDER BY e.created_at DESC
+        LIMIT $1
+        "#,
+    )
+    .bind(limit)
+    .fetch_all(db)
+    .await?)
 }

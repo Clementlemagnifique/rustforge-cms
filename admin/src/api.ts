@@ -675,4 +675,72 @@ export const api = {
         }),
     },
   },
+
+  lms: {
+    courses: {
+      list: () => request<import('./types').CourseItem[]>('/lms/courses'),
+      get: (id: string) => request<import('./types').CourseItem>(`/lms/courses/${id}`),
+      create: (data: import('./types').CourseInput) =>
+        request<import('./types').CourseItem>('/lms/courses', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      update: (id: string, data: import('./types').CourseInput) =>
+        request<import('./types').CourseItem>(`/lms/courses/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      delete: (id: string) =>
+        request<void>(`/lms/courses/${id}`, {
+          method: 'DELETE',
+        }),
+    },
+    modules: {
+      list: (courseId: string) =>
+        request<import('./types').CourseModuleItem[]>(`/lms/courses/${courseId}/modules`),
+      create: (courseId: string, data: { title: string; description?: string; sort_order?: number }) =>
+        request<import('./types').CourseModuleItem>(`/lms/courses/${courseId}/modules`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      delete: (courseId: string, moduleId: string) =>
+        request<void>(`/lms/courses/${courseId}/modules/${moduleId}`, {
+          method: 'DELETE',
+        }),
+    },
+    lessons: {
+      list: (courseId: string) =>
+        request<import('./types').LessonItem[]>(`/lms/courses/${courseId}/lessons`),
+      create: (courseId: string, data: import('./types').LessonInput) =>
+        request<import('./types').LessonItem>(`/lms/courses/${courseId}/lessons`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      update: (courseId: string, lessonId: string, data: import('./types').LessonInput) =>
+        request<import('./types').LessonItem>(`/lms/courses/${courseId}/lessons/${lessonId}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      delete: (courseId: string, lessonId: string) =>
+        request<void>(`/lms/courses/${courseId}/lessons/${lessonId}`, {
+          method: 'DELETE',
+        }),
+    },
+    enrollments: {
+      listCourse: (courseId: string) =>
+        request<import('./types').EnrollmentDetails[]>(`/lms/courses/${courseId}/enrollments`),
+      listAll: () =>
+        request<import('./types').EnrollmentDetails[]>('/lms/enrollments'),
+      enroll: (courseId: string, userId: string) =>
+        request<unknown>(`/lms/courses/${courseId}/enrollments`, {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId }),
+        }),
+      updateProgress: (courseId: string, progressPct: number) =>
+        request<void>(`/lms/courses/${courseId}/progress`, {
+          method: 'POST',
+          body: JSON.stringify({ progress_pct: progressPct }),
+        }),
+    },
+  },
 };

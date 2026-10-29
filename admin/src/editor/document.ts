@@ -18,6 +18,7 @@ export const BLOCK_TYPES = [
   'cover',
   'group',
   'product',
+  'course',
 ] as const;
 export type BlockKind = typeof BLOCK_TYPES[number];
 export interface NativeBlock {
@@ -78,6 +79,13 @@ export function newBlock(kind: BlockKind): NativeBlock {
     base.rf_ref = '';
     base.rf_url = '';
     base.rf_alt = 'Acheter';
+  } else if (kind === 'course') {
+    base.rf_style = 'card';
+    base.rf_text = 'Titre de la formation';
+    base.rf_caption = '10 leçons • 2h00';
+    base.rf_ref = '';
+    base.rf_url = '';
+    base.rf_alt = 'Accéder à la formation';
   }
   return base;
 }
