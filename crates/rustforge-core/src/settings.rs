@@ -450,6 +450,8 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
     } else if key == "discussion.default_comments_page"
         && !value.as_str().is_some_and(|s| matches!(s, "oldest" | "newest")) {
         return Err(CoreError::validation("Page par défaut invalide : oldest ou newest attendu."));
+    } else if matches!(key,"discussion.comments_notify"|"discussion.moderation_notify") && !value.is_boolean() {
+        return Err(CoreError::validation("Une préférence de notification doit être un booléen."));
     } else if key == "discussion.require_name_email" && !value.is_boolean() {
         return Err(CoreError::validation("discussion.require_name_email doit être un booléen."));
     } else if key == "discussion.comment_registration" && !value.is_boolean() {

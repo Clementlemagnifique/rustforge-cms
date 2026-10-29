@@ -892,6 +892,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               {discussionSettingsMessages.rememberIdentity}
             </label>
             <p className="text-xs text-slate-400">{discussionSettingsMessages.rememberIdentityHint}</p>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">{discussionSettingsMessages.notificationSection}</h4>
+            <label className="flex items-start gap-2.5 text-xs text-slate-300">
+              <input type="checkbox" checked={settings['discussion.moderation_notify'] === true}
+                onChange={(e) => setSetting('discussion.moderation_notify', e.target.checked)} />
+              {discussionSettingsMessages.moderationNotify}
+            </label>
+            <label className="flex items-start gap-2.5 text-xs text-slate-300">
+              <input type="checkbox" checked={settings['discussion.comments_notify'] === true}
+                onChange={(e) => setSetting('discussion.comments_notify', e.target.checked)} />
+              {discussionSettingsMessages.commentsNotify}
+            </label>
             <p className="text-xs text-amber-300" role="note">{discussionSettingsMessages.emailUnavailable}</p>
           </div>
           {/* Avatars (`WP-86`, `WP-87`) */}

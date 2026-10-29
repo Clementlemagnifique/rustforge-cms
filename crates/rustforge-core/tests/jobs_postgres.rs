@@ -344,3 +344,446 @@ async fn durable_jobs_transactions_leases_and_restore() {
     }
     server.close().await;
 }
+
+async fn notification_user(db: &PgPool, name: &str, role: Role) -> rustforge_core::models::User {
+    users::create(
+        db,
+        NewUser {
+            username: name.into(),
+            email: format!("{name}@example.test"),
+            display_name: None,
+            password: "test-password-long-123!".into(),
+            role,
+        },
+    )
+    .await
+    .unwrap()
+}
+async fn notification_settings(db: &PgPool, values: serde_json::Value) {
+    rustforge_core::settings::update(db, serde_json::from_value(values).unwrap())
+        .await
+        .unwrap();
+}
+async fn notices(db: &PgPool, id: Uuid) -> Vec<jobs::Job> {
+    sqlx::query_as(
+        "SELECT * FROM rf_jobs WHERE kind=$1 AND payload->>'comment_id'=$2 ORDER BY created_at,id",
+    )
+    .bind(rustforge_core::comment_notifications::KIND)
+    .bind(id.to_string())
+    .fetch_all(db)
+    .await
+    .unwrap()
+}
+async fn guest(db: &PgPool, entry: Uuid) -> rustforge_core::models::Comment {
+    rustforge_core::comments::create_comment(db,serde_json::from_value(json!({
+        "entry_id":entry,"author_name":"Visiteur","author_email":"visitor@example.test","content":"Texte confidentiel en attente"
+    })).unwrap()).await.unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn comment_notification_outbox_atomicity_and_dispatch_policy() {
+    use rustforge_core::{
+        NoopHooks, comment_notifications, comments, entries, mail, models::CommentStatus,
+    };
+    let base =
+        std::env::var("RUSTFORGE_TEST_DATABASE_URL").expect("disposable PostgreSQL URL required");
+    let server = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&base)
+        .await
+        .unwrap();
+    let (name, db) = database(&server, &base).await;
+    let admin = notification_user(&db, "notice_admin", Role::Admin).await;
+    let editor = notification_user(&db, "notice_editor", Role::Editor).await;
+    let author = notification_user(&db, "notice_author", Role::Author).await;
+    let entry = entries::create(
+        &db,
+        &NoopHooks,
+        "post",
+        author.id,
+        serde_json::from_value(json!({
+            "title":"Publication de recette","body":"Texte public","status":"published"
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    notification_settings(
+        &db,
+        json!({"discussion.moderation_notify":true,"discussion.comments_notify":true,
+        "discussion.comment_moderation":true}),
+    )
+    .await;
+    let pending = guest(&db, entry.id).await;
+    let initial = notices(&db, pending.id).await;
+    assert_eq!(initial.len(), 2);
+    for job in &initial {
+        let payload = job.payload.to_string();
+        assert!(!payload.contains("visitor@example.test"));
+        assert!(!payload.contains("Texte confidentiel"));
+        assert!(job.output.is_none());
+    }
+    let mut duplicate = db.begin().await.unwrap();
+    comment_notifications::enqueue_in(&mut duplicate, &pending, None)
+        .await
+        .unwrap();
+    duplicate.commit().await.unwrap();
+    assert_eq!(notices(&db, pending.id).await.len(), 2);
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    let captured = notices(&db, pending.id).await;
+    assert!(captured.iter().all(|job| job.state == "succeeded"));
+    let recipients: Vec<_> = captured
+        .iter()
+        .map(|job| {
+            job.output.as_ref().unwrap()["capture"]["recipient"]
+                .as_str()
+                .unwrap()
+        })
+        .collect();
+    assert!(recipients.contains(&admin.email.as_str()));
+    assert!(recipients.contains(&editor.email.as_str()));
+    assert!(!recipients.contains(&author.email.as_str()));
+    let approved = comments::update_comment_status_as(
+        &db,
+        pending.id,
+        CommentStatus::Approved,
+        Some(editor.id),
+    )
+    .await
+    .unwrap();
+    let repeat = comments::update_comment_status_as(
+        &db,
+        pending.id,
+        CommentStatus::Approved,
+        Some(editor.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(approved.updated_at, repeat.updated_at);
+    assert_eq!(notices(&db, pending.id).await.len(), 3);
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(notices(&db, pending.id).await.iter().any(|job| {
+        job.output
+            .as_ref()
+            .is_some_and(|v| v["capture"]["recipient"] == author.email)
+    }));
+
+    let cancelled = guest(&db, entry.id).await;
+    notification_settings(&db, json!({"discussion.moderation_notify":false})).await;
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    assert!(
+        notices(&db, cancelled.id)
+            .await
+            .iter()
+            .all(|j| j.state == "cancelled" && j.output.is_none())
+    );
+    notification_settings(&db, json!({"discussion.moderation_notify":true})).await;
+    let role_change = guest(&db, entry.id).await;
+    sqlx::query("UPDATE users SET role='subscriber' WHERE id=$1")
+        .bind(editor.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    let results = notices(&db, role_change.id).await;
+    assert_eq!(results.iter().filter(|j| j.state == "succeeded").count(), 1);
+    assert!(
+        results
+            .iter()
+            .any(|j| j.payload["recipient_id"] == editor.id.to_string() && j.state == "cancelled")
+    );
+    sqlx::query("UPDATE users SET role='editor' WHERE id=$1")
+        .bind(editor.id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let changed = guest(&db, entry.id).await;
+    let updated = comments::update_comment_content_as(
+        &db,
+        changed.id,
+        "Texte révisé",
+        None,
+        None,
+        None,
+        Some(editor.id),
+    )
+    .await
+    .unwrap();
+    let no_change = comments::update_comment_content_as(
+        &db,
+        changed.id,
+        "Texte révisé",
+        None,
+        None,
+        None,
+        Some(editor.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.updated_at, no_change.updated_at);
+    assert_eq!(notices(&db, changed.id).await.len(), 3);
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        3
+    );
+    let results = notices(&db, changed.id).await;
+    assert_eq!(results.iter().filter(|j| j.state == "cancelled").count(), 2);
+    assert_eq!(results.iter().filter(|j| j.state == "succeeded").count(), 1);
+    assert!(results.iter().filter_map(|j| j.output.as_ref()).all(|v| {
+        v["capture"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Texte révisé")
+    }));
+
+    let hidden = guest(&db, entry.id).await;
+    sqlx::query("UPDATE entries SET status='draft' WHERE id=$1")
+        .bind(entry.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    assert!(
+        notices(&db, hidden.id)
+            .await
+            .iter()
+            .all(|j| j.state == "cancelled")
+    );
+    sqlx::query("UPDATE entries SET status='published' WHERE id=$1")
+        .bind(entry.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let deleted = guest(&db, entry.id).await;
+    comments::delete_comment(&db, deleted.id).await.unwrap();
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    assert!(
+        notices(&db, deleted.id)
+            .await
+            .iter()
+            .all(|j| j.state == "cancelled")
+    );
+
+    notification_settings(&db,json!({"discussion.comment_moderation":false,"discussion.comment_previously_approved":false})).await;
+    let own=comments::create_comment(&db,serde_json::from_value(json!({
+        "entry_id":entry.id,"author_id":author.id,"author_name":"Auteur","author_email":author.email,"content":"Mon propre commentaire"
+    })).unwrap()).await.unwrap();
+    assert_eq!(own.status, "approved");
+    assert!(notices(&db, own.id).await.is_empty());
+
+    // Une réponse du modérateur notifie l'auteur, pas le modérateur lui-même.
+    let reply = comments::reply_to_comment(
+        &db,
+        pending.id,
+        editor.id,
+        &editor.display_name,
+        &editor.email,
+        "Réponse de modération",
+    )
+    .await
+    .unwrap();
+    assert_eq!(notices(&db, reply.id).await.len(), 1);
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        notices(&db, reply.id).await[0].output.as_ref().unwrap()["capture"]["recipient"],
+        author.email
+    );
+
+    // Le spam et la corbeille ne créent pas d'événement et rendent l'ancien obsolète.
+    notification_settings(
+        &db,
+        json!({"discussion.comment_moderation":true,"discussion.moderation_notify":true}),
+    )
+    .await;
+    for status in [CommentStatus::Spam, CommentStatus::Trash] {
+        let suppressed = guest(&db, entry.id).await;
+        comments::update_comment_status_as(&db, suppressed.id, status, Some(editor.id))
+            .await
+            .unwrap();
+        assert_eq!(
+            mail::run_batch(&db, &mail::CaptureTransport, 100)
+                .await
+                .unwrap(),
+            2
+        );
+        assert!(
+            notices(&db, suppressed.id)
+                .await
+                .iter()
+                .all(|job| job.state == "cancelled")
+        );
+    }
+    let reassigned = guest(&db, entry.id).await;
+    // Annuler d'abord les attentes de modération, puis créer un événement d'approbation.
+    comments::update_comment_status_as(
+        &db,
+        reassigned.id,
+        CommentStatus::Approved,
+        Some(editor.id),
+    )
+    .await
+    .unwrap();
+    sqlx::query("UPDATE entries SET author_id=$2 WHERE id=$1")
+        .bind(entry.id)
+        .bind(admin.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        3
+    );
+    assert!(
+        notices(&db, reassigned.id)
+            .await
+            .iter()
+            .all(|job| job.state == "cancelled")
+    );
+    sqlx::query("UPDATE entries SET author_id=$2 WHERE id=$1")
+        .bind(entry.id)
+        .bind(author.id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // Un échec d'outbox annule aussi l'INSERT du commentaire.
+    notification_settings(&db, json!({"discussion.comment_moderation":true})).await;
+    sqlx::query("CREATE FUNCTION fixture_reject_notice() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture rejected notice'; END; $$").execute(&db).await.unwrap();
+    sqlx::query("CREATE TRIGGER fixture_reject_notice BEFORE INSERT ON rf_jobs FOR EACH ROW WHEN (NEW.kind='rf.mail.comment') EXECUTE FUNCTION fixture_reject_notice()")
+        .execute(&db).await.unwrap();
+    let before: i64 = sqlx::query_scalar("SELECT count(*) FROM comments")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let failed=comments::create_comment(&db,serde_json::from_value(json!({
+        "entry_id":entry.id,"author_name":"Visiteur","author_email":"rollback@example.test","content":"Ne doit pas exister"
+    })).unwrap()).await;
+    assert!(failed.is_err());
+    let after: i64 = sqlx::query_scalar("SELECT count(*) FROM comments")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(before, after);
+    sqlx::query("DROP TRIGGER fixture_reject_notice ON rf_jobs")
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("DROP FUNCTION fixture_reject_notice()")
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // Une erreur sur la dernière ligne annule tout le lot de modération.
+    notification_settings(&db, json!({"discussion.moderation_notify":false})).await;
+    let batch_a = guest(&db, entry.id).await;
+    let batch_b = guest(&db, entry.id).await;
+    let reject_id = batch_a.id.max(batch_b.id);
+    sqlx::query(&format!("CREATE FUNCTION fixture_reject_batch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'comment_id'='{reject_id}' THEN RAISE EXCEPTION 'fixture last row'; END IF; RETURN NEW; END; $$"))
+        .execute(&db).await.unwrap();
+    sqlx::query("CREATE TRIGGER fixture_reject_batch BEFORE INSERT ON rf_jobs FOR EACH ROW WHEN (NEW.kind='rf.mail.comment') EXECUTE FUNCTION fixture_reject_batch()")
+        .execute(&db).await.unwrap();
+    assert!(
+        comments::batch_update_status_as(
+            &db,
+            &[batch_a.id, batch_b.id],
+            CommentStatus::Approved,
+            Some(editor.id)
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        comments::get_comment(&db, batch_a.id).await.unwrap().status,
+        "pending"
+    );
+    assert_eq!(
+        comments::get_comment(&db, batch_b.id).await.unwrap().status,
+        "pending"
+    );
+    assert!(notices(&db, batch_a.id).await.is_empty());
+    assert!(notices(&db, batch_b.id).await.is_empty());
+    sqlx::query("DROP TRIGGER fixture_reject_batch ON rf_jobs")
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("DROP FUNCTION fixture_reject_batch()")
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        comments::batch_update_status_as(
+            &db,
+            &[batch_a.id, batch_b.id, batch_a.id],
+            CommentStatus::Approved,
+            Some(editor.id)
+        )
+        .await
+        .unwrap(),
+        2
+    );
+    assert_eq!(
+        mail::run_batch(&db, &mail::CaptureTransport, 100)
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        comments::batch_update_status_as(
+            &db,
+            &[batch_a.id, batch_b.id],
+            CommentStatus::Approved,
+            Some(editor.id)
+        )
+        .await
+        .unwrap(),
+        0
+    );
+
+    db.close().await;
+    assert!(name.starts_with("rf_jobs_test_"));
+    sqlx::query(&format!("DROP DATABASE {name} WITH (FORCE)"))
+        .execute(&server)
+        .await
+        .unwrap();
+    server.close().await;
+}

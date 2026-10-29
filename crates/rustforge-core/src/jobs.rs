@@ -215,6 +215,25 @@ pub async fn fail(
     owned(rows)
 }
 
+/// Annulation par le détenteur du bail pour un événement devenu sans objet.
+pub async fn skip(db: &PgPool, id: Uuid, token: Uuid, code: &str) -> CoreResult<()> {
+    if !valid_identifier(code, 96) {
+        return Err(CoreError::validation("Code d'annulation invalide"));
+    }
+    let rows = sqlx::query(
+        "UPDATE rf_jobs SET state='cancelled',lease_token=NULL,lease_until=NULL,
+        finished_at=now(),updated_at=now(),error_code=$3
+        WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now()",
+    )
+    .bind(id)
+    .bind(token)
+    .bind(code)
+    .execute(db)
+    .await?
+    .rows_affected();
+    owned(rows)
+}
+
 pub async fn cancel(db: &PgPool, id: Uuid) -> CoreResult<()> {
     let rows = sqlx::query(
         "UPDATE rf_jobs SET state='cancelled',lease_token=NULL,lease_until=NULL,

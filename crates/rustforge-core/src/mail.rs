@@ -92,7 +92,13 @@ pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> 
     }
     let mut handled = 0;
     for _ in 0..limit {
-        let Some(job) = jobs::claim(db, &[KIND.into()], 60).await? else {
+        let Some(job) = jobs::claim(
+            db,
+            &[KIND.into(), crate::comment_notifications::KIND.into()],
+            60,
+        )
+        .await?
+        else {
             break;
         };
         let token = job
@@ -103,12 +109,41 @@ pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> 
             handled += 1;
             continue;
         }
-        let request: MailRequest = match serde_json::from_value(job.payload.clone()) {
-            Ok(request) => request,
-            Err(_) => {
-                jobs::fail(db, job.id, token, "invalid_mail_payload", false).await?;
-                handled += 1;
-                continue;
+        let request: MailRequest = if job.kind == crate::comment_notifications::KIND {
+            let event = match serde_json::from_value(job.payload.clone()) {
+                Ok(event) => event,
+                Err(_) => {
+                    jobs::fail(db, job.id, token, "invalid_notification_payload", false).await?;
+                    handled += 1;
+                    continue;
+                }
+            };
+            match crate::comment_notifications::resolve(db, &event).await {
+                Ok(Some(request)) => request,
+                Ok(None) => {
+                    jobs::skip(db, job.id, token, "notification_obsolete").await?;
+                    handled += 1;
+                    continue;
+                }
+                Err(CoreError::Validation(_)) => {
+                    jobs::fail(db, job.id, token, "notification_render_invalid", false).await?;
+                    handled += 1;
+                    continue;
+                }
+                Err(_) => {
+                    jobs::fail(db, job.id, token, "notification_lookup_failed", true).await?;
+                    handled += 1;
+                    continue;
+                }
+            }
+        } else {
+            match serde_json::from_value(job.payload.clone()) {
+                Ok(request) => request,
+                Err(_) => {
+                    jobs::fail(db, job.id, token, "invalid_mail_payload", false).await?;
+                    handled += 1;
+                    continue;
+                }
             }
         };
         if request.validate().is_err() {

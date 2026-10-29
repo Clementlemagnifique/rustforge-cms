@@ -215,7 +215,7 @@ pub async fn update_status(
         return Err(ApiError::Forbidden);
     }
 
-    let comment = comments::update_comment_status(&state.db, id, payload.status).await?;
+    let comment = comments::update_comment_status_as(&state.db, id, payload.status, Some(auth.user.id)).await?;
     state.ssr.invalidate_all().await;
     Ok(Json(comment))
 }
@@ -230,7 +230,7 @@ pub async fn batch_update(
         return Err(ApiError::Forbidden);
     }
 
-    let count = comments::batch_update_status(&state.db, &payload.ids, payload.status).await?;
+    let count = comments::batch_update_status_as(&state.db, &payload.ids, payload.status, Some(auth.user.id)).await?;
     state.ssr.invalidate_all().await;
     Ok(Json(serde_json::json!({ "updated": count })))
 }
@@ -246,13 +246,14 @@ pub async fn update(
         return Err(ApiError::Forbidden);
     }
 
-    let comment = comments::update_comment_content(
+    let comment = comments::update_comment_content_as(
         &state.db,
         id,
         &payload.content,
         payload.author_name.as_deref(),
         payload.author_email.as_deref(),
         payload.author_url.as_deref(),
+        Some(auth.user.id),
     )
     .await?;
 

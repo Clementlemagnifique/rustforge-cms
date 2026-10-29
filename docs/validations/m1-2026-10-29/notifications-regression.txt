@@ -1,0 +1,13 @@
+   Compiling rustforge-core v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust\crates\rustforge-core)
+   Compiling rustforge-plugins v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust\crates\rustforge-plugins)
+   Compiling rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust\crates\rustforge-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 35.70s
+     Running tests\consolidation.rs (C:\Users\cleme\.codex\worktrees\32c4\CMS Rust\target\debug\deps\consolidation-8df8c4beeb9ab528.exe)
+
+running 4 tests
+test malformed_php_and_form_constraints_are_rejected ... ok
+test upload_cannot_disguise_active_html ... ok
+test rf_xml_preserves_complete_envelope_and_cdata ... ok
+test postgres_http_and_native_backup_regressions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.05s

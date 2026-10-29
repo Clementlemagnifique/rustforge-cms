@@ -354,6 +354,7 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
 
     let content_html = format_comment_html(content);
 
+    let mut tx=db.begin().await?;
     let comment: Comment = sqlx::query_as(
         r#"
         INSERT INTO comments (
@@ -379,8 +380,11 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
     .bind(content)
     .bind(content_html)
     .bind(status.as_str())
-    .fetch_one(db)
+    .fetch_one(&mut *tx)
     .await?;
+
+    crate::comment_notifications::enqueue_in(&mut tx,&comment,params.author_id).await?;
+    tx.commit().await?;
 
     Ok(comment)
 }
@@ -460,48 +464,48 @@ pub async fn list_comments(
 }
 
 /// Met à jour le statut d'un commentaire (modération unitaire).
-pub async fn update_comment_status(
-    db: &PgPool,
-    id: Uuid,
-    new_status: CommentStatus,
-) -> CoreResult<Comment> {
-    sqlx::query_as(
-        r#"
-        UPDATE comments
-        SET status = $2, updated_at = NOW()
-        WHERE id = $1
-        RETURNING
-            id, entry_id, parent_id, author_id, author_name, author_email,
-            author_url, author_ip, author_user_agent, content, content_html,
-            status, created_at, updated_at,
-            NULL::text as entry_title, NULL::text as entry_slug
-        "#,
-    )
-    .bind(id)
-    .bind(new_status.as_str())
-    .fetch_optional(db)
-    .await?
-    .ok_or(CoreError::NotFound)
+pub async fn update_comment_status(db: &PgPool,id: Uuid,new_status: CommentStatus) -> CoreResult<Comment> {
+    update_comment_status_as(db,id,new_status,None).await
 }
 
-/// Met à jour le statut d'un ensemble de commentaires en masse (`WP-43`).
-pub async fn batch_update_status(
-    db: &PgPool,
-    ids: &[Uuid],
-    new_status: CommentStatus,
-) -> CoreResult<u64> {
-    if ids.is_empty() {
-        return Ok(0);
-    }
-    let res = sqlx::query(
-        "UPDATE comments SET status = $2, updated_at = NOW() WHERE id = ANY($1)",
-    )
-    .bind(ids)
-    .bind(new_status.as_str())
-    .execute(db)
-    .await?;
+pub async fn update_comment_status_as(db: &PgPool,id: Uuid,new_status: CommentStatus,actor: Option<Uuid>) -> CoreResult<Comment> {
+    let mut tx=db.begin().await?;
+    let result=change_status_in(&mut tx,id,new_status.as_str(),actor).await?
+        .ok_or(CoreError::NotFound)?;
+    tx.commit().await?;
+    Ok(result.0)
+}
 
-    Ok(res.rows_affected())
+async fn change_status_in(connection: &mut sqlx::PgConnection,id:Uuid,status:&str,actor:Option<Uuid>) -> CoreResult<Option<(Comment,usize,bool)>> {
+    let old:Option<Comment>=sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
+        .bind(id).fetch_optional(&mut *connection).await?;
+    let Some(old)=old else {return Ok(None);};
+    if old.status==status {return Ok(Some((old,0,false)));}
+    let comment:Comment=sqlx::query_as("UPDATE comments SET status=$2,updated_at=clock_timestamp() WHERE id=$1 RETURNING *")
+        .bind(id).bind(status).fetch_one(&mut *connection).await?;
+    let count=crate::comment_notifications::enqueue_in(connection,&comment,actor).await?;
+    Ok(Some((comment,count,true)))
+}
+
+/// Modération atomique bornée ; ordre stable des verrous pour éviter les interblocages.
+pub async fn batch_update_status(db: &PgPool,ids:&[Uuid],new_status:CommentStatus) -> CoreResult<u64> {
+    batch_update_status_as(db,ids,new_status,None).await
+}
+
+pub async fn batch_update_status_as(db: &PgPool,ids:&[Uuid],new_status:CommentStatus,actor:Option<Uuid>) -> CoreResult<u64> {
+    if ids.len()>100 {return Err(CoreError::validation("Lot de modération limité à 100 commentaires"));}
+    let mut ids=ids.to_vec();ids.sort_unstable();ids.dedup();
+    let mut tx=db.begin().await?;
+    let mut changed=0;let mut notifications=0;
+    for id in ids {
+        if let Some((_,count,did_change))=change_status_in(&mut tx,id,new_status.as_str(),actor).await? {
+            notifications+=count;
+            if notifications>1000 {return Err(CoreError::validation("Lot limité à 1000 notifications"));}
+            changed+=u64::from(did_change);
+        }
+    }
+    tx.commit().await?;
+    Ok(changed)
 }
 
 /// Modifie le contenu d'un commentaire depuis le Studio.
@@ -513,12 +517,35 @@ pub async fn update_comment_content(
     author_email: Option<&str>,
     author_url: Option<&str>,
 ) -> CoreResult<Comment> {
+    update_comment_content_as(db,id,content,author_name,author_email,author_url,None).await
+}
+
+pub async fn update_comment_content_as(
+    db: &PgPool,
+    id: Uuid,
+    content: &str,
+    author_name: Option<&str>,
+    author_email: Option<&str>,
+    author_url: Option<&str>,
+    actor: Option<Uuid>,
+) -> CoreResult<Comment> {
     let author_url = validated_author_url(author_url)?;
     let trimmed_content = content.trim();
     if trimmed_content.is_empty() {
         return Err(CoreError::validation("Le contenu ne peut pas être vide."));
     }
     let content_html = format_comment_html(trimmed_content);
+
+    let mut tx=db.begin().await?;
+    let previous:Option<Comment>=sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
+        .bind(id).fetch_optional(&mut *tx).await?;
+    let previous=previous.ok_or(CoreError::NotFound)?;
+    let next_name=author_name.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&previous.author_name);
+    let next_email=author_email.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&previous.author_email);
+    if previous.content==trimmed_content && previous.author_name==next_name
+        && previous.author_email==next_email && previous.author_url==author_url {
+        return Ok(previous);
+    }
 
     let comment: Comment = sqlx::query_as(
         r#"
@@ -528,7 +555,7 @@ pub async fn update_comment_content(
             author_name = COALESCE($4, author_name),
             author_email = COALESCE($5, author_email),
             author_url = $6,
-            updated_at = NOW()
+            updated_at = clock_timestamp()
         WHERE id = $1
         RETURNING
             id, entry_id, parent_id, author_id, author_name, author_email,
@@ -543,9 +570,12 @@ pub async fn update_comment_content(
     .bind(author_name.map(str::trim).filter(|s| !s.is_empty()))
     .bind(author_email.map(str::trim).filter(|s| !s.is_empty()))
     .bind(author_url.as_deref())
-    .fetch_optional(db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(CoreError::NotFound)?;
+
+    crate::comment_notifications::enqueue_in(&mut tx,&comment,actor).await?;
+    tx.commit().await?;
 
     Ok(comment)
 }
@@ -562,6 +592,7 @@ pub async fn reply_to_comment(
     let parent = get_comment(db, parent_id).await?;
     let content_html = format_comment_html(content);
 
+    let mut tx=db.begin().await?;
     let reply: Comment = sqlx::query_as(
         r#"
         INSERT INTO comments (
@@ -583,8 +614,11 @@ pub async fn reply_to_comment(
     .bind(author_email)
     .bind(content)
     .bind(content_html)
-    .fetch_one(db)
+    .fetch_one(&mut *tx)
     .await?;
+
+    crate::comment_notifications::enqueue_in(&mut tx,&reply,Some(author_id)).await?;
+    tx.commit().await?;
 
     Ok(reply)
 }

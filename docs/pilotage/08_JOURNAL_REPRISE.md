@@ -1,5 +1,32 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — M1-D : notifications de commentaires dans l'outbox, capture locale
+
+**Point de reprise le plus récent.** Notifications de création, modération, édition et réponse raccordées à rf_jobs. Préférences Studio ajoutées, désactivées par défaut. Aucun SMTP/API externe, aucune exécution automatique au démarrage ; `jobs capture-mail` traite désormais les jobs transactionnels génériques ET `rf.mail.comment`.
+
+### Comportement livré
+
+- Un commentaire en attente prépare les notifications des administrateurs/éditeurs si `discussion.moderation_notify=true`. Un commentaire approuvé prépare la notification de l'auteur actuel de la publication si `discussion.comments_notify=true`. L'auteur du commentaire et l'acteur de l'action sont exclus des destinataires de leur propre action.
+- Création, réponse et édition écrivent commentaire + outbox dans la même transaction. Modération unitaire ou groupée verrouille les commentaires dans un ordre stable et inclut l'outbox dans la transaction. Erreur d'enqueue = rollback du commentaire ou de tout le lot. Lots limités à 100 commentaires et 1 000 notifications ; fanout limité à 100 destinataires/commentaire, sans troncature silencieuse.
+- Répéter un statut déjà appliqué ou une édition identique n'écrit pas une nouvelle version ni de nouveaux jobs. Une notification est dédupliquée par commentaire/version updated_at/statut/destinataire. Une édition effective peut préparer une nouvelle notification ; les jobs de l'ancienne version sont annulés au dispatch. La déduplication de jobs ne rend pas une nouvelle requête de création de commentaire idempotente : deux créations restent deux commentaires distincts.
+- Payload `rf.mail.comment` v1 = références comment_id/recipient_id, statut attendu, date de version et actor_id. Pas de corps, adresse e-mail ou IP dans la file en attente. Au dispatch : préférence, existence, version/statut du commentaire, visibilité publique de l'entrée, compte destinataire, rôle de modérateur ou propriété/droits d'auteur et absence d'auto-notification sont revérifiés.
+- Événement obsolète (préférence Off, rôle perdu, entrée dépubliée, auteur réattribué, commentaire supprimé/modifié, spam/corbeille) => job cancelled avec code stable notification_obsolete, aucun résultat de capture. Échec de lecture DB => retry avec code expurgé. Payload invalide/version inconnue/erreur de rendu définitive => failed explicite.
+- Le texte est construit au moment du traitement avec titre borné/sans retours de ligne, nom et extrait du commentaire, sans e-mail ni IP du commentateur. Les captures contiennent naturellement l'adresse du destinataire et le message privé ; elles restent dans les résultats rf_jobs et les sauvegardes, avec la politique de rétention existante. Les mentions françaises sont centralisées dans le module ; traductions reportées.
+- Préférences validées comme booléens, modifiables seulement par la route Réglages administrateur existante. Studio libellé « Préparer une notification » et note explicite capture locale / aucun envoi externe. Pas de champ public de notification ni de nouvelle permission de modération. Les routes protégées fournissent l'identité réelle de l'acteur, jamais un actor_id du payload client.
+
+### Validation
+
+**74 tests unitaires Rust**, **2 scénarios PostgreSQL jobs/mail/notifications**, **4 tests intégrés CMS**, Clippy strict workspace/all-targets, build TypeScript/Vite et lint Studio réussis. Preuves [unitaires](../validations/m1-2026-10-29/notifications-unit.txt), [jobs/notifications](../validations/m1-2026-10-29/notifications-integration.txt), [régression CMS](../validations/m1-2026-10-29/notifications-regression.txt), [Clippy](../validations/m1-2026-10-29/notifications-clippy.txt), [Studio](../validations/m1-2026-10-29/notifications-admin-build.txt), [lint](../validations/m1-2026-10-29/notifications-admin-lint.txt).
+
+Recettes : bons destinataires, aucune donnée du commentateur dans le payload de job, capture privée, répétitions sans doublon, changement de préférence/rôle/version/statut/visibilité/propriétaire, suppression, auto-commentaire et réponse d'un modérateur ; échec forcé de l'outbox annulant l'INSERT ; échec sur la dernière ligne d'un lot annulant toutes les modifications et notifications précédentes. Les tests antérieurs de jobs/reprise/sauvegarde et le scénario complet API/capsule passent aussi. PostgreSQL jetable arrêté. Aucun nouveau téléchargement, migration SQL ou envoi externe. Bundle Studio >500 Ko toujours signalé. Pas de recette visuelle navigateur ni de test de charge/multi-hôte réel.
+
+### Limites et prochaine étape
+
+Les vérifications sont faites avant dispatch ; un changement après cette vérification ne peut pas annuler une livraison distante déjà commencée. Un transport de production conservera les limites at-least-once et devra transmettre la clé d'idempotence stable du job. Les captures déjà réussies ne sont pas effacées par une suppression de commentaire : purge/rétention/effacement restent à industrialiser. La propagation des invalidations de cache de commentaires entre instances n'est pas garantie : les API invalident le Moka de leur instance ; aucun trigger de révision des commentaires n'existe dans les migrations actuelles. À traiter lors de la qualification multi-instance M1-F.
+
+**Prochain sous-lot recommandé : M1-E diagnostic Studio**, pour voir la file, ses résultats expurgés et les actions de reprise avant de configurer un transport de production. Puis finir M1-C (SMTP/API configurable) et M1-F (pannes réelles, volumétrie, rétention et restauration/reprise). Les préférences de notification fonctionnent en capture, WP-85 reste EN_COURS tant que l'envoi de production n'est pas livré et recetté. Sources et critères restent ceux du plan global ; aucun nouveau MD stratégique. Sauvegarde locale sur fix/consolidation-2026-10-29, sans push ni merge vers main.
+
+
 ## 29 octobre 2026 — M1-A/B et capture transactionnelle : première fondation jobs/mail
 
 **Point de reprise le plus récent.** Session « à fond » : migration additive `20261029000007_durable_jobs.sql`, service partagé `jobs.rs`, contrat mail `mail.rs`, commandes opérateur CLI et recette PostgreSQL dédiée. Aucun transport SMTP/API externe, aucune notification automatique de commentaire, aucun worker implicite au démarrage du site.
