@@ -51,6 +51,7 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "discussion.thread_comments",
         "discussion.thread_comments_depth",
         "discussion.page_comments",
+        "discussion.default_comments_page",
         "discussion.comments_per_page",
         "discussion.comment_order",
         "discussion.show_avatars",
@@ -445,6 +446,9 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         return Err(CoreError::validation(
             "discussion.default_comment_status doit être un booléen ou 'open'/'closed'.",
         ));
+    } else if key == "discussion.default_comments_page"
+        && !value.as_str().is_some_and(|s| matches!(s, "oldest" | "newest")) {
+        return Err(CoreError::validation("Page par défaut invalide : oldest ou newest attendu."));
     } else if key == "discussion.require_name_email" && !value.is_boolean() {
         return Err(CoreError::validation("discussion.require_name_email doit être un booléen."));
     } else if key == "discussion.comment_registration" && !value.is_boolean() {

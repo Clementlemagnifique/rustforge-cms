@@ -1,5 +1,27 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — STAB-05B : pagination, compteurs et fermeture temporelle
+
+**Point de reprise le plus récent.** Pagination des commentaires publics et expiration du formulaire en cache implémentées. Branche `fix/consolidation-2026-10-29`, basée sur main `27b6b599`, précédents commits `399f9909` et `82814c97` conservés. Pas de migration SQL ni nouvelle dépendance.
+
+### Contrat livré
+
+- Pagination distincte via **`?comment_page=N`**, sans détourner `page` utilisé pour les listes de contenus. 1..1 000 000, entrée invalide 400, page hors plage 404. Canonical de l'article conservée ; liens ancrés sur `#comments`, clés Moka distinctes par page et état ouvert/fermé.
+- `page_comments` et `comments_per_page` effectifs. Chaque page contient un nombre de fils racines, avec leurs réponses approuvées ; imbrication Off traite chaque commentaire approuvé comme une racine. L'API garde son tableau JSON et ajoute les en-têtes `x-comment-total`, `x-comment-page`, `x-comment-pages` (ces en-têtes sont implémentés mais pas inspectés par le helper HTTP de recette).
+- Ordre asc/desc stable date/UUID ; `default_comments_page=oldest|newest` sélectionne première/dernière page dans cet ordre. Sélecteur Studio ajouté, libellés dans le catalogue FR, validation serveur et chargement existant réutilisés. La signification correspond à première/dernière page, pas à une inversion implicite de l'ordre.
+- Total de tous les commentaires accessibles, réponses comprises, distinct du nombre de fils. Les branches sous un parent non approuvé sont exclues lorsque l'imbrication est active. CTE récursifs sélectionnent les fils de la page et leurs descendants ; agrégat et lecture partagent une transaction READ ONLY REPEATABLE READ. La visibilité de l'entrée est vérifiée avant cette transaction : une dépublication concurrente reste à approfondir.
+- Limite de sécurité : récupération de 2 001 lignes maximum puis rejet explicite si plus de 2 000 commentaires à rendre ; pagination désactivée avec plus de 2 000 racines également refusée. Aucun résultat tronqué silencieusement. Cette limite est un garde-fou, pas une preuve de performance ; le coût des agrégats/CTE et les très gros fils restent à mesurer.
+- Fermeture automatique par ancienneté : la politique et l'état ouvert/fermé sont évalués avant accès au cache et cet état entre dans sa clé. Le formulaire en cache disparaît à l'échéance sans écriture ni passage du scheduler. Protection testée pour le cache local Moka ; aucun cache externe/CDN qualifié.
+
+### Preuves et vérifications
+
+**69 tests unitaires**, **4 tests intégrés** (scénario complet PostgreSQL/HTTP/sauvegarde), **Clippy strict workspace/all-targets**, **build Studio TypeScript/Vite** et **lint Studio** réussis. Preuves [unitaires](../validations/reprise-g1-g2-2026-10-28/pagination-2026-10-29-unit.txt), [HTTP/PostgreSQL](../validations/reprise-g1-g2-2026-10-28/pagination-2026-10-29-integration.txt), [Clippy](../validations/reprise-g1-g2-2026-10-28/pagination-2026-10-29-clippy.txt), [build Studio](../validations/reprise-g1-g2-2026-10-28/pagination-2026-10-29-admin-build.txt), [lint](../validations/reprise-g1-g2-2026-10-28/pagination-2026-10-29-admin-lint.txt).
+
+Recette : deux fils/trois commentaires, taille 1, conservation de la réponse, contenu distinct page 2, compteur 3, page 3 rejetée, zéro rejeté, dernière page par défaut et ordre inverse ; formulaire chaud ouvert puis fermé après 5,5 secondes sans mutation, soumission ensuite refusée. Sauvegarde/restauration et protections antérieures passent. Cluster jetable arrêté en finally ; dépendances Studio réutilisées par jonction ignorée vers le Bureau, aucun téléchargement. Le build courant remplace les assets de test ignorés ; avertissement du bundle >500 Ko conservé. Pas de recette navigateur manuelle ni preuve de charge.
+
+**Suite : connexion publique avec retour au commentaire**, puis STAB-06 notifications via mail/jobs, consentement de mémorisation d'identité et choix d'avatars. Qualification clavier/mobile/fort volume des commentaires à compléter avant de fermer WP-83/84/87. Ensuite STAB-07/08 motifs synchronisés et références des menus. Pas de publication ou fusion vers main ; changements sauvegardés localement après les contrôles documentaires.
+
+
 ## 29 octobre 2026 — Discussion effective (STAB-05A) et empreintes portables (STAB-09)
 
 **Point de reprise le plus récent.** Suite autorisée de la consolidation. Règles de Discussion partagées entre core, API publique et SSR via `DiscussionPolicy`. Aucun changement SQL ni dépendance ajoutée.

@@ -4665,6 +4665,59 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
         json!({"discussion.thread_comments_depth":3})).await.0, 200);
 
+    // Une page contient un fil complet ; le compteur inclut ses réponses.
+    let second_thread = rustforge_core::comments::create_comment(&db, serde_json::from_value(json!({
+        "entry_id":permalink_post.id,"author_name":"Deuxième lecteur",
+        "author_email":"second@example.test","content":"Second fil de pagination"
+    })).unwrap()).await.unwrap();
+    sqlx::query("UPDATE comments SET status='approved' WHERE id=$1")
+        .bind(second_thread.id).execute(&db).await.unwrap();
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
+        "discussion.page_comments":true,"discussion.comments_per_page":1,
+        "discussion.default_comments_page":"oldest","discussion.comment_order":"asc"
+    })).await.0,200);
+    let first=rustforge_core::comments::get_entry_comment_page(&db,permalink_post.id,Some(1)).await.unwrap();
+    assert_eq!((first.root_total,first.total,first.total_pages),(2,3,2));
+    assert_eq!(first.items.len(),1);
+    assert_eq!(first.items[0].children.len(),1);
+    let second=request(&app,"GET",&format!("{comments_url}?comment_page=2"),None,Value::Null).await;
+    assert_eq!(second.0,200);
+    assert_eq!(second.1[0]["id"],second_thread.id.to_string());
+    assert_eq!(request(&app,"GET",&format!("{comments_url}?comment_page=3"),None,Value::Null).await.0,404);
+    assert_eq!(request(&app,"GET",&format!("{comments_url}?comment_page=0"),None,Value::Null).await.0,400);
+    let second_html=request(&app,"GET","/fr/post/article-permalien-g33f?comment_page=2",None,Value::Null).await;
+    assert_eq!(second_html.0,200);
+    let second_html=second_html.1.as_str().unwrap();
+    assert!(second_html.contains("Second fil de pagination"));
+    assert!(!second_html.contains("Superbe article sur Rust"));
+    assert!(second_html.contains("Pagination des commentaires"));
+    assert!(second_html.contains("(3)"));
+    assert_eq!(request(&app,"GET","/fr/post/article-permalien-g33f?comment_page=3",None,Value::Null).await.0,404);
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.default_comments_page":"newest"})).await.0,200);
+    assert_eq!(request(&app,"GET",&comments_url,None,Value::Null).await.1[0]["id"],second_thread.id.to_string());
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
+        "discussion.default_comments_page":"oldest","discussion.comment_order":"desc"
+    })).await.0,200);
+    assert_eq!(request(&app,"GET",&comments_url,None,Value::Null).await.1[0]["id"],second_thread.id.to_string());
+    sqlx::query("DELETE FROM comments WHERE id=$1").bind(second_thread.id).execute(&db).await.unwrap();
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
+        "discussion.page_comments":false,"discussion.comment_order":"asc",
+        "discussion.close_comments_for_old_posts":true,"discussion.close_comments_days":1
+    })).await.0,200);
+    sqlx::query("UPDATE entries SET published_at=now()-interval '1 day'+interval '5 seconds' WHERE id=$1")
+        .bind(permalink_post.id).execute(&db).await.unwrap();
+    let warm=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert_eq!(warm.0,200);
+    assert!(warm.1.as_str().unwrap().contains("id=\"comment-form\""));
+    tokio::time::sleep(std::time::Duration::from_millis(5500)).await;
+    let expired_form=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert_eq!(expired_form.0,200);
+    assert!(!expired_form.1.as_str().unwrap().contains("id=\"comment-form\""));
+    assert_eq!(request(&app,"POST",&comments_url,None,submit.clone()).await.0,422);
+    sqlx::query("UPDATE entries SET published_at=$2 WHERE id=$1")
+        .bind(permalink_post.id).bind(previous.published_at).execute(&db).await.unwrap();
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.close_comments_for_old_posts":false})).await.0,200);
+
     let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
     assert_eq!(before_count,after_count);
 

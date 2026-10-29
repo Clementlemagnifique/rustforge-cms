@@ -149,15 +149,14 @@ pub async fn public_submit(
 pub async fn public_list(
     State(state): State<AppState>,
     Path(entry_id): Path<Uuid>,
-) -> ApiResult<Json<Vec<PublicCommentView>>> {
-    let all_settings = rustforge_core::settings::all(&state.db).await?;
-    let max_depth = all_settings
-        .get("discussion.thread_comments_depth")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(3) as usize;
-
-    let tree = comments::get_entry_approved_comments_tree(&state.db, entry_id, max_depth).await?;
-    Ok(Json(tree))
+    Query(params): Query<super::public_lists::ListParams>,
+) -> ApiResult<(HeaderMap, Json<Vec<PublicCommentView>>)> {
+    let page = comments::get_entry_comment_page(&state.db, entry_id, params.comment_page()?).await?;
+    let mut headers = HeaderMap::new();
+    headers.insert("x-comment-total", page.total.to_string().parse().unwrap());
+    headers.insert("x-comment-page", page.page.to_string().parse().unwrap());
+    headers.insert("x-comment-pages", page.total_pages.to_string().parse().unwrap());
+    Ok((headers, Json(page.items)))
 }
 
 // ---------------------------------------------------------------------------

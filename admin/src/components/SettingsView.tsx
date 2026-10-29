@@ -758,6 +758,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 </span>
               </div>
 
+              <label className="text-xs text-slate-400 block pt-2">
+                {discussionSettingsMessages.defaultCommentsPage}
+                <select
+                  value={settings['discussion.default_comments_page'] || 'oldest'}
+                  onChange={(e) => setSetting('discussion.default_comments_page', e.target.value)}
+                  className="block bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                >
+                  <option value="oldest">{discussionSettingsMessages.firstCommentsPage}</option>
+                  <option value="newest">{discussionSettingsMessages.lastCommentsPage}</option>
+                </select>
+              </label>
               <div className="pt-2">
                 <label className="text-xs text-slate-400 block mb-1">
                   {discussionSettingsMessages.commentOrder}

@@ -26,8 +26,15 @@ pub(super) fn validate_locale(locale: &str) -> ApiResult<()> {
 pub struct ListParams {
     pub q: Option<String>,
     pub page: Option<String>,
+    pub comment_page: Option<String>,
 }
 impl ListParams {
+    pub fn comment_page(&self) -> ApiResult<Option<i64>> {
+        self.comment_page.as_deref().map(|raw| raw.parse::<i64>().ok()
+            .filter(|n| (1..=1_000_000).contains(n))
+            .ok_or_else(|| ApiError::BadRequest("Page de commentaires invalide".into()))).transpose()
+    }
+
     pub fn normalized(&self) -> ApiResult<(String, i64)> {
         if self.q.as_ref().is_some_and(|q| q.len() > 4096) {
             return Err(ApiError::BadRequest("Recherche trop longue".into()));
@@ -248,7 +255,7 @@ mod tests {
         assert_eq!(
             ListParams {
                 q: Some("  deux  mots ".into()),
-                page: None
+                page: None, comment_page: None
             }
             .normalized()
             .unwrap(),
@@ -258,7 +265,7 @@ mod tests {
             assert!(
                 ListParams {
                     q: None,
-                    page: Some(page.into())
+                    page: Some(page.into()), comment_page: None
                 }
                 .normalized()
                 .is_err()
@@ -267,7 +274,7 @@ mod tests {
         assert!(
             ListParams {
                 q: Some("é".repeat(201)),
-                page: None
+                page: None, comment_page: None
             }
             .normalized()
             .is_err()

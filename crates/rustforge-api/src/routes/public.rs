@@ -306,12 +306,16 @@ async fn render_single_entry(
     mut entry: Entry,
     canonical_url_path: String,
     number: i64,
+    comment_page: Option<i64>,
 ) -> ApiResult<axum::response::Response> {
     if number != 1 {
         return super::public_lists::not_found(&state, &locale).await;
     }
     state.ssr.synchronize(&state.db).await?;
-    let path = format!("{canonical_url_path}?page={number}");
+    let discussion = rustforge_core::comments::DiscussionPolicy::from_settings(&settings::all(&state.db).await?);
+    let comments_open = discussion.can_submit(entry.published_at);
+    // L'état temporel fait partie de la clé, même sans écriture/scheduler à l'échéance.
+    let path = format!("{canonical_url_path}?page={number}&comment_page={comment_page:?}&comments_open={comments_open}");
     let plugins = state.plugins.clone();
     let state_ref = state.clone();
     let loc = locale.clone();
@@ -331,14 +335,20 @@ async fn render_single_entry(
             base_ctx["template"] = serde_json::json!("single.html");
             base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
 
-            let discussion = rustforge_core::comments::DiscussionPolicy::from_settings(
-                &settings::all(&state_ref.db).await?);
-            let comments_tree = rustforge_core::comments::get_entry_approved_comments_tree(
-                &state_ref.db, entry.id, discussion.depth).await?;
-            base_ctx["comments_open"] = serde_json::json!(discussion.can_submit(entry.published_at));
+            let comments_page = rustforge_core::comments::get_entry_comment_page(
+                &state_ref.db, entry.id, comment_page).await?;
+            base_ctx["comments_open"] = serde_json::json!(comments_open);
             base_ctx["discussion"] = serde_json::to_value(&discussion).unwrap_or_default();
-            base_ctx["comments_count"] = serde_json::json!(comments_tree.len());
-            base_ctx["comments"] = serde_json::to_value(&comments_tree).unwrap_or_default();
+            base_ctx["comments_count"] = serde_json::json!(comments_page.total);
+            base_ctx["comments"] = serde_json::to_value(&comments_page.items).unwrap_or_default();
+            base_ctx["comment_page"] = serde_json::json!(comments_page.page);
+            base_ctx["comment_pages"] = serde_json::json!(comments_page.total_pages);
+            if comments_page.page > 1 {
+                base_ctx["comment_previous"] = serde_json::json!(format!("{canonical_url_path}?comment_page={}#comments", comments_page.page-1));
+            }
+            if comments_page.page < comments_page.total_pages {
+                base_ctx["comment_next"] = serde_json::json!(format!("{canonical_url_path}?comment_page={}#comments", comments_page.page+1));
+            }
 
             base_ctx["schema_org"] = serde_json::json!({
                 "@context": "https://schema.org",
@@ -405,7 +415,7 @@ pub async fn ssr_single(
                     if canonical != current_path {
                         return Ok(Redirect::permanent(&canonical).into_response());
                     }
-                    return render_single_entry(state, locale, entry, canonical, number).await;
+                    return render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await;
                 }
                 Err(rustforge_core::CoreError::NotFound) => {}
                 Err(e) => return Err(e.into()),
@@ -475,7 +485,7 @@ pub async fn ssr_single(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number).await
+    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
 }
 
 /// Permalien date et titre : `/{locale}/{year}/{month}/{day}/{slug}`
@@ -527,7 +537,7 @@ pub async fn ssr_day_and_name(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number).await
+    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
 }
 
 /// Permalien mois et titre : `/{locale}/{year}/{month}/{slug}`
@@ -572,7 +582,7 @@ pub async fn ssr_month_and_name(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number).await
+    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
 }
 
 /// Page en Mode Zen sans distraction

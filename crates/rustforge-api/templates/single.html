@@ -63,6 +63,13 @@
         </p>
         {% endif %}
 
+        {% if comment_pages > 1 %}
+        <nav aria-label="Pagination des commentaires">
+            {% if comment_previous %}<a href="{{ comment_previous }}">Commentaires précédents</a>{% endif %}
+            <span>Page {{ comment_page }} sur {{ comment_pages }}</span>
+            {% if comment_next %}<a href="{{ comment_next }}">Commentaires suivants</a>{% endif %}
+        </nav>
+        {% endif %}
         {% if not comments_open %}<p>Les commentaires sont fermés pour cette publication.</p>
         {% elif discussion.require_registration %}<p>Connexion requise pour commenter. <a href="/admin/">Se connecter</a></p>
         {% else %}

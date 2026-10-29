@@ -61,6 +61,9 @@ pub struct DiscussionPolicy {
     pub show_avatars: bool,
     pub close_old: bool,
     pub close_days: i64,
+    pub paginated: bool,
+    pub per_page: i64,
+    pub default_last: bool,
 }
 
 impl DiscussionPolicy {
@@ -78,6 +81,9 @@ impl DiscussionPolicy {
             show_avatars: flag("discussion.show_avatars", true),
             close_old: flag("discussion.close_comments_for_old_posts", false),
             close_days: number("discussion.close_comments_days", 14).max(0),
+            paginated: flag("discussion.page_comments", false),
+            per_page: number("discussion.comments_per_page", 50).clamp(1, 1000),
+            default_last: values.get("discussion.default_comments_page").and_then(|v| v.as_str()) == Some("newest"),
         }
     }
     pub fn can_submit(&self, published_at: Option<DateTime<Utc>>) -> bool {
@@ -588,14 +594,45 @@ pub async fn count_by_status(db: &PgPool) -> CoreResult<CommentCounts> {
     Ok(counts)
 }
 
-/// Récupère la liste des commentaires approuvés pour une entrée sous forme d'arbre hiérarchique.
-pub async fn get_entry_approved_comments_tree(
+/// Une page compte les fils racines ; les réponses restent avec leur fil.
+#[derive(Debug, Serialize)]
+pub struct PublicCommentPage {
+    pub items: Vec<PublicCommentView>,
+    pub page: i64,
+    pub total_pages: i64,
+    pub total: i64,
+    pub root_total: i64,
+}
+
+pub async fn get_entry_comment_page(
     db: &PgPool,
     entry_id: Uuid,
-    max_depth: usize,
-) -> CoreResult<Vec<PublicCommentView>> {
+    requested_page: Option<i64>,
+) -> CoreResult<PublicCommentPage> {
     crate::entries::get_published_by_id(db, entry_id).await?;
     let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?);
+    if requested_page.is_some_and(|p| !(1..=1_000_000).contains(&p)) {
+        return Err(CoreError::validation("Numéro de page de commentaires invalide"));
+    }
+    let mut tx = db.begin().await?;
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY").execute(&mut *tx).await?;
+    // L'agrégat et la page partagent le même snapshot ; seuls les fils visibles sont comptés.
+    let (root_total, total): (i64, i64) = sqlx::query_as(
+        "WITH RECURSIVE visible AS (
+            SELECT id, id AS root_id FROM comments
+            WHERE entry_id=$1 AND status='approved' AND (NOT $2 OR parent_id IS NULL)
+            UNION ALL
+            SELECT c.id, v.root_id FROM comments c JOIN visible v ON c.parent_id=v.id
+            WHERE $2 AND c.entry_id=$1 AND c.status='approved'
+        ) SELECT count(*) FILTER(WHERE id=root_id), count(*) FROM visible")
+        .bind(entry_id).bind(policy.threaded).fetch_one(&mut *tx).await?;
+    let size = if policy.paginated { policy.per_page } else { 2000 };
+    let total_pages = if policy.paginated { ((root_total + size - 1) / size).max(1) } else { 1 };
+    let page = requested_page.unwrap_or(if policy.default_last { total_pages } else { 1 });
+    if page > total_pages { return Err(CoreError::NotFound); }
+    if !policy.paginated && root_total > 2000 {
+        return Err(CoreError::validation("Activez la pagination pour afficher ce volume de commentaires."));
+    }
     #[derive(sqlx::FromRow)]
     struct FlatCommentNode {
         id: Uuid,
@@ -607,19 +644,28 @@ pub async fn get_entry_approved_comments_tree(
     }
 
     let mut nodes: Vec<FlatCommentNode> = sqlx::query_as(
-        r#"
-        SELECT id, parent_id, author_name, author_url, content_html, created_at
-        FROM comments
-        WHERE entry_id = $1 AND status = 'approved'
-        ORDER BY created_at ASC, id ASC
-        "#,
-    )
-    .bind(entry_id)
-    .fetch_all(db)
-    .await?;
-
+        "WITH RECURSIVE roots AS (
+            SELECT id FROM comments WHERE entry_id=$1 AND status='approved'
+                AND (NOT $2 OR parent_id IS NULL)
+            ORDER BY CASE WHEN NOT $5 THEN created_at END ASC, CASE WHEN $5 THEN created_at END DESC,
+                CASE WHEN NOT $5 THEN id END ASC, CASE WHEN $5 THEN id END DESC
+            LIMIT $3 OFFSET $4
+        ), visible AS (
+            SELECT c.id,c.parent_id,c.author_name,c.author_url,c.content_html,c.created_at
+            FROM comments c JOIN roots r ON c.id=r.id
+            UNION ALL
+            SELECT c.id,c.parent_id,c.author_name,c.author_url,c.content_html,c.created_at
+            FROM comments c JOIN visible v ON c.parent_id=v.id
+            WHERE $2 AND c.entry_id=$1 AND c.status='approved'
+        ) SELECT * FROM visible ORDER BY created_at ASC, id ASC LIMIT 2001")
+        .bind(entry_id).bind(policy.threaded).bind(size).bind((page-1)*size)
+        .bind(policy.newest_first).fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    if nodes.len() > 2000 {
+        return Err(CoreError::validation("Le volume de ce fil dépasse la limite de rendu (2000 commentaires)."));
+    }
     if policy.newest_first { nodes.reverse(); }
-    let visible_depth = if policy.threaded { max_depth.clamp(1, 5).min(policy.depth) } else { 1 };
+    let visible_depth = if policy.threaded { policy.depth } else { 1 };
     let parents: std::collections::HashMap<_, _> = nodes.iter().map(|n| (n.id, n.parent_id)).collect();
     for node in &mut nodes {
         let mut chain = Vec::new();
@@ -636,7 +682,7 @@ pub async fn get_entry_approved_comments_tree(
     }
 
     if nodes.is_empty() {
-        return Ok(Vec::new());
+        return Ok(PublicCommentPage { items: Vec::new(), page, total_pages, total, root_total });
     }
 
     fn build_subtree(
@@ -666,7 +712,7 @@ pub async fn get_entry_approved_comments_tree(
         result
     }
 
-    Ok(build_subtree(None, &nodes, 1, visible_depth))
+    Ok(PublicCommentPage { items: build_subtree(None, &nodes, 1, visible_depth), page, total_pages, total, root_total })
 }
 
 #[cfg(test)]

@@ -89,3 +89,8 @@ Réglage `reading.page_for_posts` : identifiant d'une page publiée actuellement
 Les choix de pages sont vérifiés côté serveur dans la transaction de réglages ; un verrou transactionnel dédié sérialise les modifications de ces choix. Le Studio charge toutes les pages de résultats, écarte les pages futures/expirées et signale une ancienne sélection indisponible. Les textes ajoutés sont dans le catalogue français pour traduction ultérieure. Aucun nouveau schéma SQL nécessaire ; le réglage JSON fait partie des sauvegardes de settings existantes.
 
 La vérification HTTP couvre choix identiques, UUID invalide, index paginé, accueil conservé et passage à brouillon après cache chaud. La validation visuelle du Studio est distincte et doit être consignée dans le journal. Cette première réalisation ne livre pas toute la hiérarchie de templates, tous les permaliens, ni les flux.
+
+
+## Contrat commentaires publics — ajout du 29/10/2026
+
+Pagination **comment_page**, indépendante des listes de contenus ; canonical de l'article conservée. Fil racine + réponses restent ensemble ; total compte les réponses accessibles. Réglages `discussion.page_comments`, `comments_per_page`, `comment_order`, `default_comments_page` appliqués par le même service API/SSR. API tableau JSON compatible, métadonnées dans `x-comment-*`. Paramètre invalide 400, hors plage 404, volume de rendu >2 000 explicitement refusé. Les URLs d'auteurs sont validées et les données privées exclues. La fermeture automatique change la clé Moka sans dépendre du scheduler. Voir la première entrée du [journal](08_JOURNAL_REPRISE.md) pour les preuves, limites et suite. Cela ne valide ni notifications, ni connexion publique complète, ni cookies/avatars externes.
