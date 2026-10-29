@@ -110,6 +110,8 @@ enum JobCommand {
     ResumeRestored { id: uuid::Uuid },
     /// Supprime au plus 100 jobs terminés plus anciens que cette rétention.
     Prune { #[arg(long, default_value_t=30)] days: i32 },
+    /// Efface le corps sensible des captures locales de mails terminés sans supprimer l'historique du job.
+    PruneCaptures { #[arg(long, default_value_t=30)] days: i32 },
 }
 
 fn load_config_file() -> anyhow::Result<toml::Value> {
@@ -195,6 +197,7 @@ async fn main() -> anyhow::Result<()> {
                 JobCommand::Retry { id } => jobs::retry(&pool, id).await?,
                 JobCommand::ResumeRestored { id } => jobs::resume_restored(&pool, id).await?,
                 JobCommand::Prune { days } => println!("{} jobs terminés supprimés", jobs::prune(&pool, days).await?),
+                JobCommand::PruneCaptures { days } => println!("{} captures de mails privées purgées", rustforge_core::mail::prune_captures(&pool, days).await?),
             }
         }
         Commands::GenerateSecret => {

@@ -658,6 +658,74 @@ pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> 
     Ok(handled)
 }
 
+pub fn prune_captures_days_valid(days: i32) -> bool {
+    (0..=3650).contains(&days)
+}
+
+/// Efface les captures de courriels des jobs terminés (`succeeded`, `failed`, `cancelled`) plus anciens que `days` jours.
+/// Pour `days == 0`, efface immédiatement les captures de tous les jobs terminés.
+/// Préserve l'entrée rf_jobs, le reçu et les compteurs de livraison tout en anonymisant et purgeant
+/// le corps, destinataire et sujet enregistrés conformément aux règles RGPD et de rétention.
+pub async fn prune_captures(db: &PgPool, days: i32) -> CoreResult<u64> {
+    if !prune_captures_days_valid(days) {
+        return Err(CoreError::validation(
+            "Période de rétention de capture invalide (0 à 3650 jours)",
+        ));
+    }
+    let rows = if days == 0 {
+        sqlx::query(
+            "WITH targets AS (
+                SELECT id FROM rf_jobs
+                WHERE output->>'transport' = 'capture'
+                  AND jsonb_typeof(output->'capture') = 'object'
+                  AND state IN ('succeeded', 'failed', 'cancelled')
+                LIMIT 100 FOR UPDATE SKIP LOCKED
+            ) UPDATE rf_jobs j
+              SET output = jsonb_set(output, '{capture}', 'null'::jsonb), updated_at = now()
+              FROM targets t WHERE j.id = t.id",
+        )
+        .execute(db)
+        .await?
+        .rows_affected()
+    } else {
+        sqlx::query(
+            "WITH targets AS (
+                SELECT id FROM rf_jobs
+                WHERE output->>'transport' = 'capture'
+                  AND jsonb_typeof(output->'capture') = 'object'
+                  AND state IN ('succeeded', 'failed', 'cancelled')
+                  AND finished_at < now() - ($1::int * interval '1 day')
+                LIMIT 100 FOR UPDATE SKIP LOCKED
+            ) UPDATE rf_jobs j
+              SET output = jsonb_set(output, '{capture}', 'null'::jsonb), updated_at = now()
+              FROM targets t WHERE j.id = t.id",
+        )
+        .bind(days)
+        .execute(db)
+        .await?
+        .rows_affected()
+    };
+    Ok(rows)
+}
+
+/// Supprime ou purge les captures de notification rattachées à un commentaire spécifique (ex: lors de sa suppression).
+pub async fn purge_captures_for_comment(db: &PgPool, comment_id: Uuid) -> CoreResult<u64> {
+    let rows = sqlx::query(
+        "UPDATE rf_jobs
+         SET output = jsonb_set(output, '{capture}', 'null'::jsonb), updated_at = now()
+         WHERE kind = $1
+           AND payload->>'comment_id' = $2
+           AND output->>'transport' = 'capture'
+           AND jsonb_typeof(output->'capture') = 'object'",
+    )
+    .bind(crate::comment_notifications::KIND)
+    .bind(comment_id.to_string())
+    .execute(db)
+    .await?
+    .rows_affected();
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -780,5 +848,38 @@ mod tests {
         let err = transport.deliver(injected, Uuid::new_v4()).await.unwrap_err();
         assert_eq!(err.code, "header_injection_rejected");
         assert!(!err.retryable);
+    }
+
+    #[tokio::test]
+    async fn at_least_once_idempotency_key_preservation() {
+        let key = Uuid::new_v4();
+        let msg = Message {
+            recipient: "idempotent@example.test".into(),
+            subject: "Idempotence test".into(),
+            text: "Message".into(),
+        };
+
+        // CaptureTransport conserve la clé dans le receipt_id et capture
+        let capture_transport = CaptureTransport;
+        let receipt1 = capture_transport.deliver(msg.clone(), key).await.unwrap();
+        let receipt2 = capture_transport.deliver(msg.clone(), key).await.unwrap();
+        assert_eq!(receipt1.receipt_id, receipt2.receipt_id);
+        assert_eq!(receipt1.receipt_id, key.to_string());
+
+        // SimulatedTransport conserve la clé
+        let sim_transport = SimulatedTransport::new(SimulatedOutcome::Success);
+        let sim_receipt1 = sim_transport.deliver(msg.clone(), key).await.unwrap();
+        let sim_receipt2 = sim_transport.deliver(msg.clone(), key).await.unwrap();
+        assert_eq!(sim_receipt1.receipt_id, sim_receipt2.receipt_id);
+        assert_eq!(sim_receipt1.receipt_id, format!("sim-{key}"));
+    }
+
+    #[test]
+    fn prune_captures_validation() {
+        assert!(prune_captures_days_valid(0));
+        assert!(prune_captures_days_valid(30));
+        assert!(prune_captures_days_valid(3650));
+        assert!(!prune_captures_days_valid(-1));
+        assert!(!prune_captures_days_valid(3651));
     }
 }

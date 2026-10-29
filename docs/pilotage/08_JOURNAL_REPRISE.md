@@ -1,5 +1,47 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — M1-F : qualification des pannes, sémantique at-least-once, purge RGPD des captures et invalidation multi-instances
+
+**Point de reprise le plus récent.** Sous-lot M1-F livré et qualifié, clôturant le grand jalon **M1** (`WP-85`, `WP-108`). Qualification exhaustive des conditions de pannes post-acceptation distante, isolation des workers zombies, bascule vers l'échec définitif (`lease_exhausted`), purge/rétention RGPD des captures locales, et invalidation inter-instances du cache SSR par trigger SQL sur les commentaires.
+
+### Livré et protections
+
+- **Panne après acceptation distante & sémantique at-least-once** :
+  - Qualification du scénario où un worker délivre le message auprès du transport mais crashe avant d'acquitter en base (`jobs::complete`).
+  - Le bail expire de manière déterministe (`lease_until`), et un second worker réémet le message avec la **même clé d'idempotence** (`idempotency_key: Uuid`).
+  - **Isolation stricte des workers zombies** : un ancien worker tentant tardivement de valider ou renouveler un bail expiré est immédiatement rejeté (`Err(Conflict)`).
+  - En cas de crash répété épuisant le plafond (`attempts >= max_attempts`), la file bascule automatiquement le job en `state = 'failed'` avec le code d'erreur stable `lease_exhausted`, sans boucle infinie.
+- **Cycle de vie, rétention et purge RGPD des captures (`mail::prune_captures`, `mail::purge_captures_for_comment`)** :
+  - Fonction `prune_captures(db, days)` permettant de purger le corps, destinataire et sujet des messages capturés (`output->'capture' = null`) pour les jobs terminés (`succeeded`, `failed`, `cancelled`) plus anciens que `days` jours (ou immédiatement si `days == 0`), tout en préservant l'enregistrement du job et son reçu d'envoi pour l'auditabilité.
+  - Commande CLI `jobs prune-captures --days <N>` ajoutée à l'exécutable `rustforge`.
+  - Purge automatique des captures de notification rattachées à un commentaire (`purge_captures_for_comment`) lors de la suppression de celui-ci (`comments::delete_comment`), garantissant le respect de la vie privée et du droit à l'effacement.
+- **Invalidation multi-instances du cache SSR (`migrations/20261029000008_comments_revision.sql`)** :
+  - Migration additive créant le trigger `comments_revision` sur `comments` appelant `rustforge_bump_revision()`.
+  - Toute création, modification, approbation ou suppression de commentaire sur n'importe quel nœud incrémente atomiquement `runtime_revision.revision` dans PostgreSQL.
+  - Tout autre nœud/instance exécutant `SsrEngine::synchronize` détecte immédiatement le changement de révision et purge son cache Moka local, résolvant le gap d'invalidation multi-instances documenté dans M1-D.
+- **Bornes et sécurité volumétrique** :
+  - Dépouillement, claims, purges et scrubbing strictement bornés (`LIMIT 100 FOR UPDATE SKIP LOCKED`).
+  - Taille maximale des payloads et résultats maintenue à 48 Kio.
+
+### Validation et preuves
+
+- **80 tests unitaires Rust** (17 API, 61 core dont 7 tests unitaires `mail` : qualification de la conservation de clé d'idempotence et validation des périodes de rétention).
+- **Qualification intégrée dans `jobs_postgres.rs`** :
+  - Crash post-acceptation et redélivrance at-least-once avec préservation de la clé d'idempotence.
+  - Rejet des écritures d'anciens jetons zombies.
+  - Épuisement des tentatives et bascule en `failed` (`lease_exhausted`).
+  - Purge des captures (`mail::prune_captures(0)`) avec mise à null du contenu privé et conservation des métadonnées.
+  - Invalidation multi-instances : validation du trigger `comments_revision` incrémentant `runtime_revision`.
+- **Qualité de code & pilotage** :
+  - Clippy workspace `--all-targets` strict : 0 avertissement.
+  - Lint Studio (`oxlint`) : 0 avertissement, 0 erreur ; build Vite réussi.
+  - Scripts `pilotage.py --check` et `verifier-documentation.py` : 0 erreur, 1 504 liens vérifiés.
+  - `WP-85` et `WP-108` validés dans `01_COEUR_ADMIN.csv`.
+
+### Prochaine étape
+
+Grand jalon **M1 achevé** avec succès. La suite planifiée est la reprise des options avancées de commentaires et menus/navigation (**STAB-07/08** et **NAV-A** à **NAV-E**).
+
 ## 29 octobre 2026 — M1-C : transport e-mail configurable et qualification en conditions de panne
 
 **Point de reprise le plus récent.** Sous-lot M1-C livré et qualifié : transport de messagerie transactionnelle configurable, mode simulé déterministe pour qualification en panne sans appel réseau, rejet explicite de l'état non configuré, adaptateur SMTP de production sécurisé contre les injections et fuites de secrets, et résolution dynamique du transport (`MOD-MAIL-01`, `MOD-MAIL-07`).

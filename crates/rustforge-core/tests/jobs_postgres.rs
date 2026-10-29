@@ -400,7 +400,7 @@ async fn durable_jobs_transactions_leases_and_restore() {
         serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
     legacy.format = "rustforge-native-2".into();
     legacy.tables.remove("rf_jobs");
-    legacy.migrations.retain(|v| *v != 20261029000007);
+    legacy.migrations.retain(|v| *v < 20261029000007);
     let mut restore = target.begin().await.unwrap();
     native_backup::restore(&mut restore, &legacy).await.unwrap();
     let old_count: i64 = sqlx::query_scalar("SELECT count(*) FROM rf_jobs")
@@ -436,6 +436,76 @@ async fn durable_jobs_transactions_leases_and_restore() {
     jobs::complete(&target, resumed.id, resumed.lease_token.unwrap())
         .await
         .unwrap();
+
+    // M1-F Qualification : Panne après acceptation distante, réémission at-least-once avec clé d'idempotence
+    let crash_job = jobs::enqueue(&target, &spec("crash:post_accept")).await.unwrap();
+    let worker1 = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
+    assert_eq!(worker1.id, crash_job.id);
+    assert_eq!(worker1.attempts, 1);
+    let worker1_token = worker1.lease_token.unwrap();
+
+    // Le worker 1 exécute le transport mais crashe avant de valider l'acquittement en base.
+    // Le bail expire alors.
+    expire(&target, crash_job.id).await;
+
+    // Isolation du worker zombie : worker 1 tente tardivement de compléter avec son ancien jeton expiré
+    assert!(jobs::complete(&target, crash_job.id, worker1_token).await.is_err());
+    assert!(jobs::heartbeat(&target, crash_job.id, worker1_token, 60).await.is_err());
+
+    // Worker 2 prend le relais : le job est réémis (at-least-once) avec la même clé d'idempotence
+    let worker2 = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
+    assert_eq!(worker2.id, crash_job.id);
+    assert_eq!(worker2.attempts, 2);
+    assert_ne!(worker2.lease_token.unwrap(), worker1_token);
+    jobs::complete(&target, worker2.id, worker2.lease_token.unwrap()).await.unwrap();
+
+    // M1-F Qualification : Répétition des pannes et bascule vers lease_exhausted
+    let loop_job = jobs::enqueue(&target, &spec("crash:exhaust_loop")).await.unwrap();
+    for expected_attempt in 1..=3 {
+        let w = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
+        assert_eq!(w.id, loop_job.id);
+        assert_eq!(w.attempts, expected_attempt);
+        expire(&target, loop_job.id).await;
+    }
+    // Au prochain claim, la maintenance détecte que attempts >= max_attempts et bascule en failed
+    assert!(jobs::claim(&target, &kinds, 60).await.unwrap().is_none());
+    let loop_state: (String, Option<String>) = sqlx::query_as("SELECT state, error_code FROM rf_jobs WHERE id=$1")
+        .bind(loop_job.id)
+        .fetch_one(&target)
+        .await
+        .unwrap();
+    assert_eq!(loop_state.0, "failed");
+    assert_eq!(loop_state.1.as_deref(), Some("lease_exhausted"));
+
+    // M1-F Qualification : Purge et rétention des captures locales (prune_captures)
+    let scrubbed_count = mail::prune_captures(&target, 0).await.unwrap();
+    assert!(scrubbed_count >= 1);
+    // Vérifier que la capture privée a bien été effacée (null) tout en conservant l'entrée rf_jobs
+    let scrubbed_job: jobs::Job = sqlx::query_as("SELECT * FROM rf_jobs WHERE id=$1")
+        .bind(queued.id)
+        .fetch_one(&target)
+        .await
+        .unwrap();
+    assert_eq!(scrubbed_job.state, "succeeded");
+    let scrubbed_output = scrubbed_job.output.unwrap();
+    assert_eq!(scrubbed_output["transport"], "capture");
+    assert!(scrubbed_output["capture"].is_null());
+
+    // M1-F Qualification : Invalidation multi-instance du cache SSR par trigger SQL sur les commentaires
+    let rev_before: i64 = sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
+        .fetch_one(&target)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO comments(id, entry_id, author_name, author_email, content, content_html, status) VALUES($1, (SELECT id FROM entries LIMIT 1), 'MultiInstance', 'multi@example.test', 'Test invalidation', '<p>Test</p>', 'approved')")
+        .bind(Uuid::new_v4())
+        .execute(&target)
+        .await
+        .unwrap();
+    let rev_after: i64 = sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
+        .fetch_one(&target)
+        .await
+        .unwrap();
+    assert_eq!(rev_after, rev_before + 1);
 
     db.close().await;
     target.close().await;

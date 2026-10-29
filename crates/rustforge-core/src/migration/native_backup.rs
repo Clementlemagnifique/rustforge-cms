@@ -85,7 +85,7 @@ impl NativeSnapshot {
         if (!legacy && self.format != "rustforge-native-3")
             || self.tables.len() != expected.len()
             || expected.iter().any(|t| !self.tables.contains_key(*t))
-            || (legacy && self.migrations.contains(&20261029000007))
+            || (legacy && self.migrations.iter().any(|v| *v >= 20261029000007))
         {
             return Err(CoreError::validation("Sauvegarde native incomplète ou version incompatible"));
         }

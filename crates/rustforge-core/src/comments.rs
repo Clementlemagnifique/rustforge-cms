@@ -625,6 +625,7 @@ pub async fn reply_to_comment(
 
 /// Supprime définitivement un commentaire de la base de données.
 pub async fn delete_comment(db: &PgPool, id: Uuid) -> CoreResult<bool> {
+    let _ = crate::mail::purge_captures_for_comment(db, id).await;
     let res = sqlx::query("DELETE FROM comments WHERE id = $1")
         .bind(id)
         .execute(db)
