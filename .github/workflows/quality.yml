@@ -49,3 +49,6 @@ jobs:
       - run: cargo test --locked -p rustforge-api --test consolidation -- --include-ignored
         env:
           RUSTFORGE_TEST_DATABASE_URL: postgres://postgres:regression-only@localhost:5432/postgres
+      - run: cargo test --locked -p rustforge-core --test jobs_postgres -- --include-ignored
+        env:
+          RUSTFORGE_TEST_DATABASE_URL: postgres://postgres:regression-only@localhost:5432/postgres

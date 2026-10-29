@@ -91,8 +91,13 @@ Plusieurs assistants se sont succédé sur `admin/src/`, laissant des composants
 
 ## Contrat cible jobs et mail — jalon M1 du 29/10/2026
 
-Le socle existant n'a pas de dispatcher durable ni de transport d'e-mail. Le futur rf.jobs sera partagé par notifications, médias, migrations et automatisations. Les enqueues dépendant d'une écriture métier appartiennent à sa transaction, via outbox ou mécanisme équivalent. Versionner les payloads et leur politique de reprise ; limiter taille, concurrence et tentatives. Les baux expirés sont récupérables ; l'arrêt du processus ne doit pas perdre un job accepté. Ne jamais marquer une notification envoyée avant confirmation du transport.
+M1-A/B fournit désormais `jobs.rs` et la table `rf_jobs`, partagés par notifications, médias, migrations et automatisations. `mail.rs` ajoute le contrat et un transport de capture uniquement ; pas de SMTP/API externe ni de notifications de domaine raccordées pour le moment. Les enqueues dépendant d'une écriture métier appartiennent à sa transaction, via outbox ou mécanisme équivalent. Versionner les payloads et leur politique de reprise ; limiter taille, concurrence et tentatives. Les baux expirés sont récupérables ; l'arrêt du processus ne doit pas perdre un job accepté. Ne jamais marquer une notification envoyée avant confirmation du transport.
 
 Transport mail interchangeable, mode capture local pour recette, aucune connexion externe implicite. Séparer secrets et données restaurables. Réévaluer destinataires, droits et préférences au moment de l'envoi ; expurger les journaux et prévoir rétention/suppression. La sauvegarde des jobs ne doit pas rejouer silencieusement des envois déjà délivrés : définir les statuts et l'action de l'opérateur après restauration. Un fournisseur sans idempotence peut accepter deux fois un message après crash ; cette limite doit être visible et testée.
 
-Le [plan global](../PLAN_ACTION_GLOBAL.md) détaille M1-A à F et les critères de sortie. Ce contrat est une cible ; aucune file ni notification n'est livrée par cette entrée documentaire.
+Le [plan global](../PLAN_ACTION_GLOBAL.md) détaille M1-A à F et les critères de sortie. Les primitives de file et la capture sont recettées dans le dernier journal. Le reste de ce contrat (écritures métier des commentaires, destinataires/préférences de notification, transport externe et diagnostic) reste la cible M1-D/E/F.
+
+
+### Contrat effectif de sauvegarde des jobs
+
+Le snapshot natif passe à rustforge-native-3 ; l'enveloppe capsule reste v2. `rf_jobs` est inclus. Une restauration ne réactive pas les travaux importés : queued/retry/running passent paused_restore avec token/échéance vidés ; résultats terminaux conservés. Une compatibilité native-2 n'existe que pour le schéma de tables attendu et l'ajout connu de migration 007. Tous les autres changements de migrations restent refusés explicitement. La clé d'idempotence n'est garantie que pendant la rétention du job. Les captures contiennent des données de messagerie privées ; elles suivent la même protection que la sauvegarde complète.

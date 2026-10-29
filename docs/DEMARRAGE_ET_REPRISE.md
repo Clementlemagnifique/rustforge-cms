@@ -19,7 +19,7 @@ Les procédures ci-dessous et l'[audit initial](AUDIT_RUSTFORGE_V0.1.0_2026-10-2
 
 Pour reprendre avec un autre assistant :
 
-> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. Commence M1-A/B (contrat et file de jobs durable), selon le tableau M1 du plan global. Les lots de lecture publique et de consolidation Discussion sont déjà présents ; ne les redémarre pas. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
+> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. Commence M1-D en capture locale (notifications de commentaires dans la transaction métier), selon le tableau M1 du plan global. La file de jobs, le contrat mail et la capture sont déjà présents. Les lots de lecture publique et de consolidation Discussion sont déjà présents ; ne les redémarre pas. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
 
 ## Préparer une installation
 
@@ -71,7 +71,7 @@ Les migrations ajoutent `revisions.snapshot`, `runtime_revision`, ses déclenche
 
 RFIR et RF-XML transportent un document éditorial. Le RF-XML nouvellement produit contient aussi l'enveloppe RFIR complète ; son cycle XML → document conserve cette enveloppe. Cela ne rend pas le cycle base → RFIR → base intégral : parents, blocs, utilisateurs, liens et modules métier nécessitent encore le travail du prochain lot. WXR enregistre des références de médias : il ne télécharge pas leurs fichiers. Les auteurs WordPress sont conservés comme provenance et les entrées sont attribuées à l'administrateur importateur. Une URL source est obligatoire pour le suivi d'import.
 
-La capsule native v2 contient les 32 tables explicitement inventoriées et les fichiers des racines `uploads`, `themes`, `protected_downloads`, ainsi que les composants `.wasm` à la racine de `plugins`. Elle n'embarque pas les sources/builds des plugins, le binaire, PostgreSQL, `config.toml`, `.env` ni les autres fichiers du serveur. Conserver ces éléments séparément. Les clés d'API stockées en base et les hachages de mots de passe sont présents : traiter l'archive comme un secret. Les sommes SHA-256 détectent une altération, elles ne signent ni ne chiffrent l'archive.
+L’enveloppe capsule v2 contient désormais un snapshot `rustforge-native-3`, avec les tables explicitement inventoriées dont `rf_jobs` et les fichiers des racines `uploads`, `themes`, `protected_downloads`, ainsi que les composants `.wasm` à la racine de `plugins`. Elle n'embarque pas les sources/builds des plugins, le binaire, PostgreSQL, `config.toml`, `.env` ni les autres fichiers du serveur. Conserver ces éléments séparément. Les résultats de capture mail, clés d'API stockées en base et hachages de mots de passe sont présents : traiter l'archive comme un secret. Les sommes SHA-256 détectent une altération, elles ne signent ni ne chiffrent l'archive.
 
 Effectuer la sauvegarde en période sans écritures : le snapshot PostgreSQL est cohérent, mais les fichiers et la base ne partagent pas un instantané atomique. Limites du format en mémoire : 2 000 fichiers, 128 Mio par fichier y compris le JSON natif, 512 Mio décompressés au total. L'import HTTP est limité à 128 Mio compressés ; utiliser la CLI pour une archive plus grande, toujours dans les quotas décompressés. Prévoir du stockage et de la mémoire disponibles.
 
@@ -124,3 +124,21 @@ Le workflow GitHub ajouté lance les builds Windows/Linux et un job PostgreSQL i
 - Sécurité : limites d'archives/corps HTTP et cadence de connexion de base. Pas d'analyse exhaustive des dépendances, pas de certification, pas de limite distribuée entre instances. Le reverse proxy ne doit pas exposer les fichiers protégés.
 
 Avant une release, lire les critères de sortie de la feuille de route et compléter la recette navigateur, la migration WordPress réelle et le test de restauration après interruption.
+
+
+## Exploiter la file durable (M1, 29/10/2026)
+
+Appliquer la migration additive 007 avec `rustforge migrate` avant les commandes jobs. Aucune tâche mail ni aucun worker n'est créé/lancé par le simple démarrage du site. Le scheduler éditorial continue son rôle actuel.
+
+```powershell
+.\rustforge.exe jobs list --limit 20
+.\rustforge.exe jobs capture-mail --limit 10
+.\rustforge.exe jobs resume-restored IDENTIFIANT_UUID
+.\rustforge.exe jobs retry IDENTIFIANT_UUID
+.\rustforge.exe jobs cancel IDENTIFIANT_UUID
+.\rustforge.exe jobs prune --days 30
+```
+
+`capture-mail` traite uniquement les jobs mail typés déjà en file et conserve un résultat privé dans PostgreSQL ; aucun destinataire externe contacté. La CLI liste seulement identifiant/type/version/état/tentatives/code, sans afficher les messages ni les baux. La purge manuelle supprime au plus 100 états terminaux par appel ; une clé de déduplication n'est plus réservée une fois sa ligne supprimée.
+
+Les nouveaux snapshots native-3 conservent les jobs. Après restauration, queued/retry/running deviennent paused_restore et demandent une décision opérateur avant reprise. Succeeded/failed/cancelled et résultats sont conservés. Les anciens snapshots native-2 ne sont acceptés que pour le schéma ancien explicitement reconnu avec l'ajout connu de migration 007 ; toute autre divergence est refusée. Les anciens binaires ne lisent pas native-3. Ne pas remettre automatiquement en file une livraison distante déjà acceptée sans examiner son résultat. Voir le dernier journal pour tests et limites.

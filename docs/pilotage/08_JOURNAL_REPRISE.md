@@ -1,5 +1,34 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — M1-A/B et capture transactionnelle : première fondation jobs/mail
+
+**Point de reprise le plus récent.** Session « à fond » : migration additive `20261029000007_durable_jobs.sql`, service partagé `jobs.rs`, contrat mail `mail.rs`, commandes opérateur CLI et recette PostgreSQL dédiée. Aucun transport SMTP/API externe, aucune notification automatique de commentaire, aucun worker implicite au démarrage du site.
+
+### Livré
+
+- `rf_jobs` : type et payload versionnés, déduplication unique, priorité, disponibilité, nombre de tentatives plafonné, état, bail avec token et échéance, résultat privé borné et code d'erreur stable. Payload/résultat bornés à 48 Kio côté service et 64 Kio côté JSONB ; identifiants limités et contraints côté DB. Aucun code fourni dans le payload n'est exécuté.
+- `enqueue_in` participe à la transaction de l'appelant : rollback de la donnée métier = rollback du job. Même clé et même contenu rendent le même job sans avancer sa date ; clé réutilisée pour un contenu différent refusée. L'idempotence subsiste pendant la conservation de la ligne, pas au-delà d'une purge.
+- Claim atomique avec `FOR UPDATE SKIP LOCKED`, un job par appel et types explicitement acceptés. Baux de 1 à 600 secondes ; heartbeat/ack/fail conditionnés au token et à une échéance encore valide. Un ancien worker ne peut pas valider un job réattribué. Reprise de bail expiré, limite de tentatives et échec définitif ; maintenance de 100 baux épuisés maximum par claim.
+- Retry exponentiel borné avec décalage déterministe, annulation, retry manuel d'échec, reprise explicite après restauration et purge terminale manuelle (100 lignes/appel, jours validés). Pas de suppression automatique ni d'auto-réactivation après restauration. L'annulation ne peut pas annuler un effet distant déjà commencé.
+- Mail transactionnel : interface de transport, payload typé recipient_id/subject/text, contrôle d'injection d'en-têtes et tailles. Destinataire relu au dispatch. Transport **CaptureTransport uniquement**, résultat persisté dans `rf_jobs.output`, pas de requête réseau. Un lot de 1 à 100 jobs, bail 60 s, livraison bornée à 30 s ; erreur transitoire retry, payload/version inconnue échec explicite. En production une acceptation distante suivie d'un crash avant ack peut dupliquer un envoi ; la clé d'idempotence du transport est l'UUID stable du job. Aucun exactement-une-fois externe promis.
+- CLI du même binaire : `jobs list`, `jobs cancel ID`, `jobs retry ID`, `jobs resume-restored ID`, `jobs prune --days 30`, `jobs capture-mail --limit 10`. `list` omet payload, résultat, clé et token de bail ; les captures complètes sont des données privées dans la DB/sauvegarde. L'opérateur doit appliquer `rustforge migrate` avant ces commandes. Elles ne changent pas la configuration d'un transport ni le lancement de Serve.
+- Sauvegarde : nouveau snapshot **rustforge-native-3** incluant rf_jobs, enveloppe capsule v2 inchangée. Restauration des jobs queued/retry/running en **paused_restore**, bail vidé ; résultats terminaux conservés. Adaptateur explicite pour native-2 avec l'ancien jeu de tables attendu et la seule migration 007 connue ajoutée à la cible ; toute autre divergence reste refusée. Les lecteurs antérieurs ne savent pas lire native-3. Pas de reprise automatique d'envois après import.
+
+### Preuves
+
+**74 tests unitaires Rust** (API 17/core 55/plugins 2), **1 scénario PostgreSQL jobs/mail** et **4 tests intégrés API/HTTP/capsule** réussis ; Clippy workspace/all-targets strict et compilation du binaire réussis. Nouvelle commande `jobs --help` vérifiée. Preuves [unitaires](../validations/m1-2026-10-29/jobs-unit.txt), [jobs/mail](../validations/m1-2026-10-29/jobs-integration.txt), [régression CMS](../validations/m1-2026-10-29/jobs-regression.txt), [Clippy](../validations/m1-2026-10-29/jobs-clippy.txt), [binaire](../validations/m1-2026-10-29/jobs-build.txt), [CLI](../validations/m1-2026-10-29/jobs-cli.txt).
+
+Recettes : rollback, même clé concurrente, conflit de contenu, claims concurrents distincts, heartbeat, faux token, ancien bail refusé, reprise par second pool, délai/retry/plafond, annulation, erreur définitive, rétention, type ignoré par un worker non compatible, capture locale unique persistée, transport de test en échec puis reprise, version inconnue rejetée, upgrade native-2 connu et restauration native-3 avec jobs en pause. L'ajout de conservation exacte du résultat de capture est également vérifié. Le redémarrage est simulé par nouveau pool et expiration de bail, pas par arrêt brutal d'un processus OS ni coupure électrique. Pas de charge ni de multi-hôte réel. Le premier essai avait une erreur de syntaxe du nouveau fichier de test, corrigée avant les succès enregistrés.
+
+Tests exécutés seulement sur bases rf_jobs_test_* et rf_regression_* créées pour la recette ; cluster jetable arrêté. CI PostgreSQL étendue au nouveau test core ; aucun run distant tant que non poussé. Aucun nouveau build/lint Studio ou navigateur requis/annoncé : aucune source du Studio modifiée dans ce lot. Dépendances existantes réutilisées, zéro téléchargement, configuration et bases personnelles préservées.
+
+### Suite exacte
+
+**Prochain sous-lot : M1-D en capture locale**, raccorder les transitions de commentaires à l'outbox dans la transaction métier, ajouter les préférences de notification et revalider droits/destinataires/statut au dispatch. Ne pas envoyer de mail réel ni annoncer les notifications prêtes : elles ne sont pas raccordées dans cette session. Ensuite finir M1-C (adaptateur SMTP/API configuré), M1-E diagnostic Studio, puis M1-F panne réelle, volumes et restauration/reprise. La capture native est disponible pour ces recettes, sans compte externe.
+
+Conserver une seule file pour médias/migrations/automatisations ; le scheduler éditorial reste indépendant et inchangé. WP-108 et MOD-MAIL-01/07 passent EN_COURS avec preuves partielles ; WP-85 reste ouvert. Le prochain assistant doit lire cette entrée, le contrat effectif et le plan global. Sauvegarde locale sur fix/consolidation-2026-10-29 ; aucun merge/push demandé dans ce tour.
+
+
 ## 29 octobre 2026 — Préférences visiteur achevées, frontière du grand jalon M1
 
 **Point de reprise le plus récent.** L'utilisateur demande d'avancer jusqu'à la prochaine grosse étape. Inspection du code : aucun transport mail ni dispatcher durable existant ; le scheduler est éditorial et EX-34 décrit des tables préparatoires. Les notifications ne peuvent pas être honnêtement clôturées sur ce socle. Les dernières options visiteur sont livrées et le prochain grand jalon **M1 — jobs durables et messagerie transactionnelle** est préparé dans le plan global, sans nouveau MD stratégique.

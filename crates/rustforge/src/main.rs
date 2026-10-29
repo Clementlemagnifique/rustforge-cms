@@ -29,6 +29,11 @@ enum Commands {
         #[arg(long, env = "HOST", value_name = "HOST")]
         host: Option<String>,
     },
+    /// Diagnostic et commandes opérateur pour la file durable (aucune exécution implicite).
+    Jobs {
+        #[command(subcommand)]
+        action: JobCommand,
+    },
     /// Applique les migrations PostgreSQL.
     Migrate,
     /// Génère un secret aléatoire local, sans connexion à la base.
@@ -91,6 +96,20 @@ enum Commands {
     },
 }
 
+#[derive(Subcommand)]
+enum JobCommand {
+    /// Exécute un lot de mails en capture locale uniquement, sans livraison externe.
+    CaptureMail { #[arg(long, default_value_t=10)] limit: usize },
+    /// Liste bornée sans payload ni bail, afin de ne pas afficher de données privées.
+    List { #[arg(long, default_value_t=20)] limit: i64 },
+    Cancel { id: uuid::Uuid },
+    Retry { id: uuid::Uuid },
+    /// Réautorise explicitement un job mis en pause par restauration.
+    ResumeRestored { id: uuid::Uuid },
+    /// Supprime au plus 100 jobs terminés plus anciens que cette rétention.
+    Prune { #[arg(long, default_value_t=30)] days: i32 },
+}
+
 fn load_config_file() -> anyhow::Result<toml::Value> {
     match std::fs::read_to_string("config.toml") {
         Ok(content) => Ok(toml::from_str(&content)?),
@@ -149,6 +168,27 @@ async fn main() -> anyhow::Result<()> {
         Commands::Init { database_url } => {
             let url=database_url.ok_or_else(||anyhow::anyhow!("Fournissez DATABASE_URL ou utilisez le lanceur start pour renseigner votre base PostgreSQL."))?;
             initialize::initialize(&std::env::current_dir()?, &url).await?;
+        }
+        Commands::Jobs { action } => {
+            let pool = rustforge_core::connect(&database_url).await?;
+            use rustforge_core::jobs;
+            match action {
+                JobCommand::CaptureMail { limit } => {
+                    let count=rustforge_core::mail::run_batch(&pool,&rustforge_core::mail::CaptureTransport,limit).await?;
+                    println!("{count} jobs mail traités en capture locale (aucun envoi externe)");
+                }
+                JobCommand::List { limit } => {
+                    for job in jobs::list(&pool, limit).await? {
+                        println!("{} {} v{} {} tentative {}/{} {}", job.id, job.kind,
+                            job.payload_version, job.state, job.attempts, job.max_attempts,
+                            job.error_code.as_deref().unwrap_or("-"));
+                    }
+                }
+                JobCommand::Cancel { id } => jobs::cancel(&pool, id).await?,
+                JobCommand::Retry { id } => jobs::retry(&pool, id).await?,
+                JobCommand::ResumeRestored { id } => jobs::resume_restored(&pool, id).await?,
+                JobCommand::Prune { days } => println!("{} jobs terminés supprimés", jobs::prune(&pool, days).await?),
+            }
         }
         Commands::GenerateSecret => {
             println!(

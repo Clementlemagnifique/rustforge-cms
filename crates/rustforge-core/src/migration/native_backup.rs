@@ -39,6 +39,7 @@ pub const TABLES: &[&str] = &[
     "analytics_pageviews",
     "import_origins",
     "ai_action_plans",
+    "rf_jobs",
 ];
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,7 +67,7 @@ pub async fn dump(pool: &PgPool) -> CoreResult<NativeSnapshot> {
     }
     tx.commit().await?;
     Ok(NativeSnapshot {
-        format: "rustforge-native-2".into(),
+        format: "rustforge-native-3".into(),
         migrations,
         tables,
     })
@@ -74,13 +75,14 @@ pub async fn dump(pool: &PgPool) -> CoreResult<NativeSnapshot> {
 
 impl NativeSnapshot {
     pub fn validate(&self) -> CoreResult<()> {
-        if self.format != "rustforge-native-2"
-            || self.tables.len() != TABLES.len()
-            || TABLES.iter().any(|t| !self.tables.contains_key(*t))
+        let legacy = self.format == "rustforge-native-2";
+        let expected: Vec<_> = TABLES.iter().copied().filter(|t| !legacy || *t != "rf_jobs").collect();
+        if (!legacy && self.format != "rustforge-native-3")
+            || self.tables.len() != expected.len()
+            || expected.iter().any(|t| !self.tables.contains_key(*t))
+            || (legacy && self.migrations.contains(&20261029000007))
         {
-            return Err(CoreError::validation(
-                "Sauvegarde native incomplète ou version incompatible",
-            ));
+            return Err(CoreError::validation("Sauvegarde native incomplète ou version incompatible"));
         }
         if !self.tables["users"].iter().any(|r| {
             r["role"] == "admin" && r["password_hash"].as_str().is_some_and(|s| !s.is_empty())
@@ -117,7 +119,12 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
         sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success ORDER BY version")
             .fetch_all(&mut *tx)
             .await?;
-    if versions != snapshot.migrations {
+    let compatible_legacy = snapshot.format == "rustforge-native-2" && {
+        let mut upgraded = snapshot.migrations.clone();
+        upgraded.push(20261029000007);
+        upgraded == versions
+    };
+    if versions != snapshot.migrations && !compatible_legacy {
         return Err(CoreError::validation(
             "Les migrations de la sauvegarde et de la cible diffèrent",
         ));
@@ -184,7 +191,7 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
             .map(|c| format!("\"{c}\""))
             .collect::<Vec<_>>()
             .join(",");
-        for original in &snapshot.tables[*table] {
+        for original in snapshot.tables.get(*table).into_iter().flatten() {
             let mut row = original.clone();
             for (t, c) in deferred {
                 if t == *table {
@@ -207,6 +214,10 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
             }
         }
     }
+    // Aucun job actif importé ne doit envoyer un message ou rejouer un effet tout seul.
+    sqlx::query("UPDATE rf_jobs SET state='paused_restore',lease_token=NULL,lease_until=NULL,
+        error_code='restore_requires_review',updated_at=now(),finished_at=NULL
+        WHERE state IN ('queued','retry','running')").execute(&mut *tx).await?;
     // Refresh tokens from another machine must not create valid sessions on the target.
     sqlx::query("UPDATE refresh_tokens SET revoked_at=now() WHERE revoked_at IS NULL")
         .execute(&mut *tx)
