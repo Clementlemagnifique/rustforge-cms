@@ -93,12 +93,8 @@ pub async fn public_submit(
     // 2. Récupération des réglages de discussion
     let all_settings = rustforge_core::settings::all(&state.db).await?;
     let policy = comments::DiscussionPolicy::from_settings(&all_settings);
-    // Réutiliser exactement l'extracteur de session existant, y compris la lecture du compte.
     let identity = if headers.contains_key(axum::http::header::AUTHORIZATION) {
-        use axum::extract::FromRequestParts;
-        let (mut parts, _) = axum::http::Request::builder().body(()).unwrap().into_parts();
-        parts.headers = headers.clone();
-        Some(AuthUser::from_request_parts(&mut parts, &state).await?.user)
+        Some(crate::auth::bearer_identity(&headers, &state, true).await?)
     } else { None };
     if policy.require_registration && identity.is_none() {
         return Err(ApiError::Unauthorized);

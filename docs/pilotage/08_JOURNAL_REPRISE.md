@@ -1,5 +1,29 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — STAB-05C : connexion publique réservée aux commentaires
+
+**Point de reprise le plus récent.** Connexion depuis l'article et retour direct au commentaire, sans passage par le Studio. Les moteurs d'authentification, mots de passe, JWT et limiteur existants sont réutilisés ; pas de cookie, migration SQL ni dépendance ajoutée.
+
+### Contrat livré
+
+- `POST /api/v1/public/session/login` accepte login/password, renvoie token/display_name/expires_in=1800 et `Cache-Control: no-store`. Profil complet, e-mail et refresh token ne sont pas renvoyés/créés. Paramètres de taille bornés. Même limiteur que la connexion Studio (20 tentatives/minute/IP ; les chemins partagent le compteur). Limiteur en mémoire, non distribué ; limites de proxy existantes inchangées.
+- JWT public de 30 minutes avec `scope=comments`. Le parcours AuthUser protégé refuse cette portée, même si le compte authentifié est administrateur. Seule la soumission publique accepte ce jeton ; compte relu en base et identité toujours imposée côté serveur. Les anciens jetons Studio sans scope restent compatibles avec le Studio et l'API commentaires. Une portée inconnue est refusée.
+- Formulaire de connexion sur l'article, identification par nom affiché via textContent, champs visiteurs masqués pendant la session, focus au commentaire après connexion, bouton de déconnexion locale. Password effacé du champ après chaque tentative. Le jeton reste dans la fermeture JavaScript de l'onglet : aucun localStorage/sessionStorage/cookie, aucune identité injectée dans le HTML partagé en cache.
+- Brouillon conservé en cas de refus, réseau indisponible, expiration ou déconnexion. Un 401 sur l'envoi réinitialise l'identité locale et propose la reconnexion. Le texte n'est vidé qu'après confirmation d'enregistrement. Les erreurs JSON structurées sont lisibles, sans injection HTML. La session n'est pas partagée avec le Studio ou un autre onglet et se perd au rechargement.
+- Le bloc fermé n'affiche ni connexion ni formulaire. JavaScript nécessaire à cette interaction, signalé dans noscript. Le script `comments.js` est chargé par le loader de thème et embarqué en repli ; les versions du thème default et embarquée restent identiques.
+- Déconnexion = oubli du jeton dans l'onglet, **pas révocation serveur du JWT**. Pas de refresh silencieux, inscription de compte, récupération de mot de passe ni session multi-appareils dans ce lot. Le brouillon est en mémoire DOM, pas persistant après fermeture/rechargement.
+
+### Validation
+
+**71 tests unitaires Rust** (API 17, core 52, plugins 2), **4 tests intégrés** PostgreSQL/HTTP/capsule, **6 tests JavaScript** et **Clippy strict workspace/all-targets** réussis. Preuves [Rust](../validations/reprise-g1-g2-2026-10-28/public-login-2026-10-29-unit.txt), [HTTP/PostgreSQL](../validations/reprise-g1-g2-2026-10-28/public-login-2026-10-29-integration.txt), [JavaScript](../validations/reprise-g1-g2-2026-10-28/public-login-2026-10-29-js.txt), [Clippy](../validations/reprise-g1-g2-2026-10-28/public-login-2026-10-29-clippy.txt).
+
+HTTP : mauvais mot de passe refusé, session publique créée sans profil privé, accès /auth/me et modération refusés avec ce jeton, formulaire public d'inscription obligatoire présent et protégé, token absent du HTML, commentaire associé à l'identité réelle malgré le faux nom fourni. Unitaire : durée 1800 secondes, scope attendu, anciens tokens compatibles et expiration refusée. Tests JS avec DOM simulé : succès, refus, brouillon, credentials omit et bearer limité à la soumission, expiration, réseau, déconnexion et absence de formulaire. Ces tests JS ne constituent pas une recette visuelle/clavier en navigateur réel. Ils sont ajoutés au workflow Quality Windows/Linux ; aucune exécution distante nouvelle tant que non poussé.
+
+Scénario complet de sauvegarde/restauration et protections précédentes également réussi. Cluster jetable arrêté ; assets Studio du lot précédent réutilisés, aucun nouveau build Studio dans ce tour. Traductibilité : textes du comportement regroupés dans l'objet messages du script ; HTML français selon le thème actuel, traductions toujours reportées.
+
+**Suite : STAB-06 notifications de commentaires**, via les services mail/jobs existants à inventorier, avec préférences, idempotence et essai sans envoi externe. Puis consentement de mémorisation d'identité et choix d'avatars. Recette navigateur réel et limites de charge à compléter avant fermeture définitive de WP-83/84/87. Les tableaux restent EN_COURS et le dépôt public inchangé. Sauvegarde locale sur la branche de consolidation, sans fusion ni push.
+
+
 ## 29 octobre 2026 — STAB-05B : pagination, compteurs et fermeture temporelle
 
 **Point de reprise le plus récent.** Pagination des commentaires publics et expiration du formulaire en cache implémentées. Branche `fix/consolidation-2026-10-29`, basée sur main `27b6b599`, précédents commits `399f9909` et `82814c97` conservés. Pas de migration SQL ni nouvelle dépendance.

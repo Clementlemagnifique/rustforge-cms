@@ -94,3 +94,8 @@ La vérification HTTP couvre choix identiques, UUID invalide, index paginé, acc
 ## Contrat commentaires publics — ajout du 29/10/2026
 
 Pagination **comment_page**, indépendante des listes de contenus ; canonical de l'article conservée. Fil racine + réponses restent ensemble ; total compte les réponses accessibles. Réglages `discussion.page_comments`, `comments_per_page`, `comment_order`, `default_comments_page` appliqués par le même service API/SSR. API tableau JSON compatible, métadonnées dans `x-comment-*`. Paramètre invalide 400, hors plage 404, volume de rendu >2 000 explicitement refusé. Les URLs d'auteurs sont validées et les données privées exclues. La fermeture automatique change la clé Moka sans dépendre du scheduler. Voir la première entrée du [journal](08_JOURNAL_REPRISE.md) pour les preuves, limites et suite. Cela ne valide ni notifications, ni connexion publique complète, ni cookies/avatars externes.
+
+
+### Connexion publique — 29/10/2026
+
+La connexion du formulaire d'article appelle `/api/v1/public/session/login`, pas la connexion administrative. JWT de 30 min scope comments, accepté uniquement pour soumettre le commentaire ; identité relue en base. La réponse de connexion est no-store, et le HTML partagé ne contient ni token ni profil. Déconnexion locale, brouillon conservé dans le DOM, aucun stockage persistant. Voir [journal](08_JOURNAL_REPRISE.md) STAB-05C pour preuves et limites (navigateur réel, récupération de compte, révocation et refresh non livrés).

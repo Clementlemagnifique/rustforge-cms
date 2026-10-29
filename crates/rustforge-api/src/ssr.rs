@@ -46,6 +46,7 @@ fn theme_loader(
             return Ok(Some(source));
         }
         Ok(match name {
+            "comments.js" => Some(include_str!("../templates/comments.js").into()),
             "listing.html" => Some(include_str!("../templates/listing.html").into()),
             "pagination.html" => Some(include_str!("../templates/pagination.html").into()),
             "404.html" => Some(include_str!("../templates/404.html").into()),
@@ -71,6 +72,7 @@ impl SsrEngine {
             env.add_template("single.html", include_str!("../templates/single.html"))
                 .expect("template single.html invalide");
             for (name, source) in [
+                ("comments.js", include_str!("../templates/comments.js")),
                 ("listing.html", include_str!("../templates/listing.html")),
                 (
                     "pagination.html",

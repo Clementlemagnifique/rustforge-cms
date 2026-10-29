@@ -329,6 +329,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/chat", post(routes::ai::chat));
 
     let public_routes = Router::new()
+        .route("/session/login", post(routes::auth::comment_login))
         .route("/entries", get(routes::public::list_entries))
         .route("/entries/{type}/{slug}", get(routes::public::get_entry))
         .route("/settings", get(routes::public::get_settings))

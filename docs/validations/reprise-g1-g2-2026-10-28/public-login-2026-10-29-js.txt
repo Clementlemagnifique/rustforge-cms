@@ -1,0 +1,14 @@
+✔ connexion conserve le brouillon, efface le mot de passe et utilise textContent (2.279ms)
+✔ identifiants refusés : erreur lisible, champ protégé, brouillon préservé (0.6112ms)
+✔ envoi authentifié limité au commentaire, sans cookies, puis déconnexion locale (0.8402ms)
+✔ expiration : reconnexion proposée sans perdre le commentaire (0.7726ms)
+✔ visiteur : aucun bearer, erreur réseau sans perte (0.5886ms)
+✔ page fermée : aucun formulaire, script inactif (0.5069ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.8605

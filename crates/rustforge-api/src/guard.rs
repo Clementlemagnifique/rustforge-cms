@@ -15,7 +15,7 @@ use std::{
 
 pub async fn boundaries(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
-    if path == "/api/v1/auth/login" || path == "/api/v1/setup/install" {
+    if matches!(path, "/api/v1/auth/login" | "/api/v1/public/session/login" | "/api/v1/setup/install") {
         static ATTEMPTS: OnceLock<Mutex<HashMap<String, (Instant, u32)>>> = OnceLock::new();
         let ip = request
             .extensions()

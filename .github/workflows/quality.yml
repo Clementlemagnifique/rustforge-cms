@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
         working-directory: admin
+      - run: node --test tests/public-comments.test.mjs
       - run: npm run lint
         working-directory: admin
       - run: npm run build

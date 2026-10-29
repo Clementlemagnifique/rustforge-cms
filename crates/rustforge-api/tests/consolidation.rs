@@ -4718,6 +4718,34 @@ async fn postgres_http_and_native_backup_regressions() {
         .bind(permalink_post.id).bind(previous.published_at).execute(&db).await.unwrap();
     assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.close_comments_for_old_posts":false})).await.0,200);
 
+    // Session créée depuis l'article : portée commentaires, jamais Studio.
+    let public_login = "/api/v1/public/session/login";
+    let registered_account = users::get(&db, admin_id).await.unwrap();
+    assert_eq!(request(&app,"POST",public_login,None,json!({"login":registered_account.username,"password":"incorrect"})).await.0,401);
+    let session=request(&app,"POST",public_login,None,json!({
+        "login":registered_account.username,"password":"test-password-long-123!"
+    })).await;
+    assert_eq!(session.0,200,"{session:?}");
+    assert!(session.1.get("user").is_none());
+    assert!(session.1.get("email").is_none());
+    assert!(session.1.get("role").is_none());
+    assert_eq!(session.1["expires_in"],1800);
+    let comment_token=session.1["token"].as_str().unwrap();
+    assert_eq!(request(&app,"GET","/api/v1/auth/me",Some(comment_token),Value::Null).await.0,401);
+    assert_eq!(request(&app,"GET","/api/v1/comments",Some(comment_token),Value::Null).await.0,401);
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.comment_registration":true})).await.0,200);
+    let account_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert_eq!(account_html.0,200);
+    let account_html=account_html.1.as_str().unwrap();
+    assert!(account_html.contains("id=\"comment-login\""));
+    assert!(account_html.contains("id=\"comment-fields\" disabled"));
+    assert!(!account_html.contains(comment_token));
+    let scoped=request(&app,"POST",&comments_url,Some(comment_token),json!({"content":"Session limitée", "author_name":"Faux nom"})).await;
+    assert_eq!(scoped.0,200,"{scoped:?}");
+    assert_eq!(scoped.1["author_name"],registered_account.display_name);
+    sqlx::query("DELETE FROM comments WHERE id=$1").bind(Uuid::parse_str(scoped.1["id"].as_str().unwrap()).unwrap()).execute(&db).await.unwrap();
+    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.comment_registration":false})).await.0,200);
+
     let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
     assert_eq!(before_count,after_count);
 

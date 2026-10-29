@@ -1,0 +1,3 @@
+    Checking rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust\crates\rustforge-api)
+    Checking rustforge v1.0.0-alpha.1 (C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust\crates\rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.50s
