@@ -1,8 +1,21 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Thème & Styles Globaux : validation intégrale de TH-11, TH-27, TH-28 et TH-29
+
+**Point de reprise le plus récent.** Phase 2 du plan d'exhaustivité validée. Implémentation complète du système de tokens, palettes et typographie souveraine inspirée d'Astra, GeneratePress et Twenty Twenty-Five :
+- **Palettes Harmoniques en 1 Clic (`TH-11`, `TH-27`)** : 5 presets de couleurs professionnelles (`Moderne Indigo`, `Émeraude & Ambre`, `Ardoise & Océan`, `Rose & Solaire`, `Violet Royal`), sélecteur hexadécimal libre pour `primary_color` et `accent_color`, injection dynamique dans `:root` CSS public (`--tp-primary`, `--tp-accent`).
+- **Typographie Souveraine 100% RGPD (`TH-28`)** : polices locales pour les titres (`font_heading` : Plus Jakarta Sans, Inter, Playfair Display, Space Grotesk, Système UI) et pour le corps (`font_body` : Inter, Plus Jakarta Sans, Merriweather, Système UI), suppression intégrale de toute dépendance vers Google Fonts externe, variables CSS `--tp-font-heading` et `--tp-font-body`.
+- **Styles des Contrôles & Composants (`TH-29`)** : boutons d'action multi-styles (`rf-btn-primary`, `rf-btn-secondary`, `rf-btn-outline`), cartes conteneurs (`rf-group-card`), rayon de courbure fluide (`radius`), et vitrine de prévisualisation en direct dans `AppearanceView.tsx`.
+
+### Validations et métriques
+- 72 tests unitaires `rustforge-core` et 98 tests workspace réussis.
+- Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+- Frontend : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 635ms.
+- Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants).
+
 ## 29 octobre 2026 — Blocs de Structure, Tableaux & Conteneurs Cœur : validation intégrale de WP-B029, WP-B095, WP-B099 et WP-B103
 
-**Point de reprise le plus récent.** Phase 1 du plan d'exhaustivité validée. Implémentation complète des blocs structurants dans l'enveloppe souveraine `rf.document/1` et l'éditeur Studio :
+Phase 1 du plan d'exhaustivité validée. Implémentation complète des blocs structurants dans l'enveloppe souveraine `rf.document/1` et l'éditeur Studio :
 - **Tableau GFM & HTML (`core/table` — `WP-B103`)** : gestion des colonnes et lignes avec séparateur pipe, caption optionnelle, rendu `<table>` accessible assaini par Ammonia et conversion bidirectionnelle Markdown GFM.
 - **Espaceur Vertical (`core/spacer` — `WP-B099`)** : hauteurs prédéfinies (`sm` 16px, `md` 32px, `lg` 64px, `xl` 96px), attribut `aria-hidden="true"`, et règle visuelle dans le Studio.
 - **Bannière de Couverture (`core/cover` — `WP-B029`)** : image de fond avec sélection médiathèque, styles d'overlay (`dark`, `light`, `primary`, `gradient`), texte/titre contrasté.

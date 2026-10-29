@@ -28,6 +28,29 @@ import { appearanceMessages } from '../i18n/messages.fr';
 import { useAppearanceStore, getItemDepth } from '../stores/useAppearanceStore';
 import type { AppearanceTab } from '../stores/useAppearanceStore';
 
+const COLOR_PRESETS = [
+  { name: 'Moderne Indigo', primary: '#4f46e5', accent: '#06b6d4' },
+  { name: 'Émeraude & Ambre', primary: '#059669', accent: '#f59e0b' },
+  { name: 'Ardoise & Océan', primary: '#0284c7', accent: '#38bdf8' },
+  { name: 'Rose & Solaire', primary: '#e11d48', accent: '#f97316' },
+  { name: 'Violet Royal', primary: '#7c3aed', accent: '#d946ef' },
+];
+
+const HEADING_FONTS = [
+  { name: 'Plus Jakarta Sans (Moderne & Géométrique)', value: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  { name: 'Inter (Neutre & Polyvalent)', value: "'Inter', system-ui, sans-serif" },
+  { name: 'Playfair Display (Éditorial & Élégant)', value: "'Playfair Display', Georgia, serif" },
+  { name: 'Space Grotesk (Technique & Avant-garde)', value: "'Space Grotesk', system-ui, monospace" },
+  { name: 'Système Natif (Zéro chargement)', value: "system-ui, -apple-system, sans-serif" },
+];
+
+const BODY_FONTS = [
+  { name: 'Inter (Optimisé pour la lecture)', value: "'Inter', system-ui, sans-serif" },
+  { name: 'Plus Jakarta Sans (Harmonisé)', value: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  { name: 'Merriweather (Sérif classique)', value: "'Merriweather', Georgia, serif" },
+  { name: 'Système Natif (Zéro chargement)', value: "system-ui, -apple-system, sans-serif" },
+];
+
 interface AppearanceViewProps {
   initialTab?: AppearanceTab;
 }
@@ -142,59 +165,127 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
           }}
           className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
         >
-          <div className="lg:col-span-7 bg-[#0f1422] border border-white/10 rounded-2xl p-6 space-y-5 text-xs">
-            <label className="flex items-center justify-between gap-4">
-              <span className="font-medium text-slate-200">{appearanceMessages.primaryColor}</span>
-              <input
-                aria-label={appearanceMessages.primaryColor}
-                type="color"
-                value={/^#[0-9a-f]{6}$/i.test(tokens.primary_color) ? tokens.primary_color : '#4f46e5'}
-                onChange={(e) => setToken('primary_color', e.target.value)}
-                className="w-20 h-9 bg-transparent cursor-pointer"
-              />
-            </label>
+          <div className="lg:col-span-7 bg-[#0f1422] border border-white/10 rounded-2xl p-6 space-y-6 text-xs">
+            {/* Palettes de couleurs harmonisées en 1 clic (Astra / GP) */}
+            <div className="space-y-2">
+              <span className="font-semibold text-slate-200 block">Palettes harmonisées (1 clic) :</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {COLOR_PRESETS.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => {
+                      setToken('primary_color', preset.primary);
+                      setToken('accent_color', preset.accent);
+                    }}
+                    className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 p-2 text-left hover:border-indigo-400 transition-colors"
+                  >
+                    <div className="flex items-center -space-x-1 shrink-0">
+                      <span className="w-4 h-4 rounded-full border border-black/40" style={{ background: preset.primary }} />
+                      <span className="w-4 h-4 rounded-full border border-black/40" style={{ background: preset.accent }} />
+                    </div>
+                    <span className="truncate text-[11px] font-medium text-slate-300">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            <label className="flex items-center justify-between gap-4">
-              <span className="font-medium text-slate-200">{appearanceMessages.accentColor}</span>
-              <input
-                aria-label={appearanceMessages.accentColor}
-                type="color"
-                value={/^#[0-9a-f]{6}$/i.test(tokens.accent_color) ? tokens.accent_color : '#06b6d4'}
-                onChange={(e) => setToken('accent_color', e.target.value)}
-                className="w-20 h-9 bg-transparent cursor-pointer"
-              />
-            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+              <label className="flex items-center justify-between gap-4 rounded-xl bg-black/25 border border-white/5 p-3">
+                <span className="font-medium text-slate-200">{appearanceMessages.primaryColor}</span>
+                <input
+                  aria-label={appearanceMessages.primaryColor}
+                  type="color"
+                  value={/^#[0-9a-f]{6}$/i.test(tokens.primary_color) ? tokens.primary_color : '#4f46e5'}
+                  onChange={(e) => setToken('primary_color', e.target.value)}
+                  className="w-16 h-8 bg-transparent cursor-pointer rounded"
+                />
+              </label>
 
-            <label className="block space-y-1.5">
-              <span className="font-medium text-slate-200">
-                {appearanceMessages.containerWidth} : {tokens.container_width}
-              </span>
-              <select
-                value={tokens.container_width}
-                onChange={(e) => setToken('container_width', e.target.value)}
-                className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
-              >
-                <option value="960px">Compact (960px — lecture longue)</option>
-                <option value="1100px">Standard (1100px — défaut rf-base)</option>
-                <option value="1280px">Large (1280px — portail éditorial)</option>
-                <option value="1440px">Très large (1440px)</option>
-              </select>
-            </label>
+              <label className="flex items-center justify-between gap-4 rounded-xl bg-black/25 border border-white/5 p-3">
+                <span className="font-medium text-slate-200">{appearanceMessages.accentColor}</span>
+                <input
+                  aria-label={appearanceMessages.accentColor}
+                  type="color"
+                  value={/^#[0-9a-f]{6}$/i.test(tokens.accent_color) ? tokens.accent_color : '#06b6d4'}
+                  onChange={(e) => setToken('accent_color', e.target.value)}
+                  className="w-16 h-8 bg-transparent cursor-pointer rounded"
+                />
+              </label>
+            </div>
 
-            <label className="block space-y-1.5">
-              <span className="font-medium text-slate-200">
-                {appearanceMessages.borderRadius} : {tokens.radius}
-              </span>
-              <input
-                aria-label={appearanceMessages.borderRadius}
-                type="range"
-                min={0}
-                max={28}
-                value={Number.parseInt(tokens.radius) || 0}
-                onChange={(e) => setToken('radius', `${e.target.value}px`)}
-                className="block w-full"
-              />
-            </label>
+            {/* Typographie fluide & polices souveraines (TT25 / Astra) */}
+            <div className="space-y-3 pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">Typographie souveraine (RGPD local)</span>
+                <span className="rounded bg-indigo-500/20 text-indigo-300 px-2 py-0.5 text-[10px] font-mono">
+                  100% sans Google Fonts
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="block space-y-1.5">
+                  <span className="text-slate-300">Police des Titres :</span>
+                  <select
+                    value={tokens.font_heading || HEADING_FONTS[0].value}
+                    onChange={(e) => setToken('font_heading', e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                  >
+                    {HEADING_FONTS.map((font) => (
+                      <option key={font.name} value={font.value}>
+                        {font.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-slate-300">Police du Corps :</span>
+                  <select
+                    value={tokens.font_body || BODY_FONTS[0].value}
+                    onChange={(e) => setToken('font_body', e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                  >
+                    {BODY_FONTS.map((font) => (
+                      <option key={font.name} value={font.value}>
+                        {font.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+              <label className="block space-y-1.5">
+                <span className="font-medium text-slate-200">
+                  {appearanceMessages.containerWidth} : {tokens.container_width}
+                </span>
+                <select
+                  value={tokens.container_width}
+                  onChange={(e) => setToken('container_width', e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                >
+                  <option value="960px">Compact (960px — lecture longue)</option>
+                  <option value="1100px">Standard (1100px — défaut rf-base)</option>
+                  <option value="1280px">Large (1280px — portail éditorial)</option>
+                  <option value="1440px">Très large (1440px)</option>
+                </select>
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="font-medium text-slate-200">
+                  {appearanceMessages.borderRadius} : {tokens.radius}
+                </span>
+                <input
+                  aria-label={appearanceMessages.borderRadius}
+                  type="range"
+                  min={0}
+                  max={28}
+                  value={Number.parseInt(tokens.radius) || 0}
+                  onChange={(e) => setToken('radius', `${e.target.value}px`)}
+                  className="block w-full mt-2"
+                />
+              </label>
+            </div>
 
             {/* CSS personnalisé borné (WP-50) */}
             <label className="block space-y-1.5 pt-2 border-t border-white/5">
@@ -202,7 +293,7 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                 {appearanceMessages.customCssLabel}
               </span>
               <textarea
-                rows={5}
+                rows={4}
                 maxLength={16384}
                 value={tokens.custom_css}
                 onChange={(e) => setToken('custom_css', e.target.value)}
@@ -214,7 +305,7 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-40 shadow-lg shadow-indigo-600/20"
             >
               <Save className="w-4 h-4" />
               <span>
@@ -223,32 +314,84 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
             </button>
           </div>
 
-          {/* Aperçu immédiat de la palette */}
+          {/* Aperçu immédiat et interactif des composants du thème */}
           <div
-            className="lg:col-span-5 rounded-2xl p-6 border bg-[#0b0f19] space-y-4"
+            className="lg:col-span-5 rounded-2xl p-6 border bg-[#0b0f19] space-y-5 shadow-2xl transition-all"
             style={{
               borderRadius: tokens.radius,
               borderColor: tokens.primary_color,
             }}
           >
-            <h3 className="font-bold text-white text-base">Aperçu de la palette `rf-base`</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Un titre, un lien d’accentuation et un bouton d’action utilisant vos tokens CSS
-              publics (`--tp-primary`, `--tp-accent`, `--tp-radius`, `--tp-container`).
-            </p>
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <span className="text-xs font-semibold" style={{ color: tokens.accent_color }}>
-                Découvrir mes contenus →
-              </span>
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <span className="font-bold text-white text-xs uppercase tracking-wider">Aperçu Thème en direct</span>
               <span
-                className="inline-block px-4 py-2 text-xs font-semibold text-white"
-                style={{
-                  background: tokens.primary_color,
-                  borderRadius: tokens.radius,
-                }}
+                className="w-2.5 h-2.5 rounded-full animate-pulse"
+                style={{ background: tokens.accent_color }}
+              />
+            </div>
+
+            {/* Titre et texte avec les polices sélectionnées */}
+            <div className="space-y-1.5">
+              <h3
+                className="text-lg font-bold text-white leading-tight"
+                style={{ fontFamily: tokens.font_heading || undefined }}
               >
-                En savoir plus
-              </span>
+                Typographie fluide & Harmonisée
+              </h3>
+              <p
+                className="text-xs text-slate-300 leading-relaxed"
+                style={{ fontFamily: tokens.font_body || undefined }}
+              >
+                Rendu textuel en variables CSS natives. Les titres s’adaptent automatiquement à la largeur du viewport.
+              </p>
+            </div>
+
+            {/* Boutons d'action (Primary, Secondary, Outline) */}
+            <div className="space-y-2 pt-2 border-t border-white/5">
+              <span className="text-[11px] font-medium text-slate-400 block">Variantes de boutons :</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                  style={{
+                    background: tokens.primary_color,
+                    borderRadius: tokens.radius,
+                  }}
+                >
+                  Principal
+                </span>
+                <span
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-200 border border-white/20 bg-white/5"
+                  style={{ borderRadius: tokens.radius }}
+                >
+                  Secondaire
+                </span>
+                <span
+                  className="px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    color: tokens.primary_color,
+                    border: `1.5px solid ${tokens.primary_color}`,
+                    borderRadius: tokens.radius,
+                  }}
+                >
+                  Contour
+                </span>
+              </div>
+            </div>
+
+            {/* Carte / Groupe conteneur (WP-B036) */}
+            <div
+              className="p-3.5 bg-white/[0.03] border border-white/10 space-y-1"
+              style={{ borderRadius: tokens.radius }}
+            >
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-white">Carte conteneur</span>
+                <span className="text-[10px]" style={{ color: tokens.accent_color }}>
+                  Rayon : {tokens.radius}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Structure avec ombre douce et fond contrasté adaptatif.
+              </p>
             </div>
           </div>
         </form>

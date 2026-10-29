@@ -24,6 +24,8 @@ export interface DesignTokensState {
   accent_color: string;
   radius: string;
   container_width: string;
+  font_heading: string;
+  font_body: string;
   custom_css: string;
 }
 
@@ -95,6 +97,8 @@ const DEFAULT_TOKENS: DesignTokensState = {
   accent_color: '#06b6d4',
   radius: '12px',
   container_width: '1100px',
+  font_heading: 'Plus Jakarta Sans',
+  font_body: 'Inter',
   custom_css: '',
 };
 
