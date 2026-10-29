@@ -22,6 +22,20 @@
 
     <title>{% block title %}Accueil{% endblock %} — {{ site_title }}</title>
 
+    <!-- Favicon & Icône de site multi-résolutions (WP-74) -->
+    {% if site_icon_32 %}
+    <link rel="icon" type="image/webp" sizes="32x32" href="{{ site_icon_32 }}" />
+    {% elif site_icon %}
+    <link rel="icon" href="{{ site_icon }}" />
+    {% endif %}
+    {% if site_icon_180 %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ site_icon_180 }}" />
+    {% endif %}
+    {% if site_icon_192 %}
+    <link rel="icon" type="image/webp" sizes="192x192" href="{{ site_icon_192 }}" />
+    {% endif %}
+
+
     
 
     <!-- SEO & GEO Optimization Schema.org JSON-LD -->

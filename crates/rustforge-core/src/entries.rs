@@ -559,6 +559,38 @@ pub async fn create(
     let slug = unique_slug(db, ct.id, &p.slug_base, None).await?;
 
     p.slug_base = slug.clone();
+
+    // Application des défauts éditoriaux (WP-75)
+    if ct.slug == "post" {
+        // Catégorie par défaut si aucun terme n'a été spécifié
+        if p.term_ids.as_ref().is_none_or(|terms| terms.is_empty()) {
+            let def_cat_slug = crate::settings::get(db, "writing.default_category")
+                .await?
+                .and_then(|v| v.as_str().map(str::to_string))
+                .unwrap_or_else(|| "non-classe".to_string());
+            let default_cat_id: Option<Uuid> = sqlx::query_scalar(
+                "SELECT t.id FROM terms t JOIN taxonomies tx ON tx.id = t.taxonomy_id WHERE tx.slug = 'category' AND (t.slug = $1 OR t.slug = 'non-classe' OR t.slug = 'uncategorized') LIMIT 1"
+            )
+            .bind(def_cat_slug)
+            .fetch_optional(db)
+            .await?;
+            if let Some(cat_id) = default_cat_id {
+                p.term_ids = Some(vec![cat_id]);
+            }
+        }
+
+        // Format d'article par défaut si non spécifié
+        if let Some(obj) = p.fields.as_object_mut()
+            && !obj.contains_key("post_format")
+        {
+            let def_format = crate::settings::get(db, "writing.default_post_format")
+                .await?
+                .and_then(|v| v.as_str().map(str::to_string))
+                .unwrap_or_else(|| "standard".to_string());
+            obj.insert("post_format".to_string(), serde_json::json!(def_format));
+        }
+    }
+
     let mut tx = db.begin().await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO entries (content_type_id, parent_id, author_id, title, slug, excerpt, body, body_html,

@@ -27,12 +27,15 @@ interface SettingsState {
   loading: boolean;
   saving: boolean;
   saved: boolean;
+  uploadingIcon: boolean;
   error: string | null;
 
   setActiveTab: (tab: SettingsTab) => void;
   loadAll: () => Promise<void>;
   setSetting: (key: string, value: any) => void;
   saveSettings: () => Promise<void>;
+  uploadSiteIcon: (file: File) => Promise<void>;
+  deleteSiteIcon: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -43,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loading: false,
   saving: false,
   saved: false,
+  uploadingIcon: false,
   error: null,
 
   setActiveTab: (tab) => set({ activeTab: tab, error: null }),
@@ -101,6 +105,46 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({
         saving: false,
         error: err.message || 'Erreur lors de la sauvegarde des réglages.',
+      });
+    }
+  },
+
+  uploadSiteIcon: async (file: File) => {
+    set({ uploadingIcon: true, error: null });
+    try {
+      const res = await api.settings.uploadSiteIcon(file);
+      set((s) => ({
+        settings: {
+          ...s.settings,
+          'site.icon': res.icon,
+        },
+        uploadingIcon: false,
+        saved: true,
+      }));
+    } catch (err: any) {
+      set({
+        uploadingIcon: false,
+        error: err.message || "Erreur lors du téléversement de l'icône.",
+      });
+    }
+  },
+
+  deleteSiteIcon: async () => {
+    set({ uploadingIcon: true, error: null });
+    try {
+      await api.settings.deleteSiteIcon();
+      set((s) => ({
+        settings: {
+          ...s.settings,
+          'site.icon': null,
+        },
+        uploadingIcon: false,
+        saved: true,
+      }));
+    } catch (err: any) {
+      set({
+        uploadingIcon: false,
+        error: err.message || "Erreur lors de la suppression de l'icône.",
       });
     }
   },

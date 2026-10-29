@@ -265,3 +265,12 @@ export interface JobsPage {
   counts: Record<string, number>; mail_mode: string;
 }
 export interface JobCapture { recipient: string; subject: string; text: string }
+
+export interface SiteIconInfo {
+  url?: string;
+  icon_32?: string;
+  icon_180?: string;
+  icon_192?: string;
+  icon_512?: string;
+}
+

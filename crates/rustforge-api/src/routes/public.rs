@@ -274,6 +274,26 @@ pub(super) async fn build_site_context(
         .unwrap_or("")
         .trim_end_matches('/');
 
+    let home_url = site_settings
+        .get("site.home_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim_end_matches('/'))
+        .filter(|s| !s.is_empty())
+        .unwrap_or(site_url);
+
+    let site_icon = site_settings.get("site.icon");
+    let (site_icon_url, site_icon_32, site_icon_180, site_icon_192, site_icon_512) = match site_icon {
+        Some(serde_json::Value::Object(obj)) => (
+            obj.get("url").and_then(serde_json::Value::as_str),
+            obj.get("icon_32").and_then(serde_json::Value::as_str),
+            obj.get("icon_180").and_then(serde_json::Value::as_str),
+            obj.get("icon_192").and_then(serde_json::Value::as_str),
+            obj.get("icon_512").and_then(serde_json::Value::as_str),
+        ),
+        Some(serde_json::Value::String(s)) => (Some(s.as_str()), Some(s.as_str()), Some(s.as_str()), Some(s.as_str()), Some(s.as_str())),
+        _ => (None, None, None, None, None),
+    };
+
     let permalink_structure = site_settings
         .get("permalink.structure")
         .and_then(|v| v.as_str())
@@ -295,6 +315,12 @@ pub(super) async fn build_site_context(
         "site_title": site_title,
         "site_tagline": site_tagline,
         "site_url": site_url,
+        "home_url": home_url,
+        "site_icon": site_icon_url,
+        "site_icon_32": site_icon_32,
+        "site_icon_180": site_icon_180,
+        "site_icon_192": site_icon_192,
+        "site_icon_512": site_icon_512,
         "design_tokens": design_tokens,
         "menus": menus,
         "blog_public": blog_public,
@@ -893,6 +919,36 @@ mod tests {
         assert_eq!(header[0]["url"], "/fr/page/docs");
         assert_eq!(header[0]["classes"], "nav-highlight");
         assert_eq!(header[0]["object_id"], "00000000-0000-0000-0000-000000000001");
+    }
+
+    #[test]
+    fn test_site_icon_extraction_logic() {
+        let settings_with_object = json!({
+            "site.icon": {
+                "url": "/uploads/icons/site-icon-512.webp",
+                "icon_32": "/uploads/icons/site-icon-32.webp",
+                "icon_180": "/uploads/icons/site-icon-180.webp",
+                "icon_192": "/uploads/icons/site-icon-192.webp",
+                "icon_512": "/uploads/icons/site-icon-512.webp"
+            }
+        });
+
+        let site_icon = settings_with_object.get("site.icon");
+        let (url, i32, i180, i192, i512) = match site_icon {
+            Some(Value::Object(obj)) => (
+                obj.get("url").and_then(Value::as_str),
+                obj.get("icon_32").and_then(Value::as_str),
+                obj.get("icon_180").and_then(Value::as_str),
+                obj.get("icon_192").and_then(Value::as_str),
+                obj.get("icon_512").and_then(Value::as_str),
+            ),
+            _ => (None, None, None, None, None),
+        };
+        assert_eq!(url, Some("/uploads/icons/site-icon-512.webp"));
+        assert_eq!(i32, Some("/uploads/icons/site-icon-32.webp"));
+        assert_eq!(i180, Some("/uploads/icons/site-icon-180.webp"));
+        assert_eq!(i192, Some("/uploads/icons/site-icon-192.webp"));
+        assert_eq!(i512, Some("/uploads/icons/site-icon-512.webp"));
     }
 }
 

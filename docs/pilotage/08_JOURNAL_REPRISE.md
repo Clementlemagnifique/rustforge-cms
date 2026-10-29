@@ -1,5 +1,52 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Identité, Réglages Généraux & Défauts Éditoriaux : validation intégrale de WP-69, WP-70, WP-71, WP-72, WP-73, WP-74 et WP-75
+
+**Point de reprise le plus récent.** Lot complet Identité & Réglages Généraux (`WP-69`, `WP-70`, `WP-71`, `WP-72`, `WP-73`, `WP-74`, `WP-75`) livré, documenté et qualifié. Implémentation du pipeline souverain d'icône de site et favicon multi-formats en WebP (`WP-74`), du moteur de formatage date/heure compatible WordPress avec prévisualisation dynamique (`WP-73`), des contrôles d'inscription publique strictement bornés (`WP-72`), de la distinction d'URL d'installation vs accueil public (`WP-70`), de l'application automatique des catégories et formats par défaut (`WP-75`), et modernisation soignée de l'interface Studio inspirée des standards d'ergonomie et de sobriété (Adminify, WordPress, Astra/GeneratePress).
+
+### Livré et protections
+
+- **Pipeline d'Icône du Site & Favicon Multi-Résolutions (WP-74)** :
+  - `media_processor::generate_site_icon_variants` : génération automatique à partir de tout fichier source recadré au carré centré de 4 variantes WebP ultra-légères : `icon_32` (32x32, favicon de navigateur), `icon_180` (180x180, icône Apple Touch), `icon_192` (192x192, icône Android/PWA) et `icon_512` (512x512, écran de démarrage PWA et haute résolution).
+  - Routes d'API dédiées : `POST /api/v1/settings/site-icon` (téléversement, génération en mémoire et enregistrement dans `uploads/icons/`) et `DELETE /api/v1/settings/site-icon` (purgation physique des fichiers d'icône et remise à zéro).
+  - Rendu SSR public automatique (`base.html`) : injection dynamique dans le `<head>` de `<link rel="icon" type="image/webp" sizes="32x32">`, `<link rel="apple-touch-icon" sizes="180x180">`, et `<link rel="icon" type="image/webp" sizes="192x192">`.
+  - Aperçu Studio en direct dans `SettingsView.tsx` : simulation interactive d'un onglet de navigateur desktop (avec favicon 32px et titre du site) et de l'icône sur l'écran d'accueil d'un smartphone.
+- **Moteur de Formatage Date, Heure & Calendrier (WP-73)** :
+  - Nouveau module natif `date_utils::format_wp_datetime` gérant la syntaxe usuelle de motifs WordPress (`j F Y`, `Y-m-d`, `m/d/Y`, `d/m/Y`, `H:i`, `g:i a`, `H \h i \m\i\n`) avec prise en charge multilingue complète (français, anglais, espagnol) et échappement littéral.
+  - Réglage du premier jour de la semaine (`site.start_of_week` : Dimanche 0, Lundi 1, Samedi 6).
+  - Prévisualisation instantanée et réactive sans latence dans le Studio avec aperçu en temps réel sur la date et l'heure actuelles lors de la frappe d'un format personnalisé.
+- **Adresses Web Distinctes & Email d'Administration (WP-69, WP-70, WP-71)** :
+  - Distinction entre `site.url` (adresse du cœur RustForge CMS) et `site.home_url` (adresse publique d'accueil si hébergée en sous-répertoire ou domaine distinct).
+  - Validation stricte des protocoles (HTTP/HTTPS obligatoire, interdiction des slashes terminaux pour éviter les doubles slashes dans les permaliens, rejet des caractères dangereux).
+  - Validation de `site.admin_email` et notification système.
+- **Inscription & Rôle par Défaut Strictement Borné (WP-72)** :
+  - Route d'enregistrement public `POST /api/v1/auth/register` et `POST /api/v1/public/register`.
+  - Si `users.can_register` est désactivé (`false`), tout enregistrement public est immédiatement rejeté avec un code `403 Forbidden`.
+  - Si activé, le rôle est automatiquement borné à `users.default_role` (`subscriber`, `author`, `editor`), avec interdiction formelle et structurelle d'obtenir les privilèges d'administrateur par inscription publique.
+- **Défauts Éditoriaux Automatisés (WP-75)** :
+  - `writing.default_category` : lorsqu'un rédacteur crée un article sans spécifier de catégorie, RustForge lui attribue automatiquement la catégorie par défaut configurée (ou « non-classe » / « uncategorized »).
+  - `writing.default_post_format` : format standard, en marge, galerie, image, citation, etc. injecté par défaut si omis.
+  - `writing.default_editor_mode` : choix du mode d'édition préféré (`blocks` ou `markdown`).
+
+### Validation et preuves
+
+- **90 tests unitaires Rust réussis** :
+  - 18 tests API (dont validation structurelle, permissions et extraction de métadonnées d'icône).
+  - 70 tests core (dont `date_utils::tests::test_format_wp_datetime_french_and_english`, `media_processor::tests::test_generate_site_icon_variants`, et `settings::tests::test_validate_general_and_writing_settings`).
+  - 2 tests plugins.
+- **Clippy workspace strict** (`cargo clippy --workspace --all-targets -- -D warnings`) : 0 avertissement, 0 erreur.
+- **Contrôles qualité Studio** :
+  - `npm run lint` (`oxlint`) : 0 erreur, 0 avertissement sur 57 fichiers.
+  - `npm run build` (`tsc -b && vite build`) : succès en ~500ms.
+- **Pilotage & documentation** :
+  - `WP-69`, `WP-70`, `WP-71`, `WP-72`, `WP-73`, `WP-74`, `WP-75` validés (`VALIDE`) dans `01_COEUR_ADMIN.csv`.
+  - `py scripts/pilotage.py` : 434 tâches, 38 composants cohérents.
+  - `py scripts/verifier-documentation.py` : 37 documents, 1 504 liens, 0 erreur.
+
+### Prochaine étape
+
+Poursuite dans l'ordre de la feuille de route G2 / G3 : Blocs Gutenberg essentiels dans l'éditeur Studio (`WP-B010` core/button, `WP-B088` core/quote, `WP-B092` core/separator, `WP-B045` core/list).
+
 ## 29 octobre 2026 — Médias & Variantes : validation intégrale de WP-39, WP-41, WP-88 et WP-89
 
 **Point de reprise le plus récent.** Sous-lot Médias & Variantes d'images responsives (`WP-39`, `WP-41`, `WP-88`, `WP-89`) livré et qualifié. Implémentation complète du moteur de génération de variantes dimensionnées en Rust natif (WebP haute fidélité), des transformations réversibles en mémoire (rotation 90°/180°/270°, recadrage) avec conservation et restauration de l'original souverain, des réglages complets de tailles d'images (`options-media.php`), et de l'optimisation responsive (`srcset`, `sizes`, `loading="lazy"`, `decoding="async"`).

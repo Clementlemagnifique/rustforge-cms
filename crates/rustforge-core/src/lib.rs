@@ -13,6 +13,7 @@ pub mod comments;
 pub mod comment_notifications;
 pub mod content_types;
 pub mod converter;
+pub mod date_utils;
 pub mod document;
 pub mod ecommerce;
 pub mod entries;

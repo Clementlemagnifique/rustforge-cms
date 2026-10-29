@@ -235,6 +235,18 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+    uploadSiteIcon: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return request<{ success: boolean; icon: import('./types').SiteIconInfo }>('/settings/site-icon', {
+        method: 'POST',
+        body: form,
+      });
+    },
+    deleteSiteIcon: () =>
+      request<{ success: boolean }>('/settings/site-icon', {
+        method: 'DELETE',
+      }),
   },
 
   users: {

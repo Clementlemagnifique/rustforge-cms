@@ -93,6 +93,37 @@ pub fn default_variant_specs() -> Vec<VariantSpec> {
     ]
 }
 
+/// Spécifications des variantes pour l'icône du site / favicon (WP-74).
+pub fn site_icon_variant_specs() -> Vec<VariantSpec> {
+    vec![
+        VariantSpec {
+            name: "icon_32".to_string(),
+            max_width: 32,
+            max_height: 32,
+            crop: true,
+        },
+        VariantSpec {
+            name: "icon_180".to_string(),
+            max_width: 180,
+            max_height: 180,
+            crop: true,
+        },
+        VariantSpec {
+            name: "icon_192".to_string(),
+            max_width: 192,
+            max_height: 192,
+            crop: true,
+        },
+        VariantSpec {
+            name: "icon_512".to_string(),
+            max_width: 512,
+            max_height: 512,
+            crop: true,
+        },
+    ]
+}
+
+
 /// Désinfecte un contenu SVG en supprimant tout script ou gestionnaire d'événement suspect.
 pub fn sanitize_svg(bytes: &[u8]) -> CoreResult<Vec<u8>> {
     let content = std::str::from_utf8(bytes)
@@ -234,6 +265,45 @@ pub fn generate_variants_from_bytes(
     let variants = generate_variants_for_image(&img, specs, quality);
     Ok((variants, w, h))
 }
+
+/// Génère les variantes d'icône de site carrées (favicon 32px, apple touch 180px, pwa 192px/512px) (WP-74).
+pub fn generate_site_icon_variants(
+    bytes: &[u8],
+) -> CoreResult<(Vec<ProcessedVariant>, i32, i32)> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| CoreError::validation(e.to_string()))?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(16384);
+    limits.max_image_height = Some(16384);
+    limits.max_alloc = Some(128 * 1024 * 1024);
+    reader.limits(limits);
+    let img = reader
+        .decode()
+        .map_err(|e| CoreError::validation(format!("impossible de décoder l'image : {e}")))?;
+
+    let w = img.width();
+    let h = img.height();
+    if w < 32 || h < 32 {
+        return Err(CoreError::validation(
+            "L'image d'icône doit faire au moins 32x32 pixels.",
+        ));
+    }
+
+    let min_dim = w.min(h);
+    let square_img = if w != h {
+        let x = (w - min_dim) / 2;
+        let y = (h - min_dim) / 2;
+        img.crop_imm(x, y, min_dim, min_dim)
+    } else {
+        img
+    };
+
+    let specs = site_icon_variant_specs();
+    let variants = generate_variants_for_image(&square_img, &specs, 90.0);
+    Ok((variants, min_dim as i32, min_dim as i32))
+}
+
 
 /// Applique une rotation à une image en mémoire (WP-39).
 pub fn rotate_image_bytes(
@@ -540,5 +610,37 @@ mod tests {
 
         // Recadrage hors limites -> Err
         assert!(crop_image_bytes(&png_bytes, 350, 150, 100, 100, 85.0).is_err());
+    }
+    #[test]
+    fn test_generate_site_icon_variants() {
+        // Crée une image test rectangulaire 600x400
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::new(600, 400));
+        let mut png_bytes = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut png_bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+
+        let (variants, w, h) = generate_site_icon_variants(&png_bytes).unwrap();
+        assert_eq!(w, 400); // Découpée en carré 400x400
+        assert_eq!(h, 400);
+        assert_eq!(variants.len(), 4);
+
+        let icon32 = variants.iter().find(|v| v.name == "icon_32").unwrap();
+        assert_eq!(icon32.width, 32);
+        assert_eq!(icon32.height, 32);
+
+        let icon180 = variants.iter().find(|v| v.name == "icon_180").unwrap();
+        assert_eq!(icon180.width, 180);
+        assert_eq!(icon180.height, 180);
+
+        let icon192 = variants.iter().find(|v| v.name == "icon_192").unwrap();
+        assert_eq!(icon192.width, 192);
+        assert_eq!(icon192.height, 192);
+
+        let icon512 = variants.iter().find(|v| v.name == "icon_512").unwrap();
+        assert_eq!(icon512.width, 512);
+        assert_eq!(icon512.height, 512);
     }
 }

@@ -18,12 +18,69 @@ import {
   MessageSquare,
   Image as ImageIcon,
   AlertTriangle,
+  Upload,
+  Trash2,
+  Monitor,
+  Smartphone,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import { settingsMessages, discussionSettingsMessages } from '../i18n/messages.fr';
 import { useSettingsStore, type SettingsTab } from '../stores/useSettingsStore';
 
 interface SettingsViewProps {
   initialTab?: SettingsTab;
+}
+
+// Prévisualisation en direct des formats WordPress (WP-73)
+function formatWpPreview(format: string): string {
+  const dt = new Date();
+  const year = dt.getFullYear();
+  const month = dt.getMonth() + 1;
+  const day = dt.getDate();
+  const weekday = dt.getDay();
+  const hours = dt.getHours();
+  const minutes = dt.getMinutes();
+  const seconds = dt.getSeconds();
+  const isPm = hours >= 12;
+  const hour12 = hours % 12 || 12;
+
+  const monthsFr = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const daysFr = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+  let out = '';
+  let i = 0;
+  while (i < format.length) {
+    const ch = format[i];
+    if (ch === '\\' && i + 1 < format.length) {
+      out += format[i + 1];
+      i += 2;
+      continue;
+    }
+    switch (ch) {
+      case 'Y': out += year; break;
+      case 'y': out += String(year).slice(-2); break;
+      case 'm': out += String(month).padStart(2, '0'); break;
+      case 'n': out += month; break;
+      case 'F': out += monthsFr[month] || ''; break;
+      case 'M': out += (monthsFr[month] || '').slice(0, 3) + '.'; break;
+      case 'd': out += String(day).padStart(2, '0'); break;
+      case 'j': out += day; break;
+      case 'l': out += daysFr[weekday] || ''; break;
+      case 'D': out += (daysFr[weekday] || '').slice(0, 3) + '.'; break;
+      case 'H': out += String(hours).padStart(2, '0'); break;
+      case 'G': out += hours; break;
+      case 'h': out += String(hour12).padStart(2, '0'); break;
+      case 'g': out += hour12; break;
+      case 'i': out += String(minutes).padStart(2, '0'); break;
+      case 's': out += String(seconds).padStart(2, '0'); break;
+      case 'a': out += isPm ? 'pm' : 'am'; break;
+      case 'A': out += isPm ? 'PM' : 'AM'; break;
+      default: out += ch;
+    }
+    i++;
+  }
+  return out;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'general' }) => {
@@ -34,7 +91,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const loading = useSettingsStore((s) => s.loading);
   const saving = useSettingsStore((s) => s.saving);
   const saved = useSettingsStore((s) => s.saved);
+  const uploadingIcon = useSettingsStore((s) => s.uploadingIcon);
   const error = useSettingsStore((s) => s.error);
+  const uploadSiteIcon = useSettingsStore((s) => s.uploadSiteIcon);
+  const deleteSiteIcon = useSettingsStore((s) => s.deleteSiteIcon);
 
   const setActiveTab = useSettingsStore((s) => s.setActiveTab);
   const loadAll = useSettingsStore((s) => s.loadAll);
@@ -62,6 +122,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const showOnFront = settings['reading.show_on_front'] || 'posts';
   const blogPublic = settings['reading.blog_public'] !== false;
   const canRegister = settings['users.can_register'] === true;
+
+  const siteIconObj = typeof settings['site.icon'] === 'object' && settings['site.icon'] !== null
+    ? (settings['site.icon'] as Record<string, string>)
+    : null;
+  const siteIconUrl = siteIconObj?.url || (typeof settings['site.icon'] === 'string' ? settings['site.icon'] : null);
+  const icon32Url = siteIconObj?.icon_32 || siteIconUrl;
+  const icon192Url = siteIconObj?.icon_192 || siteIconUrl;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
@@ -186,10 +253,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       {/* ONGLET 1 : GÉNÉRAL (`WP-69` à `WP-74`) */}
       {activeTab === 'general' && (
         <div className="space-y-6">
+          {/* Identité & Adresses du site */}
           <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Identité & Adresses du site (WP-69, WP-70, WP-71)
-            </h4>
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Identité & Adresses du site (WP-69, WP-70, WP-71)
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Nom public, slogan d’accroche et adresses web souveraines.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Titre du site</label>
@@ -197,6 +271,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   type="text"
                   value={settings['site.title'] || ''}
                   onChange={(e) => setSetting('site.title', e.target.value)}
+                  placeholder="Mon super site"
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -207,13 +282,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   type="text"
                   value={settings['site.tagline'] || ''}
                   onChange={(e) => setSetting('site.tagline', e.target.value)}
+                  placeholder="En quelques mots..."
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">
-                  Adresse publique du site (URL)
+                  Adresse web de RustForge (URL du cœur)
                 </label>
                 <input
                   type="url"
@@ -222,9 +298,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   placeholder="https://exemple.fr"
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Adresse d'accès à l'API et au Studio sans slash final.
+                </p>
               </div>
 
               <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Adresse web de l’accueil du site (home)
+                </label>
+                <input
+                  type="url"
+                  value={settings['site.home_url'] || ''}
+                  onChange={(e) => setSetting('site.home_url', e.target.value)}
+                  placeholder="https://exemple.fr"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Si le site public est servi sur une adresse ou sous-dossier distinct.
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
                 <label className="text-[11px] text-slate-400 block mb-1">
                   Adresse e-mail d’administration
                 </label>
@@ -233,16 +328,138 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   value={settings['site.admin_email'] || ''}
                   onChange={(e) => setSetting('site.admin_email', e.target.value)}
                   placeholder="admin@exemple.fr"
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full sm:w-1/2 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Utilisée pour les alertes de sécurité, modération et notifications système.
+                </p>
               </div>
             </div>
           </div>
 
+          {/* Icône du site & Favicon (WP-74) */}
           <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Inscription, Langue & Fuseau horaire (WP-72, WP-73)
-            </h4>
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Icône du site & Favicon (WP-74)
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                L’icône du site est visible dans les onglets de navigateur, les favoris et les applications mobiles (PWA).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+              {/* Prévisualisations réalistes */}
+              <div className="space-y-4">
+                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Aperçu en direct
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Onglet navigateur */}
+                  <div className="flex-1 p-3 rounded-xl bg-black/40 border border-white/10 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      <Monitor className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Onglet de navigateur</span>
+                    </div>
+                    <div className="h-8 bg-[#181f30] rounded-lg border border-white/10 px-2.5 flex items-center gap-2 max-w-[200px]">
+                      {icon32Url ? (
+                        <img
+                          src={icon32Url}
+                          alt="Favicon"
+                          className="w-4 h-4 rounded-sm object-cover"
+                        />
+                      ) : (
+                        <div className="w-4 h-4 rounded-sm bg-indigo-600/50 flex items-center justify-center text-[9px] text-white font-bold">
+                          {(settings['site.title'] || 'R').charAt(0)}
+                        </div>
+                      )}
+                      <span className="text-[11px] text-white truncate font-medium">
+                        {settings['site.title'] || 'RustForge CMS'}
+                      </span>
+                      <span className="text-slate-500 text-[10px] ml-auto">×</span>
+                    </div>
+                  </div>
+
+                  {/* Icône mobile / PWA */}
+                  <div className="flex-1 p-3 rounded-xl bg-black/40 border border-white/10 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Écran d’accueil mobile</span>
+                    </div>
+                    <div className="flex flex-col items-center justify-center py-1">
+                      {icon192Url ? (
+                        <img
+                          src={icon192Url}
+                          alt="Mobile App Icon"
+                          className="w-12 h-12 rounded-2xl shadow-lg border border-white/10 object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-base font-bold shadow-lg shadow-indigo-600/30">
+                          {(settings['site.title'] || 'R').charAt(0)}
+                        </div>
+                      )}
+                      <span className="text-[10px] text-slate-300 mt-1 truncate max-w-[100px]">
+                        {settings['site.title'] || 'RustForge'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions téléversement & gestion */}
+              <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                <div className="text-[11px] text-slate-300">
+                  Image carrée recommandée d’au moins <strong className="text-white">512 × 512 pixels</strong>.
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  RustForge découpe automatiquement l'image en variantes souveraines WebP : 32px (Favicon), 180px (Apple Touch), 192px (Android) et 512px (PWA).
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <label className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-sm">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{uploadingIcon ? 'Conversion...' : 'Téléverser l’icône'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={uploadingIcon}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadSiteIcon(file);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {siteIconUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteSiteIcon()}
+                      disabled={uploadingIcon}
+                      className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-rose-500/20"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Retirer l'icône</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Langue, Fuseau horaire & Calendrier (WP-73) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-6">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-400" />
+                <span>Langue, Fuseau & Calendrier (WP-73)</span>
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Localisation du site, premier jour de la semaine et formats d'affichage personnalisés.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">
@@ -254,6 +471,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 >
                   <option value="fr">Français (fr)</option>
+                  <option value="en">English (en)</option>
+                  <option value="es">Español (es)</option>
                 </select>
               </div>
 
@@ -269,39 +488,170 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   <option value="America/Montreal">America/Montreal</option>
                   <option value="Europe/Brussels">Europe/Brussels</option>
                   <option value="Europe/Zurich">Europe/Zurich</option>
+                  <option value="America/New_York">America/New_York</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo</option>
                 </select>
               </div>
 
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">
-                  Rôle par défaut des nouveaux inscrits
+                  Premier jour de la semaine
                 </label>
                 <select
-                  value={settings['users.default_role'] || 'subscriber'}
-                  onChange={(e) => setSetting('users.default_role', e.target.value)}
+                  value={settings['site.start_of_week'] ?? 1}
+                  onChange={(e) => setSetting('site.start_of_week', Number(e.target.value))}
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 >
-                  <option value="subscriber">Abonné / Lecteur</option>
-                  <option value="author">Auteur</option>
-                  <option value="editor">Éditeur</option>
+                  <option value={1}>Lundi</option>
+                  <option value={0}>Dimanche</option>
+                  <option value={6}>Samedi</option>
                 </select>
               </div>
             </div>
 
-            <label className="flex items-center gap-2.5 text-xs text-slate-300 pt-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={canRegister}
-                onChange={(e) => setSetting('users.can_register', e.target.checked)}
-                className="rounded border-white/20 bg-black/30 text-indigo-600 focus:ring-indigo-500"
-              />
-              <span>Autoriser l’inscription publique de nouveaux membres (WP-72)</span>
-            </label>
+            {/* Formats de date */}
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              <label className="text-[11px] font-semibold text-slate-300 block">
+                Format de date
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-200">
+                {[
+                  { format: 'j F Y' },
+                  { format: 'Y-m-d' },
+                  { format: 'm/d/Y' },
+                  { format: 'd/m/Y' },
+                ].map((item) => (
+                  <label
+                    key={item.format}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                      (settings['site.date_format'] || 'j F Y') === item.format
+                        ? 'bg-indigo-600/10 border-indigo-500/40 text-white'
+                        : 'bg-black/20 border-white/5 hover:border-white/10 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="date_format"
+                        checked={(settings['site.date_format'] || 'j F Y') === item.format}
+                        onChange={() => setSetting('site.date_format', item.format)}
+                        className="text-indigo-600"
+                      />
+                      <code className="text-indigo-300 font-mono text-[11px]">{item.format}</code>
+                    </div>
+                    <span className="text-slate-400 text-[11px]">{formatWpPreview(item.format)}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Format personnalisé */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[11px] text-slate-400">Personnalisé :</span>
+                <input
+                  type="text"
+                  value={settings['site.date_format'] || 'j F Y'}
+                  onChange={(e) => setSetting('site.date_format', e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono w-48 focus:outline-none focus:border-indigo-500"
+                />
+                <span className="text-[11px] text-indigo-300 font-medium">
+                  Aperçu : {formatWpPreview(settings['site.date_format'] || 'j F Y')}
+                </span>
+              </div>
+            </div>
+
+            {/* Formats d'heure */}
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Format de l’heure</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-200">
+                {[
+                  { format: 'H:i' },
+                  { format: 'g:i a' },
+                  { format: 'g:i A' },
+                  { format: 'H \\h i \\m\\i\\n' },
+                ].map((item) => (
+                  <label
+                    key={item.format}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                      (settings['site.time_format'] || 'H:i') === item.format
+                        ? 'bg-indigo-600/10 border-indigo-500/40 text-white'
+                        : 'bg-black/20 border-white/5 hover:border-white/10 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="time_format"
+                        checked={(settings['site.time_format'] || 'H:i') === item.format}
+                        onChange={() => setSetting('site.time_format', item.format)}
+                        className="text-indigo-600"
+                      />
+                      <code className="text-indigo-300 font-mono text-[11px]">{item.format}</code>
+                    </div>
+                    <span className="text-slate-400 text-[11px]">{formatWpPreview(item.format)}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Format d'heure personnalisé */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[11px] text-slate-400">Personnalisé :</span>
+                <input
+                  type="text"
+                  value={settings['site.time_format'] || 'H:i'}
+                  onChange={(e) => setSetting('site.time_format', e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono w-48 focus:outline-none focus:border-indigo-500"
+                />
+                <span className="text-[11px] text-indigo-300 font-medium">
+                  Aperçu : {formatWpPreview(settings['site.time_format'] || 'H:i')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Inscription & Rôle par défaut (WP-72) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Membres & Inscription publique (WP-72)
+            </h4>
+
+            <div className="space-y-4">
+              <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={canRegister}
+                  onChange={(e) => setSetting('users.can_register', e.target.checked)}
+                  className="rounded border-white/20 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="font-medium text-white">
+                  Autoriser tout le monde à s’enregistrer publiquement (WP-72)
+                </span>
+              </label>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">
+                  Rôle attribué par défaut aux nouveaux membres
+                </label>
+                <select
+                  value={settings['users.default_role'] || 'subscriber'}
+                  onChange={(e) => setSetting('users.default_role', e.target.value)}
+                  className="w-full sm:w-1/2 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="subscriber">Abonné / Lecteur (lecture & commentaires)</option>
+                  <option value="author">Auteur (rédaction de ses propres articles)</option>
+                  <option value="editor">Éditeur (gestion éditoriale)</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Par mesure de sécurité souveraine, le rôle d'administrateur ne peut jamais être attribué par défaut.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {/* ONGLET 2 : LECTURE & ACCUEIL (`WP-78` à `WP-81`) */}
+{/* ONGLET 2 : LECTURE & ACCUEIL (`WP-78` à `WP-81`) */}
       {activeTab === 'reading' && (
         <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-5">
           <h4 className="text-xs font-bold text-white uppercase tracking-wider">
@@ -441,12 +791,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
       {/* ONGLET 3 : ÉCRITURE & DÉFAUTS (`WP-75`) */}
       {activeTab === 'writing' && (
-        <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-            Options de rédaction par défaut (WP-75)
-          </h4>
+        <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-5">
+          <div>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Options de rédaction par défaut (WP-75)
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Attribution automatique de catégorie et format lors de la création d'articles.
+            </p>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">
                 Catégorie par défaut des nouveaux articles
@@ -466,6 +821,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">
+                Format d’article par défaut
+              </label>
+              <select
+                value={settings['writing.default_post_format'] || 'standard'}
+                onChange={(e) => setSetting('writing.default_post_format', e.target.value)}
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="standard">Standard</option>
+                <option value="aside">En marge (Aside)</option>
+                <option value="gallery">Galerie</option>
+                <option value="image">Image</option>
+                <option value="quote">Citation</option>
+                <option value="link">Lien</option>
+                <option value="status">Statut</option>
+                <option value="video">Vidéo</option>
+                <option value="audio">Audio</option>
+                <option value="chat">Discussion</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">
                 Mode d’édition par défaut
               </label>
               <select
@@ -480,8 +857,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
           </div>
         </div>
       )}
-
-      {/* ONGLET 4 : PERMALIENS & URLS (`WP-90`, `WP-91`) */}
+{/* ONGLET 4 : PERMALIENS & URLS (`WP-90`, `WP-91`) */}
       {activeTab === 'permalinks' && (
         <div className="space-y-6">
           <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">

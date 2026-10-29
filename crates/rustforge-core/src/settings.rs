@@ -30,7 +30,13 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "site.title",
         "site.tagline",
         "site.url",
+        "site.home_url",
+        "site.icon",
         "site.language",
+        "site.timezone",
+        "site.date_format",
+        "site.time_format",
+        "site.start_of_week",
         "site.design_tokens",
         "site.menus",
         "reading.show_on_front",
@@ -40,6 +46,9 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "reading.posts_per_rss",
         "reading.rss_use_excerpt",
         "reading.blog_public",
+        "writing.default_category",
+        "writing.default_post_format",
+        "writing.default_editor_mode",
         "permalink.structure",
         "permalink.category_base",
         "permalink.tag_base",
@@ -59,7 +68,7 @@ pub async fn public(db: &PgPool) -> CoreResult<BTreeMap<String, Value>> {
         "discussion.avatar_default",
     ];
     let rows: Vec<(String, Value)> = sqlx::query_as(
-        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') OR starts_with(key, 'permalink.') OR starts_with(key, 'discussion.') ORDER BY key",
+        "SELECT key, value FROM settings WHERE starts_with(key, $1) OR starts_with(key, 'reading.') OR starts_with(key, 'permalink.') OR starts_with(key, 'discussion.') OR starts_with(key, 'writing.') ORDER BY key",
     )
     .bind(PUBLIC_PREFIX)
     .fetch_all(db)
@@ -617,6 +626,118 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         return Err(CoreError::validation(
             "media.auto_webp doit être un booléen.",
         ));
+    } else if key == "site.title" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation("site.title doit être une chaîne."));
+        };
+        let trimmed = s.trim();
+        if trimmed.is_empty() || trimmed.len() > 300 || trimmed.chars().any(char::is_control) {
+            return Err(CoreError::validation("Le titre du site doit contenir entre 1 et 300 caractères valides."));
+        }
+    } else if key == "site.tagline" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation("site.tagline doit être une chaîne."));
+        };
+        if s.len() > 500 || s.chars().any(char::is_control) {
+            return Err(CoreError::validation("Le slogan du site ne peut pas dépasser 500 caractères."));
+        }
+    } else if key == "site.url" || key == "site.home_url" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation(format!("{key} doit être une chaîne.")));
+        };
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            if trimmed.len() > 2048 {
+                return Err(CoreError::validation(format!("{key} ne peut pas dépasser 2048 caractères.")));
+            }
+            if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+                return Err(CoreError::validation(format!("{key} doit commencer par http:// ou https://.")));
+            }
+            if trimmed.ends_with('/') {
+                return Err(CoreError::validation(format!("{key} ne doit pas se terminer par un slash « / ».")));
+            }
+            if trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+                return Err(CoreError::validation(format!("{key} contient des caractères non autorisés.")));
+            }
+        }
+    } else if key == "site.language" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation("site.language doit être une chaîne."));
+        };
+        let trimmed = s.trim();
+        if trimmed.len() < 2 || trimmed.len() > 10 || !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(CoreError::validation("Code de langue invalide (attendu ex: fr, en, es)."));
+        }
+    } else if key == "site.timezone" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation("site.timezone doit être une chaîne."));
+        };
+        let trimmed = s.trim();
+            if trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+            return Err(CoreError::validation("Fuseau horaire invalide."));
+        }
+    } else if key == "site.date_format" || key == "site.time_format" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation(format!("{key} doit être une chaîne.")));
+        };
+        if s.len() > 64 || s.chars().any(char::is_control) {
+            return Err(CoreError::validation(format!("{key} est trop long ou contient des caractères de contrôle.")));
+        }
+    } else if key == "site.start_of_week" {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation("site.start_of_week doit être un entier entre 0 et 6."));
+        };
+        if !(0..=6).contains(&n) {
+            return Err(CoreError::validation("site.start_of_week doit être compris entre 0 (dimanche) et 6 (samedi)."));
+        }
+    } else if key == "site.icon" {
+        if let Some(s) = value.as_str() {
+            let trimmed = s.trim();
+            if trimmed.len() > 2048 || trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+                return Err(CoreError::validation("URL d'icône du site invalide."));
+            }
+        } else if let Some(obj) = value.as_object() {
+            for (k, v) in obj {
+                if let Some(path) = v.as_str() {
+                    let trimmed = path.trim();
+                    if trimmed.len() > 2048 || trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+                        return Err(CoreError::validation(format!("Variante {k} d'icône du site invalide.")));
+                    }
+                }
+            }
+        } else {
+            return Err(CoreError::validation("site.icon doit être une URL (chaîne) ou un objet de déclinaisons."));
+        }
+    } else if key == "writing.default_category" {
+        let Some(s) = value.as_str() else {
+            return Err(CoreError::validation("writing.default_category doit être une chaîne."));
+        };
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            if trimmed.len() > 64 {
+                return Err(CoreError::validation("writing.default_category ne peut pas dépasser 64 caractères."));
+            }
+            crate::security::safe_slug(trimmed).map_err(|_| {
+                CoreError::validation("writing.default_category doit être un slug valide.")
+            })?;
+        }
+    } else if key == "writing.default_post_format" {
+        let Some(f) = value.as_str() else {
+            return Err(CoreError::validation("writing.default_post_format doit être une chaîne."));
+        };
+        const FORMATS: &[&str] = &[
+            "standard", "aside", "gallery", "link", "image", "quote", "status", "video", "audio", "chat",
+        ];
+        if !FORMATS.contains(&f) {
+            return Err(CoreError::validation("Format d'article inconnu (attendu : standard, aside, gallery, link, image, quote, status, video, audio ou chat)."));
+        }
+    } else if key == "writing.default_editor_mode" {
+        let Some(m) = value.as_str() else {
+            return Err(CoreError::validation("writing.default_editor_mode doit être une chaîne."));
+        };
+        if !matches!(m, "blocks" | "markdown") {
+            return Err(CoreError::validation("Mode d'éditeur invalide (attendu : blocks ou markdown)."));
+        }
     }
     Ok(())
 }
@@ -1014,5 +1135,43 @@ mod tests {
         assert!(validate_setting_value("media.thumbnail_crop", &json!("yes")).is_err());
         assert!(validate_setting_value("media.auto_webp", &json!(true)).is_ok());
         assert!(validate_setting_value("media.auto_webp", &json!(1)).is_err());
+    }
+    #[test]
+    fn test_validate_general_and_writing_settings() {
+        // Titre et slogan (WP-69)
+        assert!(validate_setting_value("site.title", &json!("RustForge")).is_ok());
+        assert!(validate_setting_value("site.title", &json!("")).is_err());
+        assert!(validate_setting_value("site.tagline", &json!("Le CMS moderne")).is_ok());
+
+        // URLs (WP-70)
+        assert!(validate_setting_value("site.url", &json!("https://example.com")).is_ok());
+        assert!(validate_setting_value("site.url", &json!("http://localhost:3000")).is_ok());
+        assert!(validate_setting_value("site.url", &json!("https://example.com/")).is_err());
+        assert!(validate_setting_value("site.url", &json!("not-a-url")).is_err());
+        assert!(validate_setting_value("site.home_url", &json!("https://example.com/blog")).is_ok());
+
+        // Langue, fuseau et calendrier (WP-73)
+        assert!(validate_setting_value("site.language", &json!("fr")).is_ok());
+        assert!(validate_setting_value("site.language", &json!("")).is_err());
+        assert!(validate_setting_value("site.timezone", &json!("Europe/Paris")).is_ok());
+        assert!(validate_setting_value("site.date_format", &json!("j F Y")).is_ok());
+        assert!(validate_setting_value("site.time_format", &json!("H:i")).is_ok());
+        assert!(validate_setting_value("site.start_of_week", &json!(1)).is_ok());
+        assert!(validate_setting_value("site.start_of_week", &json!(0)).is_ok());
+        assert!(validate_setting_value("site.start_of_week", &json!(7)).is_err());
+
+        // Icône du site (WP-74)
+        assert!(validate_setting_value("site.icon", &json!("/uploads/favicon.png")).is_ok());
+        assert!(validate_setting_value("site.icon", &json!({"icon_32": "/uploads/icons/32.webp", "icon_512": "/uploads/icons/512.webp"})).is_ok());
+
+        // Défauts d'écriture (WP-75)
+        assert!(validate_setting_value("writing.default_category", &json!("actualites")).is_ok());
+        assert!(validate_setting_value("writing.default_category", &json!("bad slug!")).is_err());
+        assert!(validate_setting_value("writing.default_post_format", &json!("standard")).is_ok());
+        assert!(validate_setting_value("writing.default_post_format", &json!("quote")).is_ok());
+        assert!(validate_setting_value("writing.default_post_format", &json!("custom_unknown")).is_err());
+        assert!(validate_setting_value("writing.default_editor_mode", &json!("blocks")).is_ok());
+        assert!(validate_setting_value("writing.default_editor_mode", &json!("markdown")).is_ok());
+        assert!(validate_setting_value("writing.default_editor_mode", &json!("wysiwyg")).is_err());
     }
 }

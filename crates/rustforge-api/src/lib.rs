@@ -66,7 +66,8 @@ pub fn build_router(state: AppState) -> Router {
 
     let auth_routes = Router::new()
         .route("/login", post(routes::auth::login))
-        .route("/me", get(routes::auth::me));
+        .route("/me", get(routes::auth::me))
+        .route("/register", post(routes::auth::register));
 
     let entries_routes = Router::new()
         .route("/preview", post(routes::entries::preview))
@@ -292,13 +293,15 @@ pub fn build_router(state: AppState) -> Router {
 
         );
 
-    let settings_routes = Router::new().route(
-
-        "/",
-
-        get(routes::settings::get_all).put(routes::settings::update),
-
-    );
+        let settings_routes = Router::new()
+        .route(
+            "/",
+            get(routes::settings::get_all).put(routes::settings::update),
+        )
+        .route(
+            "/site-icon",
+            post(routes::settings::upload_site_icon).delete(routes::settings::delete_site_icon),
+        );
 
     let comments_routes = Router::new()
         .route("/", get(routes::comments::list))
@@ -341,6 +344,7 @@ pub fn build_router(state: AppState) -> Router {
 
     let public_routes = Router::new()
         .route("/session/login", post(routes::auth::comment_login))
+        .route("/register", post(routes::auth::register))
         .route("/entries", get(routes::public::list_entries))
         .route("/entries/{type}/{slug}", get(routes::public::get_entry))
         .route("/settings", get(routes::public::get_settings))
