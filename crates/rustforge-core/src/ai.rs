@@ -167,5 +167,83 @@ pub fn get_available_tools() -> Vec<ToolDefinition> {
                 }
             }),
         },
+        ToolDefinition {
+            name: "generate_block",
+            description: "Génère un bloc de contenu structuré conforme au schéma rf.document/1 (paragraphe, titre, tableau, citation, callout, bouton, etc.) à insérer dans une entrée.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "heading", "paragraph", "quote", "code", "list",
+                            "separator", "callout", "table", "details", "button",
+                            "spacer", "cover", "group", "product", "course"
+                        ],
+                        "description": "Type de bloc sémantique natif"
+                    },
+                    "text": { "type": "string", "description": "Texte principal ou Markdown du bloc" },
+                    "level": { "type": "integer", "description": "Niveau pour heading (1 à 6, défaut 2)" },
+                    "items": { "type": "array", "items": { "type": "string" }, "description": "Éléments pour liste ou lignes de tableau" },
+                    "style": { "type": "string", "description": "Variante de style autorisée (ex: 'info', 'warning', 'card', 'primary')" },
+                    "url": { "type": "string", "description": "URL sûre pour bouton ou lien" }
+                },
+                "required": ["kind", "text"]
+            }),
+        },
+        ToolDefinition {
+            name: "diff_and_patch_blocks",
+            description: "Propose une modification chirurgicale (insertion, remplacement, ajout) sous forme de diff de blocs avec prévisualisation et plan d'approbation.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "entry_id": { "type": "string", "description": "UUID de l'entrée ciblée" },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["append", "prepend", "replace_selection", "insert_at"],
+                        "description": "Opération d'édition de blocs demandée"
+                    },
+                    "target_index": { "type": "integer", "description": "Index de position pour insert_at ou replace_selection" },
+                    "blocks": {
+                        "type": "array",
+                        "items": { "type": "object" },
+                        "description": "Liste de blocs à appliquer"
+                    },
+                    "explanation": { "type": "string", "description": "Explication de la modification pour approbation humaine" }
+                },
+                "required": ["entry_id", "operation", "blocks"]
+            }),
+        },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ai_settings_default() {
+        let settings = AiSettings::default();
+        assert_eq!(settings.provider, AiProvider::Ollama);
+        assert_eq!(settings.model, "gemma4:12b");
+        assert_eq!(settings.endpoint.as_deref(), Some("http://localhost:11434"));
+    }
+
+    #[test]
+    fn test_get_available_tools_includes_editor_tools() {
+        let tools = get_available_tools();
+        let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
+
+        assert!(names.contains(&"create_or_update_content"));
+        assert!(names.contains(&"update_design_system"));
+        assert!(names.contains(&"create_content_type"));
+        assert!(names.contains(&"audit_geo_and_seo"));
+        assert!(names.contains(&"search_content"));
+        assert!(names.contains(&"generate_block"));
+        assert!(names.contains(&"diff_and_patch_blocks"));
+
+        let diff_tool = tools.iter().find(|t| t.name == "diff_and_patch_blocks").unwrap();
+        assert!(diff_tool.parameters["properties"]["blocks"].is_object());
+        assert!(diff_tool.parameters["properties"]["operation"].is_object());
+    }
 }

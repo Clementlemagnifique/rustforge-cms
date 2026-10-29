@@ -62,16 +62,16 @@ async fn propose_or_read(
     mut args: Value,
 ) -> ApiResult<ExecuteToolResponse> {
     rustforge_core::security::require_writer(auth.user.role)?;
-    if matches!(name, "search_content" | "audit_geo_and_seo") {
+    if matches!(name, "search_content" | "audit_geo_and_seo" | "generate_block") {
         return run_tool(state, auth, name, args).await;
     }
     if !matches!(
         name,
-        "create_or_update_content" | "update_design_system" | "create_content_type"
+        "create_or_update_content" | "update_design_system" | "create_content_type" | "diff_and_patch_blocks"
     ) {
         return Err(ApiError::BadRequest("Outil inconnu".into()));
     }
-    if name != "create_or_update_content" && !auth.user.role.is_admin() {
+    if name != "create_or_update_content" && name != "diff_and_patch_blocks" && !auth.user.role.is_admin() {
         return Err(ApiError::Forbidden);
     }
     if !args.is_object() {
@@ -79,6 +79,13 @@ async fn propose_or_read(
     }
     if name == "create_or_update_content"
         && let Some(id) = str_arg(&args, "id")
+    {
+        let entry = entries::get(&state.db, parse_uuid(id)?).await?;
+        rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &entry)?;
+        args["expected_updated_at"] = json!(entry.updated_at);
+    }
+    if name == "diff_and_patch_blocks"
+        && let Some(id) = str_arg(&args, "entry_id")
     {
         let entry = entries::get(&state.db, parse_uuid(id)?).await?;
         rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &entry)?;
@@ -278,8 +285,140 @@ pub async fn run_tool(
                 data: Some(json!(items)),
             })
         }
+        "generate_block" => {
+            let kind_str = str_arg(&args, "kind").unwrap_or("paragraph");
+            let text = str_arg(&args, "text").unwrap_or("");
+            let style = str_arg(&args, "style").unwrap_or("");
+            let level = args.get("level").and_then(|v| v.as_u64()).unwrap_or(2) as u8;
+            let url = str_arg(&args, "url").unwrap_or("");
+            let items: Vec<String> = args
+                .get("items")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+
+            let block = json!({
+                "rf_id": format!("blk_{}", Uuid::new_v4().simple()),
+                "rf_type": kind_str,
+                "rf_text": text,
+                "rf_level": level,
+                "rf_items": items,
+                "rf_style": style,
+                "rf_url": url,
+            });
+
+            Ok(ExecuteToolResponse {
+                success: true,
+                message: format!("Bloc « {kind_str} » généré"),
+                data: Some(block),
+            })
+        }
+        "diff_and_patch_blocks" => diff_and_patch_blocks(state, auth, &args).await,
         unknown => Err(ApiError::BadRequest(format!("outil inconnu « {unknown} »"))),
     }
+}
+
+async fn diff_and_patch_blocks(
+    state: &AppState,
+    auth: &AuthUser,
+    args: &Value,
+) -> ApiResult<ExecuteToolResponse> {
+    let entry_id = parse_uuid(
+        str_arg(args, "entry_id").ok_or_else(|| ApiError::BadRequest("entry_id requis".into()))?,
+    )?;
+    let entry = entries::get(&state.db, entry_id).await?;
+    rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &entry)?;
+
+    let operation = str_arg(args, "operation").unwrap_or("append");
+    let target_index = args.get("target_index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    let new_blocks_arr = args.get("blocks").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+
+    let mut current_blocks: Vec<Value> = match &entry.blocks {
+        Value::Array(arr) => arr.clone(),
+        Value::Object(map) if map.contains_key("blocks") => {
+            map["blocks"].as_array().cloned().unwrap_or_default()
+        }
+        _ => Vec::new(),
+    };
+
+    let before_count = current_blocks.len();
+
+    match operation {
+        "append" => {
+            current_blocks.extend(new_blocks_arr.clone());
+        }
+        "prepend" => {
+            let mut combined = new_blocks_arr.clone();
+            combined.extend(current_blocks);
+            current_blocks = combined;
+        }
+        "insert_at" => {
+            let idx = target_index.min(current_blocks.len());
+            for (offset, blk) in new_blocks_arr.iter().enumerate() {
+                current_blocks.insert(idx + offset, blk.clone());
+            }
+        }
+        "replace_selection" => {
+            if target_index < current_blocks.len() && !new_blocks_arr.is_empty() {
+                current_blocks[target_index] = new_blocks_arr[0].clone();
+            } else {
+                current_blocks.extend(new_blocks_arr.clone());
+            }
+        }
+        _ => return Err(ApiError::BadRequest("Opération inconnue".into())),
+    }
+
+    let after_count = current_blocks.len();
+    let final_blocks_val = json!({
+        "version": "rf.document/1",
+        "blocks": current_blocks
+    });
+
+    // Projection et validation des blocs sans HTML arbitraire
+    let (clean_body, _) = rustforge_core::document::project(&entry.body, &final_blocks_val)
+        .map_err(|e| ApiError::BadRequest(format!("Validation des blocs échouée : {e}")))?;
+
+    let input = EntryInput {
+        expected_updated_at: Some(entry.updated_at),
+        title: entry.title.clone(),
+        slug: Some(entry.slug.clone()),
+        excerpt: entry.excerpt.clone(),
+        body: clean_body,
+        blocks: final_blocks_val,
+        intent: entry.intent.clone(),
+        design_tokens: entry.design_tokens.clone(),
+        status: entry.status,
+        fields: entry.fields.clone(),
+        featured_media_id: entry.featured_media_id,
+        parent_id: entry.parent_id,
+        published_at: entry.published_at,
+        scheduled_unpublish_at: entry.scheduled_unpublish_at,
+        term_ids: Some(entry.terms.iter().map(|t| t.id).collect()),
+    };
+
+    let updated = entries::update(
+        &state.db,
+        state.plugins.as_ref(),
+        entry_id,
+        auth.user.id,
+        input,
+    )
+    .await?;
+
+    Ok(ExecuteToolResponse {
+        success: true,
+        message: format!(
+            "Diff de blocs appliqué sur « {} » ({} -> {} blocs, opération {})",
+            updated.title, before_count, after_count, operation
+        ),
+        data: Some(json!({
+            "entry_id": updated.id,
+            "before_count": before_count,
+            "after_count": after_count,
+            "operation": operation,
+            "updated_at": updated.updated_at
+        })),
+    })
 }
 
 async fn create_or_update_content(

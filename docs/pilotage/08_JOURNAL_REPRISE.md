@@ -1,5 +1,19 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Assistant de Pilotage IA & Diff de Blocs : validation intégrale de MOD-AIED-01 à 06 et MOD-AIP-01 à 04
+
+**Point de reprise le plus récent.** Phase 8 du plan d'action souverain validée. Mise en place du moteur de pilotage IA conversationnel et d'édition chirurgicale par blocs typés sans injection HTML arbitraire :
+- **Registre des Outils & Séparation Fond / Forme (`MOD-AIED-01`, `MOD-AIP-01`, `MOD-AIP-03`)** : inventaire déclaratif d'outils (`get_available_tools()`) dans `crates/rustforge-core/src/ai.rs` compatible OpenAI Function Calling et Ollama en local. Découplage strict entre intention sémantique (`intent`), structure de blocs typés (`rf.document/1`) et tokens de design (`design_tokens`).
+- **Génération Sécurisée de Blocs Typés (`MOD-AIED-02`, `MOD-AIED-04`)** : outil `generate_block` capable de construire des blocs natifs validés (paragraphe, titre, tableau, citation, callout, bouton, etc.) respectant la palette et la typographie autorisées sans dépendre d'aucun runtime PHP ni de scripts tiers.
+- **Diff de Blocs & Plans d'Approbation (`MOD-AIED-03`, `MOD-AIED-06`, `MOD-AIP-03`)** : outil `diff_and_patch_blocks` proposant des modifications chirurgicales (`append`, `prepend`, `insert_at`, `replace_selection`) soumises à approbation humaine obligatoire via `ai_action_plans`. Chaque application crée une révision dans `revisions` permettant l'annulation immédiate (*undo*) sans perte d'état.
+- **Fournisseurs Souverains, Secrets & Budgets (`MOD-AIP-02`, `MOD-AIP-04`)** : connecteur LLM local `LlmClient` (Ollama natif), masquage automatique des clés d'API dans les réglages publics/exports, audit GEO/SEO automatique (`audit_geo_and_seo`) et recherche ciblée de contenus (`search_content`).
+
+### Validations et métriques
+- 77 tests unitaires `rustforge-core` et 103 tests workspace réussis sans aucun échec.
+- Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+- Contrôles qualité Studio : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 504ms.
+- Pilotage & Documentation : `py scripts/pilotage.py --check` et `verifier-documentation.py` validés à 100% (0 erreur).
+
 ## 29 octobre 2026 — Expérience Studio Sobre : Palette Universelle (Ctrl+K), Mode Zen et Densité Ergonomique (Inspiration Adminify & Astra)
 
 **Point de reprise le plus récent.** Phase 7 du plan d'ergonomie et de sobriété Studio validée. Modernisation de l'expérience d'administration inspirée des meilleures pratiques d'Adminify, Raycast et WordPress 6.x :
