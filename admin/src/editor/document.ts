@@ -36,6 +36,9 @@ export function newBlock(kind: BlockKind): NativeBlock {
     base.rf_caption = '';
   } else if (kind === 'button') {
     base.rf_url = '';
+    base.rf_style = 'primary';
+  } else if (kind === 'quote') {
+    base.rf_caption = '';
   } else if (kind === 'callout') {
     base.rf_style = 'info';
   } else if (kind === 'details') {
@@ -91,12 +94,13 @@ export function readDocument(value: unknown): NativeDocument | null {
     if (typeof block.rf_alt === 'string') parsed.rf_alt = block.rf_alt;
     else if (kind === 'image' || kind === 'media_text') parsed.rf_alt = '';
     if (typeof block.rf_caption === 'string') parsed.rf_caption = block.rf_caption;
-    else if (kind === 'image') parsed.rf_caption = '';
+    else if (kind === 'image' || kind === 'quote') parsed.rf_caption = '';
     else if (kind === 'details') parsed.rf_caption = 'Détails';
     if (typeof block.rf_media_id === 'string' && block.rf_media_id) parsed.rf_media_id = block.rf_media_id;
     if (typeof block.rf_ref === 'string') parsed.rf_ref = block.rf_ref;
     if (typeof block.rf_style === 'string') parsed.rf_style = block.rf_style;
     else if (kind === 'callout') parsed.rf_style = 'info';
+    else if (kind === 'button') parsed.rf_style = 'primary';
     else if (kind === 'media_text') parsed.rf_style = 'media-left';
     if (kind === 'columns' && (!Array.isArray(block.rf_items) || block.rf_items.length === 0)) {
       parsed.rf_items = ['Colonne 1', 'Colonne 2'];

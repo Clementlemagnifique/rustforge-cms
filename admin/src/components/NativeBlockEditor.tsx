@@ -340,6 +340,8 @@ export function NativeBlockEditor({
                     ? b.rf_alt || b.rf_url || 'Image'
                     : b.rf_type === 'divider'
                     ? '—'
+                    : b.rf_type === 'quote'
+                    ? (b.rf_caption ? `« ${b.rf_text} » — ${b.rf_caption}` : `« ${b.rf_text} »`)
                     : b.rf_type === 'callout'
                     ? `[${b.rf_style || 'info'}] ${b.rf_text}`
                     : b.rf_type === 'details'
@@ -630,7 +632,7 @@ export function NativeBlockEditor({
                 </div>
               </div>
             ) : block.rf_type === 'button' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <label className="block space-y-1">
                   <span className="text-slate-400">{text.buttonLabel}</span>
                   <input
@@ -652,6 +654,18 @@ export function NativeBlockEditor({
                     placeholder="/contact ou https://…"
                     className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-2 font-mono text-xs text-white"
                   />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-slate-400">{text.buttonStyle}</span>
+                  <select
+                    value={block.rf_style || 'primary'}
+                    onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-xs text-white"
+                  >
+                    <option value="primary">{text.buttonStylePrimary}</option>
+                    <option value="secondary">{text.buttonStyleSecondary}</option>
+                    <option value="outline">{text.buttonStyleOutline}</option>
+                  </select>
                 </label>
               </div>
             ) : block.rf_type === 'callout' ? (
@@ -973,6 +987,19 @@ export function NativeBlockEditor({
                     block.rf_type === 'heading' ? 'text-2xl font-semibold' : block.rf_type === 'code' ? 'font-mono text-sm' : 'text-base'
                   }`}
                 />
+                {block.rf_type === 'quote' && (
+                  <label className="block space-y-1 text-xs pt-1">
+                    <span className="text-slate-400">{text.quoteAuthor}</span>
+                    <input
+                      type="text"
+                      maxLength={256}
+                      value={block.rf_caption ?? ''}
+                      onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                      placeholder={text.quoteAuthorPlaceholder}
+                      className="w-full rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                    />
+                  </label>
+                )}
               </div>
             )}
           </section>

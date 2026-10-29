@@ -925,6 +925,29 @@ Vérifications de ce lot : renseigner le [rapport de contrôle](09_CONTROLE_PILO
 
 Travail à reprendre : G0 qualification détaillée des réglages/blocs de l’éditeur, puis G1/G2. Lire `EX-03` à `EX-10`, `WP-23` à `WP-36`, `TH-02/03` et les contrats de rendu. Aucun changement aux bases personnelles, aux secrets ou aux fichiers de référence n’est nécessaire pour cette préparation.
 
+## 29 octobre 2026 — qualification des blocs Gutenberg essentiels et de l'éditeur Studio
+
+Demande : Poursuite ordonnée de la qualification des blocs fondamentaux dans l'éditeur souverain Rust (`rf.document/1`), validation des attributs, conversion bidirectionnelle et alignement avec les exigences de sobriété UX/UI Studio.
+
+Livrables et validations :
+- **Tâches qualifiées et validées** :
+  - `WP-B010` (core/button) : Bouton et lien d'action avec styles (`primary`, `secondary`, `outline`), validation des URL sécurisées et rendu HTML assaini.
+  - `WP-B014` (core/code) : Bloc de code multi-lignes, préservation du formatage, blocs délimités Markdown et zone monospace Studio.
+  - `WP-B015` & `WP-B016` (core/columns & core/column) : Dispositions multi-colonnes (`50-50`, `33-33-33`, `25-75`, `75-25`, pleine largeur), sélecteur interactif et rendu responsive.
+  - `WP-B037` (core/heading) : Niveaux de titre H1 à H6, conversion Markdown propre, assainissement Ammonia.
+  - `WP-B041` (core/image) : Image avec URL, texte alternatif accessible, légende, sélecteur médiathèque et injection automatique `loading="lazy"` / `decoding="async"`.
+  - `WP-B045` & `WP-B046` (core/list & core/list-item) : Listes ordonnées et à puces, éléments `rf_items` individuels, conversion bidirectionnelle.
+  - `WP-B059` (core/paragraph) : Paragraphes de texte enrichi (gras, italique, code en ligne, liens internes/externes).
+  - `WP-B088` (core/quote) : Citation avec attribution / auteur (`rf_caption`), rendu `<blockquote>` avec `<cite>`, roundtrip `*— Auteur*`.
+  - `WP-B092` (core/separator) : Séparateur horizontal (`<hr>`), raccourci Markdown.
+  - `WP-B008` (core/block) : Motifs synchronisés et statiques, API CRUD, badge Studio, détachement en blocs autonomes.
+  - `WP-31` : Vue liste / plan des blocs Studio avec comptage, navigation instantanée, réordonnancement haut/bas et résumés contextuels.
+- **Vérifications qualité réussies** :
+  - Tests unitaires Rust : 71 tests `rustforge-core`, 19 tests `rustforge-api`, 2 tests `rustforge-plugins`, 2 tests `rustforge`, 3 tests de consolidation.
+  - Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+  - Frontend : Oxlint 0 avertissement / 0 erreur, TypeScript `tsc -b` et Vite build réussis.
+  - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
+
 ## Modèle pour le prochain lot
 
 Copier une entrée avec : date; objectif; IDs des tâches; composants réutilisés; code et migrations modifiés; critères exécutés et résultats; preuves; écarts ouverts; décision de passage; prochain geste précis. Conserver les limites et les opérations non testées.

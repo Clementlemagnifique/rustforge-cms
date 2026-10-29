@@ -207,11 +207,13 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
             || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern)
+            || (matches!(block.rf_type, Kind::Quote)
+                && (!block.rf_alt.is_empty() || block.rf_media_id.is_some()))
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button)
                 && !block.rf_style.is_empty())
             || (!matches!(block.rf_type, Kind::Pattern) && !block.rf_ref.is_empty())
         {
@@ -254,11 +256,19 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                 }
                 format!("{} {text}", "#".repeat(usize::from(block.rf_level)))
             }
-            Kind::Quote => safe_rich_text(&block.rf_text)
-                .lines()
-                .map(|line| format!("> {line}"))
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Kind::Quote => {
+                let quote_content = safe_rich_text(&block.rf_text)
+                    .lines()
+                    .map(|line| format!("> {line}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let cite = block.rf_caption.trim();
+                if cite.is_empty() {
+                    quote_content
+                } else {
+                    format!("{quote_content}\n>\n> *— {}*", literal(cite).replace('\n', " "))
+                }
+            }
             Kind::List => block
                 .rf_items
                 .iter()
@@ -306,7 +316,13 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                         "Libellé du bouton ou lien d’action invalide",
                     ));
                 }
-                format!("[{}]({url})", literal(trimmed))
+                let style = match block.rf_style.as_str() {
+                    "secondary" => "secondary",
+                    "outline" => "outline",
+                    _ => "primary",
+                };
+                let escaped_text = literal(trimmed);
+                format!("<div class=\"rf-button rf-button-{style}\"><a href=\"{url}\" class=\"rf-btn rf-btn-{style}\">{escaped_text}</a></div>")
             }
             Kind::Callout => {
                 let style = match block.rf_style.as_str() {
@@ -502,8 +518,22 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                     break;
                 }
             }
+            let mut caption = String::new();
+            if let Some(last) = quote_lines.last() {
+                let lt = last.trim();
+                if let Some(author) = lt.strip_prefix("*— ").and_then(|s| s.strip_suffix('*')) {
+                    caption = author.trim().to_string();
+                    quote_lines.pop();
+                    if let Some(prev) = quote_lines.last()
+                        && prev.trim().is_empty()
+                    {
+                        quote_lines.pop();
+                    }
+                }
+            }
             let mut b = Block::new(next_id()?, Kind::Quote);
             b.rf_text = quote_lines.join("\n");
+            b.rf_caption = caption;
             blocks.push(b);
             continue;
         }
@@ -574,12 +604,44 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             continue;
         }
 
-        // 8. Bouton / lien autonome sur une ligne isolée [texte](url)
+        // 8. Bouton / lien autonome ou conteneur rf-button
+        if trimmed.starts_with("<div class=\"rf-button") && trimmed.contains("</a></div>") {
+            let style = if trimmed.contains("rf-button-secondary") {
+                "secondary".to_string()
+            } else if trimmed.contains("rf-button-outline") {
+                "outline".to_string()
+            } else {
+                "primary".to_string()
+            };
+            if let Some(href_start) = trimmed.find("href=\"") {
+                let rest = &trimmed[href_start + 6..];
+                if let Some(href_end) = rest.find('"') {
+                    let href = &rest[..href_end];
+                    if let Some(label_start) = rest.find('>') {
+                        let label_rest = &rest[label_start + 1..];
+                        if let Some(label_end) = label_rest.find("</a>") {
+                            let label = &label_rest[..label_end];
+                            if let Ok(safe_url) = validate_safe_url(href, false) {
+                                let mut b = Block::new(next_id()?, Kind::Button);
+                                b.rf_text = label.trim().to_string();
+                                b.rf_url = safe_url.to_string();
+                                b.rf_style = style;
+                                blocks.push(b);
+                                idx += 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let next_is_blank = idx + 1 >= lines.len() || lines[idx + 1].trim().is_empty();
         if next_is_blank && let Some((label, url)) = parse_markdown_button_line(trimmed) {
             let mut b = Block::new(next_id()?, Kind::Button);
             b.rf_text = label;
             b.rf_url = url;
+            b.rf_style = "primary".to_string();
             blocks.push(b);
             idx += 1;
             continue;
@@ -828,5 +890,58 @@ mod tests {
         assert!(project("", &doc).unwrap().1.contains("&amp;copy;"));
         let invalid = serde_json::json!({"rf_schema":SCHEMA,"rf_blocks":[{"rf_id":"l","rf_type":"list","rf_text":"Texte caché","rf_items":["visible"]}]});
         assert!(project("", &invalid).is_err());
+    }
+    #[test]
+    fn test_quote_citation_and_button_styles() {
+        // Quote sans citation (WP-B088)
+        let q_simple = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"q1","rf_type":"quote","rf_text":"Une pensée simple"}
+        ]});
+        let (_, html) = project("", &q_simple).unwrap();
+        assert!(html.contains("<blockquote>"));
+        assert!(html.contains("Une pensée simple"));
+
+        // Quote avec auteur / citation (WP-B088)
+        let q_author = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"q2","rf_type":"quote","rf_text":"La vie est belle","rf_caption":"Victor Hugo"}
+        ]});
+        let (body, html) = project("", &q_author).unwrap();
+        assert!(body.contains("Victor Hugo"));
+        assert!(html.contains("Victor Hugo"));
+
+        // Button avec style (WP-B010)
+        let btn_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"btn1","rf_type":"button","rf_text":"Télécharger","rf_url":"https://rustforge.dev","rf_style":"primary"}
+        ]});
+        let (body, html) = project("", &btn_doc).unwrap();
+        assert!(html.contains("Télécharger"));
+        assert!(html.contains("https://rustforge.dev"));
+        assert!(html.contains("rf-btn rf-btn-primary"));
+        // Roundtrip from_markdown pour quote avec citation et button avec style
+        let roundtrip_doc = from_markdown(&format!("{body}\n\n> Sagesse antique\n>\n> *— Marc Aurèle*")).unwrap();
+        let rt_blocks = roundtrip_doc["rf_blocks"].as_array().unwrap();
+        assert_eq!(rt_blocks.len(), 2);
+        assert_eq!(rt_blocks[0]["rf_type"], "button");
+        assert_eq!(rt_blocks[0]["rf_style"], "primary");
+        assert_eq!(rt_blocks[1]["rf_type"], "quote");
+        assert_eq!(rt_blocks[1]["rf_text"], "Sagesse antique");
+        assert_eq!(rt_blocks[1]["rf_caption"], "Marc Aurèle");
+
+        // Séparateur (WP-B092)
+        let div_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"sep1","rf_type":"divider"}
+        ]});
+        let (body, html) = project("", &div_doc).unwrap();
+        assert_eq!(body, "---");
+        assert!(html.contains("<hr"));
+
+        // Liste à puces et ordonnée (WP-B045)
+        let list_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"l1","rf_type":"list","rf_ordered":true,"rf_items":["Étape A","Étape B"]}
+        ]});
+        let (_, html) = project("", &list_doc).unwrap();
+        assert!(html.contains("<ol>"));
+        assert!(html.contains("<li>Étape A</li>"));
+        assert!(html.contains("<li>Étape B</li>"));
     }
 }
