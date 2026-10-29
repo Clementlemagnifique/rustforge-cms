@@ -95,8 +95,9 @@ pub async fn list(
     let items: Vec<Summary> = sqlx::query_as("SELECT id,kind,state,payload_version,attempts,max_attempts,available_at,lease_until,error_code,created_at,updated_at,finished_at,(output->>'transport'='capture' AND jsonb_typeof(output->'capture')='object') IS TRUE AS capture_available FROM rf_jobs WHERE ($1::text IS NULL OR state=$1) ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3")
         .bind(&filter.state).bind(per_page).bind((page-1)*per_page).fetch_all(&mut *tx).await.map_err(CoreError::from)?;
     tx.commit().await.map_err(CoreError::from)?;
+    let (_, mail_mode) = mail::load_transport(&state.db).await;
     Ok(private(
-        json!({"items":items,"total":total,"page":page,"pages":pages,"counts":counts.into_iter().collect::<std::collections::BTreeMap<_,_>>(),"mail_mode":"capture_only"}),
+        json!({"items":items,"total":total,"page":page,"pages":pages,"counts":counts.into_iter().collect::<std::collections::BTreeMap<_,_>>(),"mail_mode":mail_mode}),
     ))
 }
 #[derive(Deserialize)]
@@ -134,9 +135,10 @@ pub async fn capture_batch(
     if !(1..=10).contains(&body.limit) {
         return Err(ApiError::BadRequest("Lot limité à 10 tâches".into()));
     }
-    let handled = mail::run_batch(&state.db, &mail::CaptureTransport, body.limit as usize).await?;
+    let (transport, mail_mode) = mail::load_transport(&state.db).await;
+    let handled = mail::run_batch(&state.db, transport.as_ref(), body.limit as usize).await?;
     Ok(private(
-        json!({"handled":handled,"mail_mode":"capture_only"}),
+        json!({"handled":handled,"mail_mode":mail_mode}),
     ))
 }
 pub async fn capture(

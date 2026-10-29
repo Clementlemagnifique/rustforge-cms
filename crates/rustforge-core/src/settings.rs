@@ -512,6 +512,61 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         return Err(CoreError::validation("La mémorisation de l'identité doit être un booléen."));
     } else if key == "discussion.avatar_default" && !value.as_str().is_some_and(|s| matches!(s, "mystery" | "blank" | "identicon" | "retro")) {
         return Err(CoreError::validation("Avatar local inconnu : mystery, blank, identicon ou retro attendu."));
+    } else if key == "mail.mode" {
+        if !value.as_str().is_some_and(|s| matches!(s, "capture" | "simulated" | "smtp")) {
+            return Err(CoreError::validation("Mode de messagerie invalide : capture, simulated ou smtp attendu."));
+        }
+    } else if key == "mail.simulated_outcome" {
+        if !value.as_str().is_some_and(|s| matches!(s, "success" | "transient_error" | "permanent_error")) {
+            return Err(CoreError::validation("Résultat simulé invalide : success, transient_error ou permanent_error attendu."));
+        }
+    } else if key == "mail.from_address" {
+        let Some(email) = value.as_str() else {
+            return Err(CoreError::validation("mail.from_address doit être une chaîne."));
+        };
+        let trimmed = email.trim();
+        if trimmed.is_empty() || trimmed.len() > 254 || !trimmed.contains('@') || trimmed.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return Err(CoreError::validation("Adresse d'expéditeur e-mail invalide."));
+        }
+    } else if key == "mail.from_name" {
+        let Some(name) = value.as_str() else {
+            return Err(CoreError::validation("mail.from_name doit être une chaîne."));
+        };
+        if name.len() > 100 || name.chars().any(char::is_control) {
+            return Err(CoreError::validation("Nom d'expéditeur e-mail trop long ou invalide."));
+        }
+    } else if key == "mail.smtp_host" {
+        let Some(host) = value.as_str() else {
+            return Err(CoreError::validation("mail.smtp_host doit être une chaîne."));
+        };
+        if host.len() > 255 || host.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return Err(CoreError::validation("Hôte SMTP invalide."));
+        }
+    } else if key == "mail.smtp_port" {
+        let Some(port) = value.as_i64() else {
+            return Err(CoreError::validation("mail.smtp_port doit être un entier entre 1 et 65535."));
+        };
+        if !(1..=65535).contains(&port) {
+            return Err(CoreError::validation("mail.smtp_port doit être compris entre 1 et 65535."));
+        }
+    } else if key == "mail.smtp_username" {
+        let Some(u) = value.as_str() else {
+            return Err(CoreError::validation("mail.smtp_username doit être une chaîne."));
+        };
+        if u.len() > 255 || u.chars().any(char::is_control) {
+            return Err(CoreError::validation("Nom d'utilisateur SMTP invalide."));
+        }
+    } else if key == "mail.smtp_password" {
+        let Some(p) = value.as_str() else {
+            return Err(CoreError::validation("mail.smtp_password doit être une chaîne."));
+        };
+        if p.len() > 255 {
+            return Err(CoreError::validation("Mot de passe SMTP trop long."));
+        }
+    } else if key == "mail.smtp_encryption"
+        && !value.as_str().is_some_and(|s| matches!(s, "none" | "starttls" | "tls"))
+    {
+        return Err(CoreError::validation("Chiffrement SMTP invalide : none, starttls ou tls attendu."));
     }
     Ok(())
 }

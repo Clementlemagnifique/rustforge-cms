@@ -247,6 +247,6 @@ export interface JobSummary {
 }
 export interface JobsPage {
   items: JobSummary[]; total: number; page: number; pages: number;
-  counts: Record<string, number>; mail_mode: 'capture_only';
+  counts: Record<string, number>; mail_mode: string;
 }
 export interface JobCapture { recipient: string; subject: string; text: string }

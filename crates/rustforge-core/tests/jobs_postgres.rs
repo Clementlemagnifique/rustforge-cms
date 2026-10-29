@@ -294,8 +294,107 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .unwrap();
     assert_eq!(code, "unsupported_payload_version");
 
+    // Transport simulé : qualification en panne transitoire, permanente et succès (M1-C)
+    let mut outbox = db.begin().await.unwrap();
+    let sim_transient_job = mail::enqueue_in(&mut outbox, &message, "mail:sim_transient")
+        .await
+        .unwrap();
+    outbox.commit().await.unwrap();
+    let transient_transport = mail::SimulatedTransport::new(mail::SimulatedOutcome::TransientError);
+    assert_eq!(mail::run_batch(&db, &transient_transport, 1).await.unwrap(), 1);
+    let transient_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
+        .bind(sim_transient_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(transient_state, "retry");
+
+    let mut outbox = db.begin().await.unwrap();
+    let sim_perm_job = mail::enqueue_in(&mut outbox, &message, "mail:sim_permanent")
+        .await
+        .unwrap();
+    outbox.commit().await.unwrap();
+    let permanent_transport = mail::SimulatedTransport::new(mail::SimulatedOutcome::PermanentError);
+    assert_eq!(mail::run_batch(&db, &permanent_transport, 1).await.unwrap(), 1);
+    let perm_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
+        .bind(sim_perm_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(perm_state, "failed");
+    let perm_code: String = sqlx::query_scalar("SELECT error_code FROM rf_jobs WHERE id=$1")
+        .bind(sim_perm_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(perm_code, "simulated_permanent_error");
+
+    // Transport non configuré : rejet explicite non rejouable
+    let mut outbox = db.begin().await.unwrap();
+    let unconf_job = mail::enqueue_in(&mut outbox, &message, "mail:unconfigured")
+        .await
+        .unwrap();
+    outbox.commit().await.unwrap();
+    let unconf_transport = mail::UnconfiguredTransport::new("mail_not_configured");
+    assert_eq!(mail::run_batch(&db, &unconf_transport, 1).await.unwrap(), 1);
+    let unconf_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
+        .bind(unconf_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(unconf_state, "failed");
+    let unconf_code: String = sqlx::query_scalar("SELECT error_code FROM rf_jobs WHERE id=$1")
+        .bind(unconf_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(unconf_code, "mail_not_configured");
+
+    // Résolution dynamique du transport selon les réglages
+    let (t_default, mode_default) = mail::load_transport(&db).await;
+    assert_eq!(mode_default, "capture_only");
+    let _ = t_default;
+
+    rustforge_core::settings::update(&db, serde_json::from_value(json!({
+        "mail.mode": "simulated",
+        "mail.simulated_outcome": "success",
+    })).unwrap()).await.unwrap();
+    let (t_sim, mode_sim) = mail::load_transport(&db).await;
+    assert_eq!(mode_sim, "simulated_success");
+    let mut outbox = db.begin().await.unwrap();
+    let sim_ok_job = mail::enqueue_in(&mut outbox, &message, "mail:sim_ok")
+        .await
+        .unwrap();
+    outbox.commit().await.unwrap();
+    assert_eq!(mail::run_batch(&db, t_sim.as_ref(), 1).await.unwrap(), 1);
+    let ok_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
+        .bind(sim_ok_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(ok_state, "succeeded");
+    let ok_output: serde_json::Value = sqlx::query_scalar("SELECT output FROM rf_jobs WHERE id=$1")
+        .bind(sim_ok_job.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(ok_output["transport"], "simulated");
+    assert!(ok_output.get("capture").is_none());
+
+    // Protection des secrets : mot de passe SMTP exclu des sauvegardes et effacé à la restauration
+    rustforge_core::settings::update(&db, serde_json::from_value(json!({
+        "mail.mode": "smtp",
+        "mail.smtp_host": "smtp.example.test",
+        "mail.smtp_port": 587,
+        "mail.from_address": "robot@example.test",
+        "mail.smtp_username": "robot_user",
+        "mail.smtp_password": "super_secret_smtp_password_never_leak",
+    })).unwrap()).await.unwrap();
+
     let snapshot = native_backup::dump(&db).await.unwrap();
     assert_eq!(snapshot.format, "rustforge-native-3");
+    let dumped_str = serde_json::to_string(&snapshot).unwrap();
+    assert!(!dumped_str.contains("super_secret_smtp_password_never_leak"));
     // Ancien schéma sans jobs : upgrade explicitement connu, aucune table métier ignorée.
     let mut legacy: native_backup::NativeSnapshot =
         serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
@@ -315,6 +414,11 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .await
         .unwrap();
     restore.commit().await.unwrap();
+    let target_pw: Option<String> = sqlx::query_scalar("SELECT value::text FROM settings WHERE key='mail.smtp_password'")
+        .fetch_optional(&target)
+        .await
+        .unwrap();
+    assert!(target_pw.is_none());
     assert!(jobs::claim(&target, &kinds, 60).await.unwrap().is_none());
     let paused = jobs::list(&target, 100).await.unwrap();
     assert!(paused.iter().any(|j| j.state == "paused_restore"));

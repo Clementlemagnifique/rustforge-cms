@@ -40,6 +40,11 @@ export function JobsView() {
   return <section className="space-y-5 text-slate-200" aria-busy={loading || busy}>
     <h2 className="text-xl font-semibold">{m.title}</h2>
     <p className="text-sm text-slate-400">{m.note}</p>
+    {data && (
+      <p className="text-xs text-indigo-300">
+        Transport actif : <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-white/10">{data.mail_mode}</span>
+      </p>
+    )}
     <div className="flex flex-wrap gap-3 items-center">
       <label>{m.filter} <select className="bg-slate-800 rounded p-2" value={filter} disabled={busy} onChange={e => { clearPrivateView(); setFilter(e.target.value); setPage(1); }}>
         <option value="">{m.all}</option>{Object.entries(m.states).map(([key, text]) => <option key={key} value={key}>{text}</option>)}

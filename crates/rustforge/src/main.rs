@@ -98,6 +98,8 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum JobCommand {
+    /// Exécute un lot de mails en utilisant le transport configuré (capture, simulé ou SMTP).
+    ProcessMail { #[arg(long, default_value_t=10)] limit: usize },
     /// Exécute un lot de mails en capture locale uniquement, sans livraison externe.
     CaptureMail { #[arg(long, default_value_t=10)] limit: usize },
     /// Liste bornée sans payload ni bail, afin de ne pas afficher de données privées.
@@ -173,6 +175,11 @@ async fn main() -> anyhow::Result<()> {
             let pool = rustforge_core::connect(&database_url).await?;
             use rustforge_core::jobs;
             match action {
+                JobCommand::ProcessMail { limit } => {
+                    let (transport, mode) = rustforge_core::mail::load_transport(&pool).await;
+                    let count = rustforge_core::mail::run_batch(&pool, transport.as_ref(), limit).await?;
+                    println!("{count} jobs mail traités (mode: {mode})");
+                }
                 JobCommand::CaptureMail { limit } => {
                     let count=rustforge_core::mail::run_batch(&pool,&rustforge_core::mail::CaptureTransport,limit).await?;
                     println!("{count} jobs mail traités en capture locale (aucun envoi externe)");

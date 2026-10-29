@@ -1,6 +1,45 @@
 # RustForge CMS — journal de reprise
 
-## 29 octobre 2026 — M1-E : diagnostic des jobs dans le Studio
+## 29 octobre 2026 — M1-C : transport e-mail configurable et qualification en conditions de panne
+
+**Point de reprise le plus récent.** Sous-lot M1-C livré et qualifié : transport de messagerie transactionnelle configurable, mode simulé déterministe pour qualification en panne sans appel réseau, rejet explicite de l'état non configuré, adaptateur SMTP de production sécurisé contre les injections et fuites de secrets, et résolution dynamique du transport (`MOD-MAIL-01`, `MOD-MAIL-07`).
+
+### Livré et protections
+
+- **Contrat des transports (`crates/rustforge-core/src/mail.rs`)** :
+  - `CaptureTransport` : transport local préservé pour les tests et recettes, sérialisant la capture dans le résultat du job pour prévisualisation privée Studio.
+  - `SimulatedTransport` & `SimulatedOutcome` : simulation déterministe en mémoire (`Success`, `TransientError`, `PermanentError`) pour tester les transitions de pannes et reprises du worker sans jamais contacter de réseau tiers.
+  - `UnconfiguredTransport` : rejet immédiat non rejouable (`mail_not_configured`, `retryable: false`) lorsque la configuration est incomplète, évitant l'épuisement de la file en boucles inutiles.
+  - `SmtpTransport` & `SmtpConfig` : client SMTP asynchrone Tokio avec support Plain, STARTTLS et TLS direct. Validation stricte anti-injection CRLF (`\r`, `\n`) et caractères de contrôle sur les adresses, noms et sujets. Délais d'expiration (connect, handshake, commandes) évitant le blocage des baux de jobs. Traduction des codes de retour SMTP (4xx vers `smtp_transient_error` rejouable, 5xx vers `smtp_permanent_error` définitif).
+- **Usine dynamique `load_transport(db)`** :
+  - Raccordée aux réglages `mail.mode` (`capture_only`, `simulated`, `smtp`), `mail.simulated_outcome`, et aux paramètres SMTP (`mail.smtp_host`, `mail.smtp_port`, `mail.smtp_username`, `mail.smtp_password`, `mail.smtp_encryption`, `mail.from_address`, `mail.from_name`).
+  - Dégradé élégant vers `CaptureTransport` par défaut quand non configuré.
+- **Protection absolue des secrets d'infrastructure** :
+  - Le mot de passe SMTP (`mail.smtp_password`) n'est jamais exposé dans les réponses d'API (`routes/settings.rs`), ni dans les reçus ou erreurs de livraison, ni dans les logs.
+  - Exclusion stricte de `mail.smtp_password` des exports de sauvegarde native (`native_backup::dump`).
+  - Effacement systématique de `mail.smtp_password` lors de la restauration d'une capsule (`native_backup::restore`), empêchant l'import involontaire d'identifiants de production sur une instance de test.
+- **Studio & CLI** :
+  - `JobsView.tsx` affiche désormais l'état dynamique du transport actif (`Capture locale`, `Simulé (succès/panne)`, `SMTP actif`, `SMTP non configuré`).
+  - Commande CLI `jobs process-mail --limit N` pour le dépouillement en tâche de fond avec le transport configuré.
+
+### Validation et preuves
+
+- **78 tests unitaires Rust** réussis (17 API, 59 core, 2 plugins), dont 5 tests unitaires `mail` : qualification des comportements du transport simulé (succès, panne transitoire avec backoff, panne permanente), rejet de configuration invalide, rejet de l'état non configuré, et rejet des injections d'en-têtes CRLF dans les destinataires/sujets.
+- **Qualification en conditions de panne dans `jobs_postgres.rs`** :
+  - Échec transitoire avec transition vers l'état `retry` et incrémentation des tentatives.
+  - Échec permanent avec passage immédiat en `failed` (`simulated_permanent_error`).
+  - Rejet `mail_not_configured` sans retry.
+  - Résolution dynamique `mail::load_transport` selon `settings`.
+  - Exclusion du mot de passe SMTP du dump de sauvegarde native et suppression confirmée à la restauration sur cible.
+- **Contrôles qualité** :
+  - Clippy strict (`cargo clippy --workspace --all-targets -- -D warnings`) : 0 avertissement.
+  - Lint Studio (`oxlint`) : 0 avertissement, 0 erreur.
+  - Build TypeScript/Vite Studio : réussi.
+  - Scripts de pilotage : `pilotage.py` et `verifier-documentation.py` (0 erreur, 1 504 liens vérifiés).
+
+### Prochain sous-lot : M1-F
+
+Qualification des pannes après acceptation distante, politique de rétention/purge des captures locales, volumétrie et invalidation multi-instances.
 
 **Point de reprise le plus récent.** Sous-lot diagnostic livré en capture locale. Menu existant Outils → Tâches et diagnostic (`rf_health`, route `jobs`, état partial) raccordé à JobsView et aux services Rust existants. Pas de seconde file, nouvelle migration SQL, dépendance ou transport réseau. Les diagnostics DB/stockage/cache et la configuration SMTP/API restent prévus, explicitement visibles dans le registre et le texte de l'écran.
 

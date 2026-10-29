@@ -60,7 +60,12 @@ pub async fn dump(pool: &PgPool) -> CoreResult<NativeSnapshot> {
             .await?;
     let mut tables = BTreeMap::new();
     for table in TABLES {
-        let rows = sqlx::query_scalar::<_, Value>(&format!("SELECT to_jsonb(t) FROM {table} t"))
+        let query = if *table == "settings" {
+            "SELECT to_jsonb(t) FROM settings t WHERE t.key != 'mail.smtp_password'".to_string()
+        } else {
+            format!("SELECT to_jsonb(t) FROM {table} t")
+        };
+        let rows = sqlx::query_scalar::<_, Value>(&query)
             .fetch_all(&mut *tx)
             .await?;
         tables.insert((*table).into(), rows);
@@ -227,5 +232,9 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
     )
     .execute(&mut *tx)
     .await?;
+    // Nettoyage des secrets d'infrastructure sensibles lors de la restauration
+    sqlx::query("DELETE FROM settings WHERE key = 'mail.smtp_password'")
+        .execute(&mut *tx)
+        .await?;
     Ok(())
 }
