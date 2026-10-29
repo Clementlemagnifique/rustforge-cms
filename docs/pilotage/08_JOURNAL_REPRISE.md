@@ -14,6 +14,24 @@
 - Contrôles qualité Studio : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 504ms.
 - Pilotage & Documentation : `py scripts/pilotage.py --check` et `verifier-documentation.py` validés à 100% (0 erreur).
 
+### Reprise exacte pour l'assistant suivant
+- **Branche & Commit de départ** : branche `main`, commit `627fc611` synchronisé avec `origin/main`. Working tree propre.
+- **Socle entièrement validé** :
+  - Phase 7 (Admin Columns Pro `MOD-COL-01` à `05` + Studio Adminify : Palette `Ctrl+K`, Mode Zen plein écran, Densité tableur compacte).
+  - Phase 8 (Assistant IA conversationnel, outil `generate_block` conforme au schéma `rf.document/1`, outil `diff_and_patch_blocks` avec plans d'approbation durable dans `ai_action_plans` et révisions automatiques pour annulation en un clic `MOD-AIED-01` à `06`, `MOD-AIP-01` à `04`).
+- **Commandes de contrôle qualité à vérifier** :
+  - `cargo test --workspace -- --quiet` (103 tests ok)
+  - `cargo clippy --workspace --all-targets -- -D warnings` (0 avertissement)
+  - `npm --prefix admin run lint ; npm --prefix admin run build` (0 erreur, build ~500ms)
+  - `py scripts/pilotage.py --check ; py scripts/verifier-documentation.py` (0 erreur)
+- **Prochain sous-lot à enchaîner dans l'ordre** :
+  - **Phase 9 : Mesure d'Audience & Rapports Visiteurs Souverains Sans Cookies (`MOD-STAT-01` à `MOD-STAT-04`)** :
+    - Moteur de mesure d'audience 100% conforme RGPD / CNIL sans aucun cookie déposé (hachage salé tournant quotidiennement de l'adresse IP et User-Agent).
+    - Table PostgreSQL `analytics_visits` et endpoint d'enregistrement des visites publiques.
+    - Vue Studio dédiée `AnalyticsView.tsx` (visiteurs uniques, pages vues, top articles/pages, référents, navigateurs/appareils).
+    - Mise à jour de `admin_navigation.json` (`rf_analytics`), pilotage (`03_MODULES.csv`) et journal de reprise.
+  - Puis **Phase 10 : Multilinguisme & Grappes de Traduction (`MOD-LANG-01` à `MOD-LANG-04`)**.
+
 ## 29 octobre 2026 — Expérience Studio Sobre : Palette Universelle (Ctrl+K), Mode Zen et Densité Ergonomique (Inspiration Adminify & Astra)
 
 **Point de reprise le plus récent.** Phase 7 du plan d'ergonomie et de sobriété Studio validée. Modernisation de l'expérience d'administration inspirée des meilleures pratiques d'Adminify, Raycast et WordPress 6.x :
