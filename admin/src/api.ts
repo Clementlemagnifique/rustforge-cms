@@ -564,4 +564,52 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  forms: {
+    list: () => request<import('./types').FormItem[]>('/forms'),
+    get: (id: string) => request<import('./types').FormItem>(`/forms/${id}`),
+    create: (data: {
+      name: string;
+      slug?: string;
+      description?: string;
+      fields: unknown;
+      settings?: unknown;
+      is_active?: boolean;
+    }) =>
+      request<import('./types').FormItem>('/forms', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (
+      id: string,
+      data: {
+        name?: string;
+        slug?: string;
+        description?: string;
+        fields?: unknown;
+        settings?: unknown;
+        is_active?: boolean;
+      }
+    ) =>
+      request<import('./types').FormItem>(`/forms/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/forms/${id}`, {
+        method: 'DELETE',
+      }),
+    submissions: (id: string, page = 1, perPage = 20) =>
+      request<{
+        items: import('./types').FormSubmissionItem[];
+        total: number;
+        page: number;
+        per_page: number;
+        total_pages: number;
+      }>(`/forms/${id}/submissions?page=${page}&per_page=${perPage}`),
+    markRead: (subId: string) =>
+      request<{ success: boolean }>(`/forms/submissions/${subId}/read`, {
+        method: 'POST',
+      }),
+  },
 };

@@ -1,8 +1,21 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Module Formulaires & Soumissions Souveraines : validation intégrale de MOD-FORM-01, 02, 03, 04 et 06
+
+**Point de reprise le plus récent.** Phase 3 du plan d'exhaustivité validée. Implémentation de l'interface Studio et du moteur complet de formulaires souverains (inspiré de WPForms Pro / Gravity Forms) :
+- **Constructeur Visuel de Formulaires (`MOD-FORM-01`, `MOD-FORM-02`, `MOD-FORM-03`)** : création et édition intuitive de formulaires dans `FormsView.tsx`, gestion dynamique des champs (Texte court, Adresse e-mail, Numéro de téléphone, Zone de message), typage JSON Schema strict dans `form_validation.rs` et assignation de slugs uniques.
+- **Protection Anti-Spam & Soumission Sécurisée (`MOD-FORM-04`)** : endpoint public `POST /api/v1/public/forms/:id/submit`, honeypot invisible anti-robot, hash d'IP pour protection de la vie privée sans captchas tiers.
+- **Boîte de Réception & Export CSV (`MOD-FORM-06`)** : consultation détaillée des messages reçus, indicateur lu/non-lu, filtrage par formulaire, et export CSV direct.
+
+### Validations et métriques
+- 72 tests unitaires `rustforge-core` et 98 tests workspace validés.
+- Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+- Frontend : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 495ms.
+- Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants).
+
 ## 29 octobre 2026 — Thème & Styles Globaux : validation intégrale de TH-11, TH-27, TH-28 et TH-29
 
-**Point de reprise le plus récent.** Phase 2 du plan d'exhaustivité validée. Implémentation complète du système de tokens, palettes et typographie souveraine inspirée d'Astra, GeneratePress et Twenty Twenty-Five :
+Phase 2 du plan d'exhaustivité validée. Implémentation complète du système de tokens, palettes et typographie souveraine inspirée d'Astra, GeneratePress et Twenty Twenty-Five :
 - **Palettes Harmoniques en 1 Clic (`TH-11`, `TH-27`)** : 5 presets de couleurs professionnelles (`Moderne Indigo`, `Émeraude & Ambre`, `Ardoise & Océan`, `Rose & Solaire`, `Violet Royal`), sélecteur hexadécimal libre pour `primary_color` et `accent_color`, injection dynamique dans `:root` CSS public (`--tp-primary`, `--tp-accent`).
 - **Typographie Souveraine 100% RGPD (`TH-28`)** : polices locales pour les titres (`font_heading` : Plus Jakarta Sans, Inter, Playfair Display, Space Grotesk, Système UI) et pour le corps (`font_body` : Inter, Plus Jakarta Sans, Merriweather, Système UI), suppression intégrale de toute dépendance vers Google Fonts externe, variables CSS `--tp-font-heading` et `--tp-font-body`.
 - **Styles des Contrôles & Composants (`TH-29`)** : boutons d'action multi-styles (`rf-btn-primary`, `rf-btn-secondary`, `rf-btn-outline`), cartes conteneurs (`rf-group-card`), rayon de courbure fluide (`radius`), et vitrine de prévisualisation en direct dans `AppearanceView.tsx`.

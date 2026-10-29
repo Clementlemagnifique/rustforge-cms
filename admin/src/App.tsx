@@ -35,6 +35,7 @@ import { NativeModulesView } from './components/NativeModulesView';
 import { TaxonomiesView } from './components/TaxonomiesView';
 import { UsersView } from './components/UsersView';
 import { CommentsView } from './components/CommentsView';
+import { FormsView } from './components/FormsView';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -166,6 +167,7 @@ export const App: React.FC = () => {
     if (currentView === 'media') return 'Médiathèque';
     if (currentView === 'plugins') return 'Plugins WebAssembly';
     if (currentView === 'content-types') return 'Types de Contenu';
+    if (currentView === 'forms' || currentView === 'module:forms' || currentView.startsWith('forms')) return 'Formulaires & Messages';
     if (currentView === 'jobs') return 'Tâches et diagnostic';
     if (currentView === 'settings') return 'Réglages';
     if (currentView === 'converter') return 'Conversion de thèmes · avancé';
@@ -279,6 +281,15 @@ export const App: React.FC = () => {
               {currentView === 'appearance' && <AppearanceView key="appearance" initialTab="styles" />}
               {currentView === 'menus' && <AppearanceView key="menus" initialTab="menus" />}
               {currentView === 'capsules' && <CapsulesView stats={stats} />}
+              {(currentView === 'forms' ||
+                currentView === 'module:forms' ||
+                currentView.startsWith('forms') ||
+                currentView === 'rf_forms' ||
+                currentView === 'rf_form_list' ||
+                currentView === 'rf_submissions' ||
+                currentView === 'rf_form_settings') && (
+                <FormsView key="forms-view" />
+              )}
 
               {currentView === 'ai-studio' && (
                 <div className="p-8 text-center space-y-4 max-w-xl mx-auto">

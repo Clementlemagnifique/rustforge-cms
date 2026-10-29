@@ -274,3 +274,40 @@ export interface SiteIconInfo {
   icon_512?: string;
 }
 
+export interface FormField {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox';
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+export interface FormItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  fields: Record<string, unknown> | FormField[];
+  settings: {
+    success_message?: string;
+    notify_email?: string;
+    honeypot?: boolean;
+    [key: string]: unknown;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FormSubmissionItem {
+  id: string;
+  form_id: string;
+  data: Record<string, unknown>;
+  ip_hash: string;
+  user_agent?: string | null;
+  is_spam: boolean;
+  is_read: boolean;
+  created_at: string;
+}
+
