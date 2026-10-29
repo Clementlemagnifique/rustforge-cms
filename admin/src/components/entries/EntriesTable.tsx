@@ -20,9 +20,11 @@ import {
   Check,
   X,
   Tag,
+  ImageIcon,
 } from 'lucide-react';
 import { entriesMessages } from '../../i18n/messages.fr';
 import { useEntriesListStore } from '../../stores/useEntriesListStore';
+import { useColumnSettingsStore } from '../../stores/useColumnSettingsStore';
 import type { EntryStatus } from '../../types';
 
 interface EntriesTableProps {
@@ -57,6 +59,13 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
   const toggleQuickTerm = useEntriesListStore((s) => s.toggleQuickTerm);
   const saveQuickEdit = useEntriesListStore((s) => s.saveQuickEdit);
 
+  const getColumns = useColumnSettingsStore((s) => s.getColumns);
+  const density = useColumnSettingsStore((s) => s.density);
+  const columns = getColumns(contentTypeSlug);
+  const visibleColumns = columns.filter((c) => c.visible);
+  const totalColumns = visibleColumns.length + 2; // Checkbox + visibleColumns + Actions
+  const paddingY = density === 'compact' ? 'py-2' : 'py-3.5';
+
   const allOnPageSelected =
     entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
 
@@ -65,7 +74,7 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
       <table className="w-full text-left text-xs">
         <thead>
           <tr className="border-b border-white/5 bg-white/[0.01] text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-            <th className="py-3.5 pl-4 pr-2 w-8">
+            <th className={`${paddingY} pl-4 pr-2 w-8`}>
               <input
                 type="checkbox"
                 aria-label="Tout sélectionner sur la page"
@@ -74,23 +83,28 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
                 className="rounded border-white/20 bg-slate-900"
               />
             </th>
-            <th className="py-3.5 px-4">Titre, Slug & Taxonomies</th>
-            <th className="py-3.5 px-4">Auteur</th>
-            <th className="py-3.5 px-4">Statut</th>
-            <th className="py-3.5 px-4">Programmation / Date</th>
-            <th className="py-3.5 px-4 text-right">Actions</th>
+            {visibleColumns.map((col) => (
+              <th
+                key={col.id}
+                style={{ width: col.width }}
+                className={`${paddingY} px-4 font-semibold`}
+              >
+                {col.label}
+              </th>
+            ))}
+            <th className={`${paddingY} px-4 text-right w-28`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
           {loading ? (
             <tr>
-              <td colSpan={6} className="py-8 text-center text-slate-500">
+              <td colSpan={totalColumns} className="py-8 text-center text-slate-500">
                 {entriesMessages.loadingList}
               </td>
             </tr>
           ) : entries.length === 0 ? (
             <tr>
-              <td colSpan={6} className="py-12 text-center text-slate-500">
+              <td colSpan={totalColumns} className="py-12 text-center text-slate-500">
                 {entriesMessages.emptyList}
               </td>
             </tr>
@@ -107,7 +121,7 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
                     }`}
                   >
                     <td
-                      className="py-3.5 pl-4 pr-2"
+                      className={`${paddingY} pl-4 pr-2`}
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleSelectRow(entry.id);
@@ -122,80 +136,180 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
                         className="rounded border-white/20 bg-slate-900"
                       />
                     </td>
-                    <td className="py-3.5 px-4">
-                      <p className="font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors">
-                        {entry.title}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          /{entry.slug}
-                        </span>
-                        {entry.terms &&
-                          entry.terms.map((term) => (
-                            <span
-                              key={term.id}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-slate-300"
-                            >
-                              <Tag className="w-2.5 h-2.5 text-indigo-400" />
-                              {term.name}
-                            </span>
-                          ))}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-300">
-                      {entry.author_name || 'Éditeur'}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {(() => {
-                        const isScheduled =
-                          entry.status === 'draft' &&
-                          !!entry.published_at &&
-                          new Date(entry.published_at).getTime() > Date.now();
-                        return (
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                              entry.status === 'published'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : isScheduled
-                                ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
-                                : entry.status === 'draft'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : entry.status === 'trash'
-                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                : 'bg-slate-500/10 text-slate-400'
-                            }`}
-                          >
-                            {entry.status === 'published'
-                              ? 'Publié'
-                              : isScheduled
-                              ? 'Planifié'
-                              : entry.status === 'draft'
-                              ? 'Brouillon'
-                              : entry.status === 'trash'
-                              ? 'Corbeille'
-                              : 'Archivé'}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{new Date(entry.updated_at).toLocaleDateString('fr-FR')}</span>
-                        </div>
-                        {entry.scheduled_unpublish_at && (
-                          <div className="flex items-center gap-1 text-[10px] text-amber-400">
-                            <Calendar className="w-3 h-3" />
-                            <span>
-                              Expire :{' '}
-                              {new Date(entry.scheduled_unpublish_at).toLocaleDateString('fr-FR')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
+
+                    {/* Rendu dynamique des colonnes visibles (Admin Columns Pro) */}
+                    {visibleColumns.map((col) => {
+                      switch (col.id) {
+                        case 'image':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4`}>
+                              {entry.featured_media_url ? (
+                                <img
+                                  src={entry.featured_media_url}
+                                  alt=""
+                                  className="w-10 h-10 object-cover rounded-lg border border-white/10"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
+                                  <ImageIcon className="w-4 h-4 opacity-40" />
+                                </div>
+                              )}
+                            </td>
+                          );
+                        case 'title':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4`}>
+                              <p className="font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors">
+                                {entry.title}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="text-[11px] text-slate-500 font-mono">
+                                  /{entry.slug}
+                                </span>
+                                {entry.terms &&
+                                  !visibleColumns.some((c) => c.id === 'categories' || c.id === 'tags') &&
+                                  entry.terms.map((term) => (
+                                    <span
+                                      key={term.id}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-slate-300"
+                                    >
+                                      <Tag className="w-2.5 h-2.5 text-indigo-400" />
+                                      {term.name}
+                                    </span>
+                                  ))}
+                              </div>
+                            </td>
+                          );
+                        case 'status':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4`}>
+                              {(() => {
+                                const isScheduled =
+                                  entry.status === 'draft' &&
+                                  !!entry.published_at &&
+                                  new Date(entry.published_at).getTime() > Date.now();
+                                return (
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                      entry.status === 'published'
+                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                        : isScheduled
+                                        ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                                        : entry.status === 'draft'
+                                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        : entry.status === 'trash'
+                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                        : 'bg-slate-500/10 text-slate-400'
+                                    }`}
+                                  >
+                                    {entry.status === 'published'
+                                      ? 'Publié'
+                                      : isScheduled
+                                      ? 'Planifié'
+                                      : entry.status === 'draft'
+                                      ? 'Brouillon'
+                                      : entry.status === 'trash'
+                                      ? 'Corbeille'
+                                      : 'Archivé'}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                          );
+                        case 'author':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4 text-slate-300`}>
+                              {entry.author_name || 'Éditeur'}
+                            </td>
+                          );
+                        case 'categories': {
+                          const cats = (entry.terms || []).filter((t) => t.taxonomy === 'category');
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4`}>
+                              {cats.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {cats.map((c) => (
+                                    <span
+                                      key={c.id}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px]"
+                                    >
+                                      {c.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
+                          );
+                        }
+                        case 'tags': {
+                          const tags = (entry.terms || []).filter((t) => t.taxonomy === 'tag');
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4`}>
+                              {tags.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {tags.map((t) => (
+                                    <span
+                                      key={t.id}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/5 text-slate-300 text-[10px]"
+                                    >
+                                      #{t.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
+                          );
+                        }
+                        case 'date':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4 text-slate-400`}>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>{new Date(entry.updated_at).toLocaleDateString('fr-FR')}</span>
+                                </div>
+                                {entry.scheduled_unpublish_at && (
+                                  <div className="flex items-center gap-1 text-[10px] text-amber-400">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>
+                                      Expire :{' '}
+                                      {new Date(entry.scheduled_unpublish_at).toLocaleDateString('fr-FR')}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        case 'words': {
+                          const words = (entry.body || '').split(/\s+/).filter(Boolean).length;
+                          const readTime = Math.max(1, Math.ceil(words / 200));
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4 text-slate-400`}>
+                              <span className="font-mono text-slate-300">{words}</span> mots
+                              <span className="text-[10px] text-slate-500 block">~{readTime} min</span>
+                            </td>
+                          );
+                        }
+                        case 'id':
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4 font-mono text-[11px] text-slate-500`}>
+                              {entry.id.slice(0, 8)}…
+                            </td>
+                          );
+                        default:
+                          return (
+                            <td key={col.id} className={`${paddingY} px-4 text-slate-300`}>
+                              {String(entry.fields?.[col.id] ?? '—')}
+                            </td>
+                          );
+                      }
+                    })}
+
+                    <td className={`${paddingY} px-4 text-right`}>
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -266,7 +380,7 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
                       onClick={(e) => e.stopPropagation()}
                       className="bg-slate-900/95 border-y border-indigo-500/30"
                     >
-                      <td colSpan={6} className="p-4 space-y-3">
+                      <td colSpan={totalColumns} className="p-4 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-indigo-300">
                             {entriesMessages.quickEditTitle}

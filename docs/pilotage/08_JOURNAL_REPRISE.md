@@ -1,5 +1,21 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Colonnes & Vues de Données Souveraines : validation intégrale de MOD-COL-01, 02, 03, 04 et 05 (Inspiration Admin Columns Pro)
+
+**Point de reprise le plus récent.** Phase 7 du plan d'action validée. Intégration complète de la cartographie du plugin de référence `codepress-admin-columns` et de ses fonctionnalités Pro, transposées en architecture 100% Rust & TypeScript/React sans aucun runtime PHP :
+- **Contrat Typé des Colonnes (`MOD-COL-01`)** : contrat déclaratif des colonnes dans `useColumnSettingsStore.ts` pour chaque type de contenu (`post`, `page`, etc.), incluant média à la une (`image`), titre et slug (`title`), statut (`status`), auteur (`author`), taxonomies (`categories`, `tags`), date (`date`), métriques éditoriales (`words`), identifiant UUID (`id`) et champs personnalisés du schéma (`field:<key>`).
+- **Sélection, Ordre, Largeur & Visibilité (`MOD-COL-02`)** : interface dédiée de configuration des colonnes dans `ColumnSettingsView.tsx` (`settings:columns` / `rf_column_settings`), réordonnancement intuitif, modification des libellés personnalisés, ajustement des largeurs et bascule d'affichage avec aperçu dynamique en temps réel.
+- **Rendu Riche & Densité Ergonomique (`MOD-COL-03`)** : intégration dans `EntriesTable.tsx` avec rendu des vignettes médias, badges colorés d'état, taxonomies contextuelles, temps de lecture estimé, et sélecteur de densité d'affichage Confortable / Compacte (inspiré des principes d'Adminify).
+- **Tri, Recherche, Filtres & Édition en Ligne (`MOD-COL-04`)** : barre d'outils interactive `EntriesFilterBar.tsx` avec popover d'activation rapide des colonnes, préréglages en un clic, et édition rapide en ligne (*Quick Edit*) préservant l'intégrité de `rf.document/1`.
+- **Export CSV des Colonnes Visibles & Vues Partagées (`MOD-COL-05`)** : export direct CSV (`exportVisibleCsv`) respectant scrupuleusement les colonnes affichées et filtres actifs, 4 vues rapides prédéfinies (*Standard*, *Éditoriale*, *SEO & ID*, *Compacte*), et persistance des configurations par défaut au niveau du site via l'API `settings` (`admin.columns.{type}`).
+
+### Validations et métriques
+- 75 tests unitaires `rustforge-core` et 101 tests workspace réussis.
+- Clippy strict : 0 avertissement sur l'ensemble de l'espace de travail (`-D warnings`).
+- Frontend : Oxlint 0 avertissement / 0 erreur, build Vite & TypeScript réussis en 529ms.
+- Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants).
+- Documentation : `py scripts/verifier-documentation.py` OK (37 documents, 1 504 liens, 0 erreur).
+
 ## 29 octobre 2026 — Module Formulaires & Soumissions Souveraines : validation intégrale de MOD-FORM-01, 02, 03, 04 et 06
 
 **Point de reprise le plus récent.** Phase 3 du plan d'exhaustivité validée. Implémentation de l'interface Studio et du moteur complet de formulaires souverains (inspiré de WPForms Pro / Gravity Forms) :

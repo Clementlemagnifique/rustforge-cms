@@ -9,10 +9,11 @@
  *   groupées sur la sélection active.
  */
 
-import React from 'react';
-import { Plus, Search, List, Columns3, ArrowUpDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Search, List, Columns3, ArrowUpDown, SlidersHorizontal, Download, Settings2 } from 'lucide-react';
 import { entriesMessages } from '../../i18n/messages.fr';
 import { DEFAULT_ENTRY_FILTERS, useEntriesListStore } from '../../stores/useEntriesListStore';
+import { useColumnSettingsStore } from '../../stores/useColumnSettingsStore';
 import type { ContentType } from '../../types';
 
 interface EntriesFilterBarProps {
@@ -42,6 +43,14 @@ export const EntriesFilterBar: React.FC<EntriesFilterBarProps> = ({
 
   const currentFilters = filtersByType[contentTypeSlug] ?? DEFAULT_ENTRY_FILTERS;
   const { search, statusFilter, termFilter, orderFilter } = currentFilters;
+
+  const [isColumnsOpen, setIsColumnsOpen] = useState(false);
+  const getColumns = useColumnSettingsStore((s) => s.getColumns);
+  const toggleColumn = useColumnSettingsStore((s) => s.toggleColumn);
+  const applyPreset = useColumnSettingsStore((s) => s.applyPreset);
+  const exportVisibleCsv = useColumnSettingsStore((s) => s.exportVisibleCsv);
+  const entries = useEntriesListStore((s) => s.entries);
+  const columns = getColumns(contentTypeSlug);
 
   const categoryTerms = availableTerms.filter((t) => t.taxonomy === 'category');
   const tagTerms = availableTerms.filter((t) => t.taxonomy === 'tag');
@@ -188,6 +197,112 @@ export const EntriesFilterBar: React.FC<EntriesFilterBarProps> = ({
             <Columns3 className="w-4 h-4" />
           </button>
         </div>
+
+        {viewMode === 'table' && (
+          <div className="flex items-center gap-2">
+            {/* Bouton Export CSV (Admin Columns Pro) */}
+            <button
+              type="button"
+              onClick={() => exportVisibleCsv(contentTypeSlug, entries)}
+              title="Exporter les colonnes visibles en CSV"
+              className="px-2.5 py-1.5 rounded-xl bg-[#0f1422] hover:bg-white/5 border border-white/10 text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+
+            {/* Menu Colonnes & Vues (Admin Columns) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsColumnsOpen(!isColumnsOpen)}
+                title="Gérer les colonnes affichées (Admin Columns)"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
+                  isColumnsOpen
+                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                    : 'bg-[#0f1422] hover:bg-white/5 border-white/10 text-slate-300'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Colonnes</span>
+              </button>
+
+              {isColumnsOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#0f1422] border border-white/10 p-3 shadow-2xl z-50 text-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                    <span className="font-semibold text-white">Colonnes affichées</span>
+                    <button
+                      onClick={() => {
+                        setIsColumnsOpen(false);
+                        onNavigate('settings:columns');
+                      }}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                    >
+                      <Settings2 className="w-3 h-3" />
+                      <span>Paramètres avancés</span>
+                    </button>
+                  </div>
+
+                  {/* Vues rapides / Presets */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                      Vues rapides (Presets)
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => applyPreset(contentTypeSlug, 'standard')}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-left text-[11px] text-slate-300"
+                      >
+                        Standard
+                      </button>
+                      <button
+                        onClick={() => applyPreset(contentTypeSlug, 'editorial')}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-left text-[11px] text-slate-300"
+                      >
+                        Éditoriale
+                      </button>
+                      <button
+                        onClick={() => applyPreset(contentTypeSlug, 'seo')}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-left text-[11px] text-slate-300"
+                      >
+                        SEO & ID
+                      </button>
+                      <button
+                        onClick={() => applyPreset(contentTypeSlug, 'compact')}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-left text-[11px] text-slate-300"
+                      >
+                        Compacte
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Liste des colonnes activables */}
+                  <div className="space-y-1 max-h-48 overflow-y-auto pt-1 border-t border-white/5">
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                      Activer / Masquer
+                    </span>
+                    {columns.map((col) => (
+                      <label
+                        key={col.id}
+                        className="flex items-center justify-between px-2 py-1 rounded hover:bg-white/5 cursor-pointer text-[11px]"
+                      >
+                        <span className={col.visible ? 'text-white' : 'text-slate-500'}>
+                          {col.label}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={col.visible}
+                          onChange={() => toggleColumn(contentTypeSlug, col.id)}
+                          className="rounded bg-slate-900 border-white/20 text-indigo-600"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Barre d'actions groupées (WP-17) */}

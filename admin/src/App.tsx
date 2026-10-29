@@ -38,6 +38,7 @@ import { CommentsView } from './components/CommentsView';
 import { FormsView } from './components/FormsView';
 import { EcommerceView } from './components/EcommerceView';
 import { LmsView } from './components/LmsView';
+import { ColumnSettingsView } from './components/ColumnSettingsView';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -171,6 +172,7 @@ export const App: React.FC = () => {
     if (currentView === 'content-types') return 'Types de Contenu';
     if (currentView === 'forms' || currentView === 'module:forms' || currentView.startsWith('forms')) return 'Formulaires & Messages';
     if (currentView === 'jobs') return 'Tâches et diagnostic';
+    if (currentView === 'settings:columns' || currentView === 'rf_column_settings' || currentView === 'columns') return 'Colonnes & Vues de Données';
     if (currentView === 'settings') return 'Réglages';
     if (currentView === 'converter') return 'Conversion de thèmes · avancé';
     if (currentView === 'migration') return 'Importer WordPress';
@@ -266,6 +268,11 @@ export const App: React.FC = () => {
                 <ContentTypesView contentTypes={contentTypes} onRefresh={refreshData} />
               )}
               {currentView === 'jobs' && <JobsView />}
+              {(currentView === 'settings:columns' ||
+                currentView === 'rf_column_settings' ||
+                currentView === 'columns') && (
+                <ColumnSettingsView key="column-settings" onNavigate={navigate} />
+              )}
               {currentView === 'settings' && <SettingsView key="settings-general" initialTab="general" />}
               {currentView === 'settings:reading' && <SettingsView key="settings-reading" initialTab="reading" />}
               {currentView === 'settings:writing' && <SettingsView key="settings-writing" initialTab="writing" />}

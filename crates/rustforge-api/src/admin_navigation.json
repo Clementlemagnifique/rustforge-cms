@@ -1290,12 +1290,12 @@
     "id": "rf_column_settings",
     "parent": "rf_admin_preferences",
     "label": "Colonnes et vues",
-    "route": null,
+    "route": "settings:columns",
     "module": null,
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "ready",
     "design": "settings",
     "features": [
       "Choix",
