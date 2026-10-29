@@ -17,7 +17,7 @@ pub fn render(markdown: &str) -> String {
     html::push_html(&mut raw, parser);
 
     ammonia::Builder::default()
-        .add_generic_attributes(["id", "class", "style"])
+        .add_generic_attributes(["id", "class"])
         .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
         .add_tag_attributes("details", ["open"])
@@ -59,6 +59,14 @@ mod tests {
         assert!(html.contains("<h1>Titre</h1>"));
         assert!(html.contains("<strong>gras</strong>"));
         assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn strips_untrusted_styles_but_preserves_block_classes() {
+        let html = render("<div class=\"rf-columns\" style=\"position:fixed;inset:0\">Texte</div>");
+        assert!(html.contains("class=\"rf-columns\""));
+        assert!(!html.contains("style="));
+        assert!(!html.contains("position:fixed"));
     }
 
     #[test]

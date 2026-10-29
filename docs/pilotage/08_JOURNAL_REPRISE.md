@@ -1,5 +1,60 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — G3.STAB-01 à 04 : régression intégrée et sécurisation ciblée
+
+**Point de reprise le plus récent.** L'utilisateur confirme la révocation du jeton et autorise le maintien du dépôt public. origin/main reste `27b6b599` après fetch. L'index de l'ancien worktree est **exactement identique à 8df3bb7f**, commit ancêtre de main : aucun travail inédit à fusionner, aucun reset nécessaire. Ancien checkout préservé.
+
+- STAB-01 : assertion HTTP alignée sur le rich text intentionnel (strong attendu), avec vérification explicite que le script brut est échappé. La recette complète passe désormais.
+- STAB-02 : lecture et création de commentaires réutilisent `entries::get_published_by_id` (dates de publication et dépublication incluses). Tests HTTP GET/POST sur brouillon, futur et expiré : 404. Ce lot ne démontre pas une atomicité entre modification concurrente de publication et insertion.
+- STAB-03 : URL auteur validée en création/édition (HTTP/HTTPS absolu, hôte, sans identifiants ni contrôles). Anciennes URLs dangereuses neutralisées dans la projection publique. Tests schémas dangereux et données historiques conservées sans lien actif. Une ancienne page déjà rendue par un processus non redémarré doit être évacuée lors du déploiement ; aucun déploiement effectué ici.
+- STAB-04 : retrait de l'attribut style de l'assainisseur Markdown générique ; les classes des blocs sont conservées et testées. Aucun retraitement SQL des contenus HTML historiques dans ce lot : à planifier si des contenus déjà stockés contiennent ces styles.
+- Validation locale : **68 tests unitaires réussis**, **4 tests intégrés réussis**, dont la recette PostgreSQL/HTTP/sauvegarde complète ; Clippy workspace/all-targets strict réussi. Sorties [unitaires](../validations/reprise-g1-g2-2026-10-28/stab-2026-10-29-unit.txt), [intégration](../validations/reprise-g1-g2-2026-10-28/stab-2026-10-29-integration.txt), [Clippy](../validations/reprise-g1-g2-2026-10-28/stab-2026-10-29-clippy.txt). Premier essai des nouvelles fixtures échoué sur UUID lié comme texte, corrigé puis relancé. Cluster jetable arrêté en finally. Assets Studio déjà construits du Bureau copiés dans admin/dist ignoré pour la recette ; aucun nouveau build Studio ni test navigateur annoncé.
+
+**Suite : STAB-05/06**, options Discussion réellement appliquées ; STAB-07/08 motifs synchronisés et références des menus, STAB-09 portabilité des empreintes. Les statuts de parité requalifiés à l'audit restent EN_COURS. Pas de fusion vers main ni push dans cette session ; résultats GitHub CI à confirmer après publication d'un prochain commit.
+
+
+## 29 octobre 2026 — Audit de reprise du dernier push (27b6b599)
+
+**Point de reprise le plus récent.** Analyse du dépôt distant actualisé et lecture ciblée des changements depuis 8df3bb7f. Cette entrée corrige les conclusions trop larges des sessions précédentes ; elle ne certifie pas une parité exhaustive. Aucun code applicatif changé et aucun nouveau test local exécuté pendant cet audit.
+
+### Checkout et sauvegarde
+
+- `origin/main` = `27b6b5993a9c1c23cd0bed5d372d6ea516be6325`, dernier push du 28/10 à 19:15 heure de Paris. Les deux derniers commits concernent les README FR/EN ; le dernier lot fonctionnel est `b5311d68` (éditeur).
+- L'ancien worktree `32c4/CMS Rust` reste sur `0851da23`, avec 260 fichiers préparés dans l'index ; 50 chemins diffèrent entre cet index et le distant. Ce n'est pas la version actuelle de main. Ne pas pousser cet index comme mise à jour de main ni l'écraser.
+- Nouveau worktree géré attaché à cette conversation : `C:/Users/cleme/.codex/worktrees/audit-reprise-29-oct/CMS Rust`, HEAD détaché sur `27b6b599`, initialement propre. Utiliser explicitement ce chemin pour la suite. Les références ignorées restent au Bureau ; aucune installation/configuration personnelle modifiée.
+- GitHub déclare maintenant le dépôt **PUBLIC**, contrairement à la vérification privée antérieure. Aucune modification de visibilité effectuée. Un diagnostic a accidentellement affiché des variables sensibles GitHub : révocation/rotation des jetons concernés à effectuer par le propriétaire ; aucune valeur recopiée dans les documents.
+
+### Avancées constatées
+
+Flux RSS/Atom (`640ca788`), robots/sitemap/canonical (`cb75ff4e`), permaliens/bases avec redirections (`e1df0d93`), navigation hiérarchique (`08e69718`), commentaires (`e11dc283`), 12 types de blocs et catalogue de compositions (`b5311d68`) sont présents. Architecture Rust/MiniJinja et Studio existants conservés. Les README bilingues ne signifient pas que le produit est traduit. Les tableaux de statut et anciennes mentions « qualification complète » doivent être lus sous réserve des écarts suivants.
+
+### Constats prioritaires et preuves
+
+| Priorité | Constat | Action et recette requise |
+| --- | --- | --- |
+| P0 / STAB-01 | [Quality du dernier push](https://github.com/Clementlemagnifique/rustforge-cms/actions/runs/40743454415) : builds Windows/Linux réussis ; job postgres-regressions en échec. Même échec sur les trois derniers pushes. `consolidation.rs:996` refuse `<strong>littéral`, désormais produit intentionnellement par `safe_rich_text` pour `**littéral**`. | Reproduire puis réconcilier le contrat de rich text et l'assertion ; conserver des assertions XSS positives/négatives. Relancer le scénario complet, car l'échec actuel arrête les recettes suivantes. Aucun test ne doit être simplement supprimé pour masquer une régression. |
+| P0 / STAB-02 | `routes/comments.rs::public_list` et `comments.rs::get_entry_approved_comments_tree` filtrent les commentaires approuvés sans vérifier la visibilité de l'entrée. `create_comment` vérifie seulement status published, pas publication future ni dépublication atteinte. | Réutiliser le prédicat public commun et tester GET/POST sur brouillon, futur, expiré, entrée absente et cache chaud après dépublication. La fuite via API est un risque identifié par lecture, non reproduit dans ce tour. |
+| P0 / STAB-03 | `author_url` est seulement trimée lors de la création puis interpolée dans href dans single.html. L'échappement HTML ne valide pas les protocoles d'URL. | Valider/supprimer les schémas non autorisés à l'écriture ET sécuriser les anciennes données au rendu ; tester javascript/data, casse et contrôles, URL valide et restauration. Vérifier aussi les chemins de modification Studio. |
+| P1 / STAB-04 | `markdown.rs` ajoute l'attribut générique style à l'assainisseur pour tout Markdown, y compris historique. Les styles des nouveaux blocs reposent sur des classes. | Restreindre les attributs/CSS nécessaires ; test d'overlay CSS et maintien du rendu des nouveaux blocs. Ne pas annoncer que les attributs style sont assainis en CSS sans preuve. |
+| P1 / STAB-05 | Options de discussion affichées mais effet incomplet : inscription obligatoire refuse toute soumission sans lire de session ; nom/email toujours requis ; SSR impose profondeur 3 et masque les erreurs DB par unwrap_or_default ; aucune pagination du service public, tri ASC fixe. | Raccorder chaque option aux services et au SSR, tests par option. Requalifier WP-83/84 avant validation. |
+| P1 / STAB-06 | WP-85 vise les notifications, mais sa preuve décrit les listes antispam. WP-87 vise cookies/avatars ; le template affiche une initiale fixe. | Notifications via service mail/jobs existant et choix cookies/avatars effectifs ou clairement reportés. Une option enregistrable ne vaut pas réalisation. |
+| P1 / STAB-07 | WP-34 et core/block déclarés validés sur un catalogue statique de motifs. Celui-ci crée des copies avec nouveaux UUID ; aucune instance synchronisée ni édition globale persistante observée. Colonnes = 1 à 4 chaînes de texte, pas une arborescence de blocs avec attributs de colonne. | Maintenir les compositions indépendantes ; qualifier séparément motifs synchronisés, références, conversion sans perte et attributs avancés de colonnes. |
+| P1 / STAB-08 | Les items de menus acceptent type/object_id mais `transform_menus_to_tree` assemble uniquement l'arbre ; il ne résout pas les URLs des cibles. Pas de menus nommés ni affectations multiples dans le modèle header/footer actuel. | Test changement de slug/permalien, cible supprimée et restauration ; compléter NAV-A/B avant méga-menus NAV-D/E. |
+
+| P1 / STAB-09 | Contrôle documentaire non portable : sur ce checkout neuf, 18 archives sur 22 échouent à la comparaison brute ; leur empreinte correspond après CRLF→LF. Les quatre autres correspondent aux octets locaux, mais pas au blob Git. | Définir une politique LF/CRLF reproductible, sans recalcul aveugle des empreintes. Vérifier les 22 archives sur clones Windows/Linux et préserver les preuves historiques. |
+
+Ces constats proviennent de lectures ciblées, pas d'un audit exhaustif de sécurité. Les autres nouveautés (flux/indexation/permaliens) disposent de runs Quality précédemment verts ; elles n'ont pas été recettées à nouveau ici. La réussite CI antérieure ne prouve pas chaque option de parité.
+
+### Ordre de reprise décidé par l'audit
+
+1. **G3.STAB : STAB-01 à 04**, rendre la régression intégrée passante et fermer les écarts de visibilité/URL/CSS avant d'ajouter des capacités.
+2. Discussion effective et preuves WP-83 à WP-87 (STAB-05/06).
+3. Contrat éditeur/motifs et menus dynamiques (STAB-07/08), recettes de round-trip et mise à jour des tableaux ; portabilité documentaire STAB-09.
+4. Puis NAV-D/E (méga-menus et modules) et G4 migration/exploitation selon le plan global.
+
+Les identifiants STAB-* sont des sous-constats de cette entrée, rattachés aux tickets existants ; aucune nouvelle tâche CSV et aucun pourcentage de parité déduit. Prochain geste : reproduire l'assertion rich text de la CI dans une base jetable. Contrôles de cet audit : matrices régénérées puis vérifiées, **434 tâches / 38 composants cohérents** avec résolution temporaire des références vers le Bureau ; **37 documents, 1 459 liens sans erreur de lien**, mais **18 erreurs d'empreintes** dues aux fins de ligne selon la comparaison ciblée des octets et blobs (STAB-09). `git diff --check` réussi. Huit statuts de parité repassés EN_COURS avec preuves antérieures conservées : WP-34, WP-83/84/85/87 et WP-B008/B015/B016. Aucun nouveau build/test runtime ni commit/push effectué.
+
+
 ## 28 octobre 2026 — Éditeur de contenu, blocs riches et motifs réutilisables (WP-34, WP-35, WP-B008, WP-B015, WP-B016, WP-B030, WP-B036, WP-B049, WP-B060)
 
 **Point de reprise le plus récent.** Réalisation et qualification complète du lot Éditeur de contenu, Blocs riches souverains et Motifs de composition (`WP-34`, `WP-35`, `WP-B008`, `WP-B015`, `WP-B016`, `WP-B030`, `WP-B036`, `WP-B049`, `WP-B060`) :

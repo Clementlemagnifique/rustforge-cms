@@ -49,6 +49,23 @@ pub struct CommentCounts {
     pub trash: i64,
 }
 
+/// Seuls les liens web absolus sont acceptés pour un auteur public.
+fn validated_author_url(raw: Option<&str>) -> CoreResult<Option<String>> {
+    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    if raw.len() > 2048 || raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err(CoreError::validation("URL auteur invalide"));
+    }
+    let url = reqwest::Url::parse(raw)
+        .map_err(|_| CoreError::validation("URL auteur invalide"))?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none()
+        || !url.username().is_empty() || url.password().is_some() {
+        return Err(CoreError::validation("URL auteur non autorisée"));
+    }
+    Ok(Some(url.to_string()))
+}
+
 /// Nettoie et échappe le contenu d'un commentaire en HTML sécurisé.
 pub fn format_comment_html(raw: &str) -> String {
     let trimmed = raw.trim();
@@ -194,6 +211,7 @@ pub async fn evaluate_comment_status(
 
 /// Crée un nouveau commentaire avec validation et formatage.
 pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreResult<Comment> {
+    let author_url = validated_author_url(params.author_url.as_deref())?;
     let name = params.author_name.trim();
     let email = params.author_email.trim();
     let content = params.content.trim();
@@ -217,23 +235,9 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
         ));
     }
 
-    // Vérifier l'existence et l'état de l'entrée associée
-    let entry_opt: Option<(Uuid, String, Option<DateTime<Utc>>)> = sqlx::query_as(
-        "SELECT id, status::text, published_at FROM entries WHERE id = $1",
-    )
-    .bind(params.entry_id)
-    .fetch_optional(db)
-    .await?;
-
-    let Some((_, status, published_at)) = entry_opt else {
-        return Err(CoreError::NotFound);
-    };
-
-    if status != "published" {
-        return Err(CoreError::validation(
-            "Les commentaires ne sont autorisés que sur les publications publiées.",
-        ));
-    }
+    // Même visibilité que les pages et API publiques (dates comprises).
+    let entry = crate::entries::get_published_by_id(db, params.entry_id).await?;
+    let published_at = entry.published_at;
 
     // Vérifier si les commentaires sont fermés pour les anciens articles
     let all_settings = crate::settings::all(db).await?;
@@ -301,7 +305,7 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
     .bind(params.author_id)
     .bind(name)
     .bind(email)
-    .bind(params.author_url.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(author_url.as_deref())
     .bind(params.author_ip.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(params.author_user_agent.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(content)
@@ -441,6 +445,7 @@ pub async fn update_comment_content(
     author_email: Option<&str>,
     author_url: Option<&str>,
 ) -> CoreResult<Comment> {
+    let author_url = validated_author_url(author_url)?;
     let trimmed_content = content.trim();
     if trimmed_content.is_empty() {
         return Err(CoreError::validation("Le contenu ne peut pas être vide."));
@@ -469,7 +474,7 @@ pub async fn update_comment_content(
     .bind(content_html)
     .bind(author_name.map(str::trim).filter(|s| !s.is_empty()))
     .bind(author_email.map(str::trim).filter(|s| !s.is_empty()))
-    .bind(author_url.map(str::trim).filter(|s| !s.is_empty()))
+    .bind(author_url.as_deref())
     .fetch_optional(db)
     .await?
     .ok_or(CoreError::NotFound)?;
@@ -558,6 +563,7 @@ pub async fn get_entry_approved_comments_tree(
     entry_id: Uuid,
     max_depth: usize,
 ) -> CoreResult<Vec<PublicCommentView>> {
+    crate::entries::get_published_by_id(db, entry_id).await?;
     #[derive(sqlx::FromRow)]
     struct FlatCommentNode {
         id: Uuid,
@@ -601,7 +607,7 @@ pub async fn get_entry_approved_comments_tree(
                     id: node.id,
                     parent_id: node.parent_id,
                     author_name: node.author_name.clone(),
-                    author_url: node.author_url.clone(),
+                    author_url: validated_author_url(node.author_url.as_deref()).ok().flatten(),
                     content_html: node.content_html.clone(),
                     created_at: node.created_at,
                     children,
@@ -627,6 +633,15 @@ mod tests {
         assert!(formatted.contains("&amp;"));
         assert!(formatted.contains("&gt; 42"));
         assert!(formatted.contains("<p>"));
+    }
+
+    #[test]
+    fn author_links_reject_unsafe_schemes() {
+        for raw in ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html,test", "https://ok.test/\npath", "https://user:pass@ok.test/"] {
+            assert!(validated_author_url(Some(raw)).is_err(), "{raw}");
+        }
+        assert_eq!(validated_author_url(Some("https://example.com/")).unwrap().as_deref(), Some("https://example.com/"));
+        assert!(validated_author_url(None).unwrap().is_none());
     }
 
     #[test]

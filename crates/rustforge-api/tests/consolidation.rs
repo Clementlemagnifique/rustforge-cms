@@ -993,7 +993,8 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(!preview_html.contains("<script"));
 
-    assert!(!preview_html.contains("<strong>littéral"));
+    assert!(preview_html.contains("<strong>littéral</strong>"));
+    assert!(preview_html.contains("&lt;script&gt;"));
 
 
 
@@ -4579,6 +4580,38 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(!ssr_html.contains("jean.lecteur@example.test"));
 
     // 7. Compteurs, action groupée et vidage de corbeille (WP-45)
+    // STAB: public comment links and entry visibility share the public contract.
+    let comments_url = format!("/api/v1/public/entries/{}/comments", permalink_post.id);
+    let invalid_link = request(&app, "POST", &comments_url, None, json!({
+        "author_name":"Test", "author_email":"test@example.test",
+        "author_url":"javascript:alert(1)", "content":"Un lien invalide"
+    })).await;
+    assert_eq!(invalid_link.0, 422, "{invalid_link:?}");
+    sqlx::query("UPDATE comments SET author_url='javascript:alert(1)' WHERE id=$1")
+        .bind(Uuid::parse_str(comment_id).unwrap()).execute(&db).await.unwrap();
+    let sanitized = request(&app, "GET", &comments_url, None, Value::Null).await;
+    assert_eq!(sanitized.0, 200);
+    assert!(!sanitized.1.to_string().contains("javascript:"));
+    sqlx::query("UPDATE comments SET author_url=NULL WHERE id=$1")
+        .bind(Uuid::parse_str(comment_id).unwrap()).execute(&db).await.unwrap();
+    let previous = entries::get(&db, permalink_post.id).await.unwrap();
+    for condition in [
+        "status='draft'",
+        "status='published', published_at=now()+interval '1 day'",
+        "status='published', published_at=now()-interval '1 day', scheduled_unpublish_at=now()-interval '1 hour'",
+    ] {
+        sqlx::query(&format!("UPDATE entries SET {condition} WHERE id=$1"))
+            .bind(permalink_post.id).execute(&db).await.unwrap();
+        assert_eq!(request(&app, "GET", &comments_url, None, Value::Null).await.0, 404);
+        let denied = request(&app, "POST", &comments_url, None, json!({
+            "author_name":"Test", "author_email":"test@example.test", "content":"Publication inaccessible"
+        })).await;
+        assert_eq!(denied.0, 404, "{denied:?}");
+    }
+    sqlx::query("UPDATE entries SET status='published', published_at=$2, scheduled_unpublish_at=$3 WHERE id=$1")
+        .bind(permalink_post.id).bind(previous.published_at).bind(previous.scheduled_unpublish_at)
+        .execute(&db).await.unwrap();
+
     let counts_res = request(&app, "GET", "/api/v1/comments/counts", Some(&admin), Value::Null).await;
     assert_eq!(counts_res.0, 200);
     assert_eq!(counts_res.1["approved"], 2);
