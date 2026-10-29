@@ -39,6 +39,8 @@ struct Block {
     rf_media_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     rf_style: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    rf_ref: String,
 }
 
 impl Block {
@@ -55,6 +57,7 @@ impl Block {
             rf_caption: String::new(),
             rf_media_id: None,
             rf_style: String::new(),
+            rf_ref: String::new(),
         }
     }
 }
@@ -78,6 +81,7 @@ enum Kind {
     Details,
     Columns,
     MediaText,
+    Pattern,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -191,23 +195,25 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             || block.rf_alt.len() > 512
             || block.rf_caption.len() > 1024
             || block.rf_style.len() > 128
+            || block.rf_ref.len() > 96
         {
             return Err(CoreError::validation("Contenu de bloc trop volumineux"));
         }
         let text = literal(&block.rf_text);
-        if (!matches!(block.rf_type, Kind::List | Kind::Columns)
+        if (!matches!(block.rf_type, Kind::List | Kind::Columns | Kind::Pattern)
             && (!block.rf_items.is_empty() || block.rf_ordered))
             || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
             || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText)
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern)
                 && !block.rf_style.is_empty())
+            || (!matches!(block.rf_type, Kind::Pattern) && !block.rf_ref.is_empty())
         {
             return Err(CoreError::validation(
                 "Données incompatibles avec le type du bloc",
@@ -225,6 +231,19 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             return Err(CoreError::validation(
                 "L'URL du média est requise pour le bloc média & texte",
             ));
+        }
+        if matches!(block.rf_type, Kind::Pattern) {
+            let r = block.rf_ref.trim();
+            if r.is_empty()
+                || r.len() > 96
+                || !r
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            {
+                return Err(CoreError::validation(
+                    "Référence du motif synchronisé invalide",
+                ));
+            }
         }
 
         parts.push(match block.rf_type {
@@ -324,7 +343,15 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                         format!("<div class=\"rf-column\">\n\n{safe}\n\n</div>")
                     })
                     .collect();
-                format!("<div class=\"rf-columns\">\n{}\n</div>", cols.join("\n"))
+                let class = match block.rf_style.as_str() {
+                    "50-50" => "rf-columns rf-columns-50-50",
+                    "33-33-33" => "rf-columns rf-columns-33-33-33",
+                    "25-75" => "rf-columns rf-columns-25-75",
+                    "75-25" => "rf-columns rf-columns-75-25",
+                    "wide" => "rf-columns rf-columns-wide",
+                    _ => "rf-columns",
+                };
+                format!("<div class=\"{class}\">\n{}\n</div>", cols.join("\n"))
             }
             Kind::MediaText => {
                 let url = validate_safe_url(&block.rf_url, true)?;
@@ -336,6 +363,30 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                 };
                 let content = safe_rich_text(&block.rf_text);
                 format!("<div class=\"rf-media-text {pos}\"><div class=\"rf-media-figure\"><img src=\"{url}\" alt=\"{alt}\" /></div><div class=\"rf-media-content\">\n\n{content}\n\n</div></div>")
+            }
+            Kind::Pattern => {
+                let r = block.rf_ref.trim();
+                let title = if block.rf_caption.trim().is_empty() {
+                    "Motif synchronisé"
+                } else {
+                    block.rf_caption.trim()
+                };
+                let safe_title = title
+                    .replace('&', "&amp;")
+                    .replace('"', "&quot;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;");
+                let inner = if block.rf_items.is_empty() {
+                    safe_rich_text(&block.rf_text)
+                } else {
+                    block
+                        .rf_items
+                        .iter()
+                        .map(|item| safe_rich_text(item))
+                        .collect::<Vec<_>>()
+                        .join("\n\n")
+                };
+                format!("<div class=\"rf-synced-pattern\" data-pattern=\"{r}\" data-pattern-title=\"{safe_title}\">\n\n{inner}\n\n</div>")
             }
         });
     }
@@ -666,6 +717,40 @@ mod tests {
             {"rf_id":"mt_err","rf_type":"media_text","rf_url":"","rf_text":"Sans image"}
         ]});
         assert!(project("", &invalid_mt).is_err());
+
+        // Columns avec style de disposition (50-50, 33-33-33)
+        let cols_styled = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"col_styled","rf_type":"columns","rf_style":"50-50","rf_items":["A","B"]}
+        ]});
+        let (_, html) = project("", &cols_styled).unwrap();
+        assert!(html.contains("rf-columns rf-columns-50-50"));
+
+        // Pattern synchronisé (synced pattern - WP-34, STAB-07)
+        let pattern_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"pat1",
+                "rf_type":"pattern",
+                "rf_ref":"banniere-contact",
+                "rf_caption":"Bannière de contact",
+                "rf_items":["Contenu du motif **synchronisé**"]
+            }
+        ]});
+        let (_, html) = project("", &pattern_doc).unwrap();
+        assert!(html.contains("class=\"rf-synced-pattern\""));
+        assert!(html.contains("data-pattern=\"banniere-contact\""));
+        assert!(html.contains("data-pattern-title=\"Bannière de contact\""));
+        assert!(html.contains("<strong>synchronisé</strong>"));
+
+        // Validation d'erreur sur Pattern (ref vide ou caractères interdits)
+        let invalid_pat = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"bad_pat","rf_type":"pattern","rf_ref":""}
+        ]});
+        assert!(project("", &invalid_pat).is_err());
+
+        let invalid_pat_chars = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {"rf_id":"bad_pat2","rf_type":"pattern","rf_ref":"invalid/ref<script>"}
+        ]});
+        assert!(project("", &invalid_pat_chars).is_err());
     }
     #[test]
     fn image_and_button_blocks_validate_urls_and_render_safely() {

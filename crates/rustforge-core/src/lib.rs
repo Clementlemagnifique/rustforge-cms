@@ -32,6 +32,7 @@ pub mod media_processor;
 pub mod migration;
 pub mod models;
 pub mod pagination;
+pub mod patterns;
 pub mod scheduler;
 pub mod security;
 pub mod settings;

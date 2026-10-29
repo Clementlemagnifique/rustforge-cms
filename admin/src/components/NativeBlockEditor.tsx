@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { BLOCK_TYPES, newBlock, moveBlock, insertBlockAfter } from '../editor/document';
+import { BLOCK_TYPES, newBlock, moveBlock, insertBlockAfter, readDocument } from '../editor/document';
 import type { BlockKind, NativeBlock, NativeDocument } from '../editor/document';
-import { BLOCK_PATTERNS, insertPatternAfter } from '../editor/patterns';
+import { BLOCK_PATTERNS, insertPatternAfter, insertSyncedPatternAfter, detachPatternBlock } from '../editor/patterns';
+import type { SyncedPattern } from '../editor/patterns';
 import { editorMessages as text } from '../editor/messages.fr';
 import type { Media } from '../types';
+import { api } from '../api';
 
 export function NativeBlockEditor({
   document,
@@ -31,7 +33,79 @@ export function NativeBlockEditor({
   const [showOutline, setShowOutline] = useState(false);
   const [showPatterns, setShowPatterns] = useState(false);
   const [patternTargetId, setPatternTargetId] = useState<string | undefined>(undefined);
+  const [syncedPatterns, setSyncedPatterns] = useState<SyncedPattern[]>([]);
+  const [patternTab, setPatternTab] = useState<'static' | 'synced'>('static');
+  const [loadingPatterns, setLoadingPatterns] = useState(false);
+  const [patternNotice, setPatternNotice] = useState<string | null>(null);
   const [inserterQuery, setInserterQuery] = useState('');
+
+  function openPatterns(targetId?: string) {
+    setPatternTargetId(targetId);
+    setShowPatterns(true);
+    setLoadingPatterns(true);
+    api.patterns
+      .list()
+      .then(setSyncedPatterns)
+      .catch(() => {})
+      .finally(() => setLoadingPatterns(false));
+  }
+
+  async function handleCreateSyncedPatternFromBlock(block: NativeBlock) {
+    const title = window.prompt(
+      'Nom du motif synchronisé :',
+      block.rf_caption || `Motif ${text.types[block.rf_type] || block.rf_type}`
+    );
+    if (!title || !title.trim()) return;
+    try {
+      const patternDoc = {
+        rf_schema: 'rf.document/1',
+        rf_blocks: [
+          {
+            ...block,
+            rf_id: crypto.randomUUID(),
+          },
+        ],
+      };
+      const created = await api.patterns.create({
+        title: title.trim(),
+        document: patternDoc,
+        is_synced: true,
+        category: 'content',
+      });
+      const updatedBlocks = document.rf_blocks.map(b =>
+        b.rf_id === block.rf_id
+          ? {
+              rf_id: b.rf_id,
+              rf_type: 'pattern' as const,
+              rf_ref: created.slug,
+              rf_caption: created.title,
+              rf_text: '',
+              rf_level: 2,
+              rf_ordered: false,
+              rf_items: [b.rf_text || b.rf_caption || ''],
+            }
+          : b
+      );
+      onChange({ ...document, rf_blocks: updatedBlocks });
+      setPatternNotice(`Motif « ${created.title} » créé et synchronisé.`);
+      setTimeout(() => setPatternNotice(null), 4000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur lors de la création du motif');
+    }
+  }
+
+  async function handleDetachPattern(blockId: string, ref: string) {
+    let found = syncedPatterns.find(p => p.slug === ref || p.id === ref);
+    if (!found) {
+      try {
+        const all = await api.patterns.list();
+        setSyncedPatterns(all);
+        found = all.find(p => p.slug === ref || p.id === ref);
+      } catch {}
+    }
+    const detached = detachPatternBlock(document, blockId, found);
+    onChange(detached);
+  }
 
   const filteredBlockTypes = BLOCK_TYPES.filter(kind =>
     text.types[kind].toLowerCase().includes(inserterQuery.trim().toLowerCase()) ||
@@ -81,10 +155,7 @@ export function NativeBlockEditor({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setPatternTargetId(undefined);
-              setShowPatterns(true);
-            }}
+            onClick={() => openPatterns(undefined)}
             className="rounded-lg border border-purple-400/40 bg-purple-500/20 px-2.5 py-1 text-purple-200 hover:bg-purple-500/30"
           >
             ✦ {text.patterns}
@@ -113,6 +184,11 @@ export function NativeBlockEditor({
       </div>
 
       {/* Modal / Tiroir des Motifs de blocs (WP-34) */}
+      {patternNotice && (
+        <div className="rounded-lg bg-emerald-500/20 border border-emerald-400/40 p-2.5 text-xs text-emerald-200">
+          ✓ {patternNotice}
+        </div>
+      )}
       {showPatterns && (
         <div className="rounded-xl border border-purple-500/30 bg-purple-950/40 p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -127,33 +203,121 @@ export function NativeBlockEditor({
               ✕ Fermer
             </button>
           </div>
-          <p className="text-xs text-purple-300/80">
-            Insérez des compositions et agencements préconçus en 1 clic (WP-34).
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {BLOCK_PATTERNS.map(p => (
-              <div
-                key={p.id}
-                className="rounded-lg border border-white/10 bg-black/40 p-3 flex flex-col justify-between gap-2.5 hover:border-purple-400/50 transition-colors"
-              >
-                <div>
-                  <div className="font-medium text-slate-100 text-xs">{p.title}</div>
-                  <div className="text-[11px] text-slate-400 mt-1">{p.description}</div>
-                </div>
-                <button
-                  type="button"
-                  disabled={document.rf_blocks.length + p.blocks.length > 256}
-                  onClick={() => {
-                    onChange(insertPatternAfter(document, patternTargetId, p));
-                    setShowPatterns(false);
-                  }}
-                  className="rounded bg-purple-600 hover:bg-purple-500 px-2.5 py-1 text-xs font-medium text-white self-start transition-colors disabled:opacity-40"
-                >
-                  + {text.insertPattern}
-                </button>
-              </div>
-            ))}
+          <div className="flex items-center gap-2 border-b border-purple-500/20 pb-2">
+            <button
+              type="button"
+              onClick={() => setPatternTab('static')}
+              className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                patternTab === 'static'
+                  ? 'bg-purple-600 text-white font-medium'
+                  : 'text-purple-300 hover:bg-purple-900/40'
+              }`}
+            >
+              Modèles prédéfinis ({BLOCK_PATTERNS.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPatternTab('synced')}
+              className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                patternTab === 'synced'
+                  ? 'bg-purple-600 text-white font-medium'
+                  : 'text-purple-300 hover:bg-purple-900/40'
+              }`}
+            >
+              Motifs synchronisés ({syncedPatterns.length})
+            </button>
           </div>
+
+          {patternTab === 'static' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+              {BLOCK_PATTERNS.map(p => (
+                <div
+                  key={p.id}
+                  className="rounded-lg border border-white/10 bg-black/40 p-3 flex flex-col justify-between gap-2.5 hover:border-purple-400/50 transition-colors"
+                >
+                  <div>
+                    <div className="font-medium text-slate-100 text-xs">{p.title}</div>
+                    <div className="text-[11px] text-slate-400 mt-1">{p.description}</div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={document.rf_blocks.length + p.blocks.length > 256}
+                    onClick={() => {
+                      onChange(insertPatternAfter(document, patternTargetId, p));
+                      setShowPatterns(false);
+                    }}
+                    className="rounded bg-purple-600 hover:bg-purple-500 px-2.5 py-1 text-xs font-medium text-white self-start transition-colors disabled:opacity-40"
+                  >
+                    + {text.insertPattern}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              {loadingPatterns && (
+                <p className="text-xs text-purple-300/70">Chargement des motifs synchronisés…</p>
+              )}
+              {!loadingPatterns && syncedPatterns.length === 0 && (
+                <p className="text-xs text-purple-300/80">
+                  Aucun motif synchronisé enregistré. Créez-en un à tout moment depuis un bloc en cliquant sur « ✦ Motif ».
+                </p>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {syncedPatterns.map(p => (
+                  <div
+                    key={p.id}
+                    className="rounded-lg border border-purple-500/20 bg-black/40 p-3 flex flex-col justify-between gap-2.5 hover:border-purple-400/50 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-slate-100 text-xs">{p.title}</span>
+                        <span className="rounded bg-purple-500/30 px-1 text-[10px] text-purple-200 uppercase font-mono">
+                          {p.category}
+                        </span>
+                      </div>
+                      {p.description && (
+                        <div className="text-[11px] text-slate-400 mt-1">{p.description}</div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={document.rf_blocks.length >= 256}
+                        onClick={() => {
+                          onChange(insertSyncedPatternAfter(document, patternTargetId, p));
+                          setShowPatterns(false);
+                        }}
+                        className="rounded bg-purple-600 hover:bg-purple-500 px-2 py-1 text-[11px] font-medium text-white transition-colors disabled:opacity-40"
+                      >
+                        + Synchronisé
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pDoc = readDocument(p.document);
+                          const blocks = pDoc ? pDoc.rf_blocks : [];
+                          onChange(
+                            insertPatternAfter(document, patternTargetId, {
+                              id: p.slug,
+                              title: p.title,
+                              description: p.description,
+                              category: 'content',
+                              blocks,
+                            })
+                          );
+                          setShowPatterns(false);
+                        }}
+                        className="rounded border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-[11px] text-slate-300 transition-colors"
+                      >
+                        + Détaché (copie)
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -293,6 +457,16 @@ export function NativeBlockEditor({
               >
                 {text.duplicate}
               </button>
+              {block.rf_type !== 'pattern' && (
+                <button
+                  type="button"
+                  onClick={() => handleCreateSyncedPatternFromBlock(block)}
+                  className="rounded px-2 py-1 text-purple-300 hover:bg-purple-500/10"
+                  title={text.createSyncedPattern}
+                >
+                  ✦ Motif
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -557,9 +731,24 @@ export function NativeBlockEditor({
               </div>
             ) : block.rf_type === 'columns' ? (
               <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">{text.columnsCount.replace('{count}', String(block.rf_items.length))}</span>
-                  <div className="flex gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">{text.columnsLayout} :</span>
+                    <select
+                      value={block.rf_style || (block.rf_items.length === 3 ? '33-33-33' : '50-50')}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="rounded bg-slate-800 border border-white/10 p-1 text-xs text-white"
+                    >
+                      <option value="50-50">{text.columnsLayoutBalanced}</option>
+                      <option value="33-33-33">{text.columnsLayoutThree}</option>
+                      <option value="25-75">{text.columnsLayoutSidebarLeft}</option>
+                      <option value="75-25">{text.columnsLayoutSidebarRight}</option>
+                      <option value="wide">{text.columnsLayoutWide}</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">{text.columnsCount.replace('{count}', String(block.rf_items.length))}</span>
+                    <div className="flex gap-2">
                     {block.rf_items.length < 4 && (
                       <button
                         type="button"
@@ -578,6 +767,7 @@ export function NativeBlockEditor({
                         - {text.removeColumn}
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -685,6 +875,39 @@ export function NativeBlockEditor({
                     className="w-full rounded-lg bg-black/20 p-2.5 text-sm"
                   />
                 </label>
+              </div>
+            ) : block.rf_type === 'pattern' ? (
+              <div className="space-y-3 rounded-lg border border-purple-500/30 bg-purple-950/20 p-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-purple-500/20 border border-purple-400/40 px-2 py-0.5 font-medium text-purple-200">
+                      ✦ {text.syncedPatternBadge} : {block.rf_caption || block.rf_ref}
+                    </span>
+                    <span className="font-mono text-[11px] text-purple-300/70">
+                      ref: {block.rf_ref}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDetachPattern(block.rf_id, block.rf_ref || '')}
+                    className="rounded border border-purple-400/30 bg-purple-500/10 px-2.5 py-1 text-purple-200 hover:bg-purple-500/20"
+                  >
+                    {text.detachPattern}
+                  </button>
+                </div>
+                <p className="text-[11px] text-purple-300/80">
+                  {text.patternSyncedNotice}
+                </p>
+                {block.rf_items && block.rf_items.length > 0 && (
+                  <div className="space-y-1 rounded bg-black/30 p-2 font-mono text-[11px] text-slate-300">
+                    <span className="text-slate-400">Aperçu du contenu synchronisé :</span>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      {block.rf_items.map((item, i) => (
+                        <li key={i} className="truncate">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-1.5">

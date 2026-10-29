@@ -320,6 +320,15 @@ pub fn build_router(state: AppState) -> Router {
 
     let stats_routes = Router::new().route("/dashboard", get(routes::stats::get_dashboard));
 
+    let patterns_routes = Router::new()
+        .route("/", get(routes::patterns::list).post(routes::patterns::create))
+        .route(
+            "/{id}",
+            get(routes::patterns::get)
+                .put(routes::patterns::update)
+                .delete(routes::patterns::delete),
+        );
+
     let ai_routes = Router::new()
         .route("/tools", get(routes::ai::list_tools))
         .route("/execute", post(routes::ai::execute_tool))
@@ -431,6 +440,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/settings", settings_routes)
         .nest("/plugins", plugins_routes)
         .nest("/stats", stats_routes)
+        .nest("/patterns", patterns_routes)
         .nest("/ai", ai_routes)
         .nest("/converter", converter_routes)
         .nest("/public", public_routes)

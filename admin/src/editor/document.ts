@@ -12,19 +12,20 @@ export const BLOCK_TYPES = [
   'details',
   'columns',
   'media_text',
+  'pattern',
 ] as const;
 export type BlockKind = typeof BLOCK_TYPES[number];
 export interface NativeBlock {
   rf_id: string; rf_type: BlockKind; rf_text: string; rf_level: number;
   rf_ordered: boolean; rf_items: string[];
   rf_url?: string; rf_alt?: string; rf_caption?: string; rf_media_id?: string;
-  rf_style?: string;
+  rf_style?: string; rf_ref?: string;
 }
 export interface NativeDocument { rf_schema: typeof DOCUMENT_SCHEMA; rf_blocks: NativeBlock[] }
 
 const ALLOWED_BLOCK_KEYS = new Set([
   'rf_id', 'rf_type', 'rf_text', 'rf_level', 'rf_ordered', 'rf_items',
-  'rf_url', 'rf_alt', 'rf_caption', 'rf_media_id', 'rf_style',
+  'rf_url', 'rf_alt', 'rf_caption', 'rf_media_id', 'rf_style', 'rf_ref',
 ]);
 
 export function newBlock(kind: BlockKind): NativeBlock {
@@ -45,6 +46,9 @@ export function newBlock(kind: BlockKind): NativeBlock {
     base.rf_url = '';
     base.rf_alt = '';
     base.rf_style = 'media-left';
+  } else if (kind === 'pattern') {
+    base.rf_ref = '';
+    base.rf_caption = 'Motif synchronisé';
   }
   return base;
 }
@@ -70,7 +74,8 @@ export function readDocument(value: unknown): NativeDocument | null {
       || (block.rf_alt !== undefined && typeof block.rf_alt !== 'string')
       || (block.rf_caption !== undefined && typeof block.rf_caption !== 'string')
       || (block.rf_media_id !== undefined && block.rf_media_id !== null && typeof block.rf_media_id !== 'string')
-      || (block.rf_style !== undefined && (typeof block.rf_style !== 'string' || block.rf_style.length > 128))) return null;
+      || (block.rf_style !== undefined && (typeof block.rf_style !== 'string' || block.rf_style.length > 128))
+      || (block.rf_ref !== undefined && (typeof block.rf_ref !== 'string' || block.rf_ref.length > 128))) return null;
     ids.add(block.rf_id);
     const kind = block.rf_type as BlockKind;
     const parsed: NativeBlock = {
@@ -89,6 +94,7 @@ export function readDocument(value: unknown): NativeDocument | null {
     else if (kind === 'image') parsed.rf_caption = '';
     else if (kind === 'details') parsed.rf_caption = 'Détails';
     if (typeof block.rf_media_id === 'string' && block.rf_media_id) parsed.rf_media_id = block.rf_media_id;
+    if (typeof block.rf_ref === 'string') parsed.rf_ref = block.rf_ref;
     if (typeof block.rf_style === 'string') parsed.rf_style = block.rf_style;
     else if (kind === 'callout') parsed.rf_style = 'info';
     else if (kind === 'media_text') parsed.rf_style = 'media-left';

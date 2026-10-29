@@ -1,5 +1,5 @@
 import type { NativeBlock, NativeDocument } from './document';
-import { DOCUMENT_SCHEMA } from './document';
+import { DOCUMENT_SCHEMA, readDocument } from './document';
 
 export interface BlockPattern {
   id: string;
@@ -180,6 +180,110 @@ export function insertPatternAfter(
 
   const updated = [...doc.rf_blocks];
   updated.splice(index + 1, 0, ...newBlocks);
+  return {
+    rf_schema: DOCUMENT_SCHEMA,
+    rf_blocks: updated,
+  };
+}
+
+export interface SyncedPattern {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  document: unknown;
+  is_synced: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createPatternBlock(pattern: SyncedPattern): NativeBlock {
+  const doc = readDocument(pattern.document);
+  const items = doc ? doc.rf_blocks.map(b => b.rf_text || b.rf_caption || b.rf_url || '') : [];
+  return {
+    rf_id: crypto.randomUUID(),
+    rf_type: 'pattern',
+    rf_ref: pattern.slug,
+    rf_caption: pattern.title,
+    rf_text: '',
+    rf_level: 2,
+    rf_ordered: false,
+    rf_items: items,
+  };
+}
+
+export function insertSyncedPatternAfter(
+  doc: NativeDocument,
+  afterId: string | undefined,
+  pattern: SyncedPattern,
+): NativeDocument {
+  const block = createPatternBlock(pattern);
+  if (doc.rf_blocks.length >= 256) return doc;
+  if (!afterId) {
+    return {
+      rf_schema: DOCUMENT_SCHEMA,
+      rf_blocks: [...doc.rf_blocks, block],
+    };
+  }
+  const index = doc.rf_blocks.findIndex(b => b.rf_id === afterId);
+  if (index < 0) {
+    return {
+      rf_schema: DOCUMENT_SCHEMA,
+      rf_blocks: [...doc.rf_blocks, block],
+    };
+  }
+  const updated = [...doc.rf_blocks];
+  updated.splice(index + 1, 0, block);
+  return {
+    rf_schema: DOCUMENT_SCHEMA,
+    rf_blocks: updated,
+  };
+}
+
+export function detachPatternBlock(
+  doc: NativeDocument,
+  blockId: string,
+  syncedPattern?: SyncedPattern,
+): NativeDocument {
+  const index = doc.rf_blocks.findIndex(b => b.rf_id === blockId);
+  if (index < 0) return doc;
+  const block = doc.rf_blocks[index];
+  let replacements: NativeBlock[] = [];
+  if (syncedPattern) {
+    const patternDoc = readDocument(syncedPattern.document);
+    if (patternDoc && patternDoc.rf_blocks.length > 0) {
+      replacements = patternDoc.rf_blocks.map(b => ({
+        ...b,
+        rf_id: crypto.randomUUID(),
+        rf_items: [...b.rf_items],
+      }));
+    }
+  }
+  if (replacements.length === 0) {
+    if (block.rf_items.length > 0) {
+      replacements = block.rf_items.map(item => ({
+        rf_id: crypto.randomUUID(),
+        rf_type: 'paragraph' as const,
+        rf_text: item,
+        rf_level: 2,
+        rf_ordered: false,
+        rf_items: [],
+      }));
+    } else {
+      replacements = [{
+        rf_id: crypto.randomUUID(),
+        rf_type: 'paragraph' as const,
+        rf_text: block.rf_text || block.rf_caption || '',
+        rf_level: 2,
+        rf_ordered: false,
+        rf_items: [],
+      }];
+    }
+  }
+  if (doc.rf_blocks.length - 1 + replacements.length > 256) return doc;
+  const updated = [...doc.rf_blocks];
+  updated.splice(index, 1, ...replacements);
   return {
     rf_schema: DOCUMENT_SCHEMA,
     rf_blocks: updated,

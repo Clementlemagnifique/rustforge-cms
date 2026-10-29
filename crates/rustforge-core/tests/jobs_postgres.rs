@@ -400,6 +400,7 @@ async fn durable_jobs_transactions_leases_and_restore() {
         serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
     legacy.format = "rustforge-native-2".into();
     legacy.tables.remove("rf_jobs");
+    legacy.tables.remove("synced_patterns");
     legacy.migrations.retain(|v| *v < 20261029000007);
     let mut restore = target.begin().await.unwrap();
     native_backup::restore(&mut restore, &legacy).await.unwrap();

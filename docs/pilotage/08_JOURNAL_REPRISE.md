@@ -1,5 +1,47 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Option B / STAB-07 : Motifs synchronisés, blocs réutilisables et styles de disposition
+
+**Point de reprise le plus récent.** Sous-lot Option B (`WP-34` / `STAB-07`) livré et qualifié. Implémentation complète des motifs synchronisés (synced patterns / reusable blocks) avec persistance PostgreSQL, validation stricte du schéma `rf.document/1`, détachement réversible sans perte de contenu, et styles de colonnes responsives natifs.
+
+### Livré et protections
+
+- **Schéma SQL et persistance (`migrations/20261029000009_synced_patterns.sql`)** :
+  - Table `synced_patterns` : `id` (UUID), `slug` (identifiant unique URL-safe), `title` (libellé human-readable), `description`, `category` (`hero`, `layout`, `content`, `marketing`), `document` (`jsonb` conforme au schéma `rf.document/1`), `is_synced` (booléen), horodatages `created_at` et `updated_at`.
+  - Intégration dans `native_backup::TABLES` pour sauvegarde/restauration souveraine, avec tolérance rétro-compatible pour les instantanés `native-2`.
+- **Moteur de domaine & validation (`crates/rustforge-core/src/patterns.rs`, `document.rs`)** :
+  - CRUD sécurisé (`list`, `get_by_id`, `get_by_slug`, `create`, `update`, `delete`).
+  - Validation des slugs (caractères ASCII minuscules, chiffres, tirets et underscores), des titres (1-255 caractères sans contrôle), et validation systématique du document interne via projection test `document::project`.
+  - Extension du schéma de document : ajout du type de bloc `Kind::Pattern` (`"pattern"`) et du champ de référence `rf_ref: String`.
+  - Extension des styles de disposition pour les colonnes `Kind::Columns` : support des styles `"50-50"`, `"33-33-33"`, `"25-75"`, `"75-25"`, `"wide"`.
+  - Projection HTML sécurisée : les motifs synchronisés se projettent dans `<div class="rf-synced-pattern" data-pattern="{ref}" data-pattern-title="{title}">...</div>`, avec assainissement Ammonia complet et préservation sécurisée des attributs `data-pattern*`.
+- **API REST d'administration (`crates/rustforge-api/src/routes/patterns.rs`)** :
+  - `GET /api/v1/patterns` : liste filtrable par catégorie et slug.
+  - `GET /api/v1/patterns/{id}` : détail d'un motif par UUID.
+  - `POST /api/v1/patterns` : création d'un motif réservée aux rédacteurs (`can_write`), invalidation atomique du cache SSR (`ssr.invalidate_all()`).
+  - `PUT /api/v1/patterns/{id}` : mise à jour globale d'un motif avec validation du schéma et invalidation du cache de rendu SSR.
+  - `DELETE /api/v1/patterns/{id}` : suppression avec invalidation de cache.
+- **Studio d'administration (`admin/src/editor/`, `admin/src/components/NativeBlockEditor.tsx`)** :
+  - `admin/src/editor/patterns.ts` : fonctions `createPatternBlock`, `insertSyncedPatternAfter`, et `detachPatternBlock` permettant le détachement réversible d'un motif synchronisé en blocs ordinaires indépendants sans perte de contenu.
+  - `NativeBlockEditor.tsx` : tiroir des motifs enrichi avec onglet double ("Modèles prédéfinis" vs "Motifs synchronisés"), bouton d'insertion en 1 clic synchronisé ou détaché, action "✦ Motif" sur chaque bloc pour créer un motif partagé directement, badge violet clair sur les blocs synchronisés, et sélecteur de disposition de colonnes ("Équilibré", "Trois colonnes", "Barre latérale gauche", "Barre latérale droite", "Pleine largeur").
+  - Internationalisation française complète dans `admin/src/i18n/messages.fr.ts`.
+
+### Validation et preuves
+
+- **82 tests unitaires Rust** (17 API, 63 core dont tests dédiés `patterns` et `document` avec motifs synchronisés et styles de colonnes, 2 plugins).
+- **Clippy strict** (`cargo clippy --workspace --all-targets -- -D warnings`) : 0 avertissement.
+- **Contrôles qualité Studio** :
+  - `npm run lint` (`oxlint`) : 0 erreur, 0 avertissement.
+  - `npm run build` (`tsc -b && vite build`) : succès.
+- **Pilotage & documentation** :
+  - `WP-34` validé dans `docs/pilotage/01_COEUR_ADMIN.csv`.
+  - `py scripts/pilotage.py` : 434 tâches, 38 composants cohérents.
+  - `py scripts/verifier-documentation.py` : 37 documents, 1 504 liens, 0 erreur.
+
+### Prochaine étape
+
+Passage à l'**Option C** : clôture fine des sous-options de discussion (`WP-83`, `WP-84`, `WP-87` : consentement de mémorisation des coordonnées visiteurs, avatars locaux et options de modération/notification avancées).
+
 ## 29 octobre 2026 — M1-F : qualification des pannes, sémantique at-least-once, purge RGPD des captures et invalidation multi-instances
 
 **Point de reprise le plus récent.** Sous-lot M1-F livré et qualifié, clôturant le grand jalon **M1** (`WP-85`, `WP-108`). Qualification exhaustive des conditions de pannes post-acceptation distante, isolation des workers zombies, bascule vers l'échec définitif (`lease_exhausted`), purge/rétention RGPD des captures locales, et invalidation inter-instances du cache SSR par trigger SQL sur les commentaires.

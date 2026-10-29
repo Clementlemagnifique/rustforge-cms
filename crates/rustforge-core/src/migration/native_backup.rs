@@ -40,6 +40,7 @@ pub const TABLES: &[&str] = &[
     "import_origins",
     "ai_action_plans",
     "rf_jobs",
+    "synced_patterns",
 ];
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +82,7 @@ pub async fn dump(pool: &PgPool) -> CoreResult<NativeSnapshot> {
 impl NativeSnapshot {
     pub fn validate(&self) -> CoreResult<()> {
         let legacy = self.format == "rustforge-native-2";
-        let expected: Vec<_> = TABLES.iter().copied().filter(|t| !legacy || *t != "rf_jobs").collect();
+        let expected: Vec<_> = TABLES.iter().copied().filter(|t| !legacy || (*t != "rf_jobs" && *t != "synced_patterns")).collect();
         if (!legacy && self.format != "rustforge-native-3")
             || self.tables.len() != expected.len()
             || expected.iter().any(|t| !self.tables.contains_key(*t))

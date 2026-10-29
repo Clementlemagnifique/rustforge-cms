@@ -505,4 +505,42 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  patterns: {
+    list: (category?: string) =>
+      request<import('./editor/patterns').SyncedPattern[]>(
+        category ? `/patterns?category=${encodeURIComponent(category)}` : '/patterns'
+      ),
+    get: (id: string) => request<import('./editor/patterns').SyncedPattern>(`/patterns/${id}`),
+    create: (data: {
+      slug?: string;
+      title: string;
+      description?: string;
+      category?: string;
+      document: unknown;
+      is_synced?: boolean;
+    }) =>
+      request<import('./editor/patterns').SyncedPattern>('/patterns', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (
+      id: string,
+      data: {
+        title?: string;
+        description?: string;
+        category?: string;
+        document?: unknown;
+        is_synced?: boolean;
+      }
+    ) =>
+      request<import('./editor/patterns').SyncedPattern>(`/patterns/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/patterns/${id}`, {
+        method: 'DELETE',
+      }),
+  },
 };
