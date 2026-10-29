@@ -7,6 +7,10 @@ export const BLOCK_TYPES = [
   'list',
   'divider',
   'image',
+  'gallery',
+  'video',
+  'audio',
+  'file',
   'button',
   'callout',
   'details',
@@ -86,6 +90,23 @@ export function newBlock(kind: BlockKind): NativeBlock {
     base.rf_ref = '';
     base.rf_url = '';
     base.rf_alt = 'Accéder à la formation';
+  } else if (kind === 'gallery') {
+    base.rf_style = 'grid-3';
+    base.rf_items = ['/uploads/photo1.webp', '/uploads/photo2.webp', '/uploads/photo3.webp'];
+    base.rf_caption = 'Galerie d’images';
+  } else if (kind === 'video') {
+    base.rf_url = '/uploads/video.mp4';
+    base.rf_alt = '';
+    base.rf_caption = 'Légende de la vidéo';
+    base.rf_style = 'standard';
+  } else if (kind === 'audio') {
+    base.rf_url = '/uploads/audio.mp3';
+    base.rf_caption = 'Titre du morceau audio';
+  } else if (kind === 'file') {
+    base.rf_url = '/uploads/document.pdf';
+    base.rf_text = 'Document à télécharger';
+    base.rf_caption = 'PDF • 2,4 Mo';
+    base.rf_alt = 'Télécharger';
   }
   return base;
 }

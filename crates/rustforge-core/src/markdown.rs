@@ -54,10 +54,42 @@ pub fn render(markdown: &str) -> String {
             "aria-hidden",
             "data-product-id",
             "data-course-id",
+            "data-gallery",
+            "data-poster",
         ])
-        .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
+        .add_tags([
+            "input",
+            "details",
+            "summary",
+            "div",
+            "span",
+            "figure",
+            "figcaption",
+            "video",
+            "audio",
+            "source",
+            "track",
+        ])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
         .add_tag_attributes("details", ["open"])
+        .add_tag_attributes(
+            "video",
+            [
+                "src",
+                "controls",
+                "preload",
+                "poster",
+                "width",
+                "height",
+                "loop",
+                "muted",
+                "playsinline",
+            ],
+        )
+        .add_tag_attributes("audio", ["src", "controls", "preload", "loop", "muted"])
+        .add_tag_attributes("source", ["src", "type"])
+        .add_tag_attributes("track", ["src", "kind", "srclang", "label", "default"])
+        .add_tag_attributes("a", ["download"])
         .add_tag_attributes(
             "img",
             [

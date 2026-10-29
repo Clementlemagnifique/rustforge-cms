@@ -88,6 +88,10 @@ enum Kind {
     Group,
     Product,
     Course,
+    Gallery,
+    Video,
+    Audio,
+    File,
 }
 
 fn validate_safe_url(raw: &str, image_only: bool) -> CoreResult<&str> {
@@ -139,6 +143,16 @@ fn literal(text: &str) -> String {
         }
     }
     output
+}
+
+fn unescape_literal(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("\\-", "-")
+        .replace("\\.", ".")
+        .replace("\\*", "*")
+        .replace("\\_", "_")
 }
 
 fn safe_rich_text(text: &str) -> String {
@@ -206,25 +220,49 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
             return Err(CoreError::validation("Contenu de bloc trop volumineux"));
         }
         let text = literal(&block.rf_text);
-        if (!matches!(block.rf_type, Kind::List | Kind::Columns | Kind::Pattern | Kind::Table)
+        if (!matches!(block.rf_type, Kind::List | Kind::Columns | Kind::Pattern | Kind::Table | Kind::Gallery)
             && (!block.rf_items.is_empty() || block.rf_ordered))
-            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns | Kind::Spacer)
+            || (matches!(block.rf_type, Kind::List | Kind::Divider | Kind::Image | Kind::Columns | Kind::Spacer | Kind::Gallery | Kind::Video | Kind::Audio)
                 && !block.rf_text.is_empty())
             || (!matches!(block.rf_type, Kind::Heading) && block.rf_level != 2)
-            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover | Kind::Product | Kind::Course)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Button | Kind::MediaText | Kind::Cover | Kind::Product | Kind::Course | Kind::Video | Kind::Audio | Kind::File)
                 && !block.rf_url.is_empty())
-            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table | Kind::Product | Kind::Course)
+            || (!matches!(block.rf_type, Kind::Image | Kind::Details | Kind::MediaText | Kind::Pattern | Kind::Quote | Kind::Cover | Kind::Table | Kind::Product | Kind::Course | Kind::Gallery | Kind::Video | Kind::Audio | Kind::File)
                 && (!block.rf_alt.is_empty()
                     || !block.rf_caption.is_empty()
                     || block.rf_media_id.is_some()))
-            || (matches!(block.rf_type, Kind::Quote | Kind::Table)
+            || (matches!(block.rf_type, Kind::Quote | Kind::Table | Kind::Audio)
                 && (!block.rf_alt.is_empty() || block.rf_media_id.is_some()))
-            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group | Kind::Product | Kind::Course)
+            || (!matches!(block.rf_type, Kind::Callout | Kind::MediaText | Kind::Columns | Kind::Pattern | Kind::Button | Kind::Spacer | Kind::Cover | Kind::Group | Kind::Product | Kind::Course | Kind::Gallery | Kind::Video)
                 && !block.rf_style.is_empty())
             || (!matches!(block.rf_type, Kind::Pattern | Kind::Product | Kind::Course) && !block.rf_ref.is_empty())
         {
             return Err(CoreError::validation(
                 "Données incompatibles avec le type du bloc",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::Gallery) && (block.rf_items.is_empty() || block.rf_items.len() > 32) {
+            return Err(CoreError::validation(
+                "Une galerie doit comporter entre 1 et 32 images",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::Video) && block.rf_url.trim().is_empty() {
+            return Err(CoreError::validation(
+                "Le bloc vidéo requiert une URL de fichier vidéo",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::Audio) && block.rf_url.trim().is_empty() {
+            return Err(CoreError::validation(
+                "Le bloc audio requiert une URL de fichier audio",
+            ));
+        }
+
+        if matches!(block.rf_type, Kind::File) && (block.rf_url.trim().is_empty() || block.rf_text.trim().is_empty()) {
+            return Err(CoreError::validation(
+                "Le bloc fichier requiert un nom et une URL de téléchargement",
             ));
         }
 
@@ -533,6 +571,75 @@ pub fn project(body: &str, blocks: &Value) -> CoreResult<(String, String)> {
                 let course_id = block.rf_ref.trim().replace('"', "&quot;");
                 format!(
                     "<div class=\"rf-course-card rf-course-{style}\" data-course-id=\"{course_id}\"><div class=\"rf-course-details\"><h3 class=\"rf-course-title\">{title}</h3><div class=\"rf-course-meta\">{meta}</div></div><a href=\"{url}\" class=\"rf-btn rf-btn-primary\">{btn_label}</a></div>"
+                )
+            }
+            Kind::Gallery => {
+                let cols = match block.rf_style.as_str() {
+                    "grid-2" | "cols-2" => 2,
+                    "grid-4" | "cols-4" => 4,
+                    "grid-6" | "cols-6" => 6,
+                    _ => 3,
+                };
+                let mut img_tags = Vec::new();
+                for url in &block.rf_items {
+                    let safe_u = validate_safe_url(url, true)?;
+                    img_tags.push(format!(
+                        "<img src=\"{safe_u}\" alt=\"\" loading=\"lazy\" decoding=\"async\" class=\"rf-gallery-item\" />"
+                    ));
+                }
+                let caption_html = if block.rf_caption.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("<figcaption class=\"rf-gallery-caption\">{}</figcaption>", literal(block.rf_caption.trim()))
+                };
+                format!(
+                    "<figure class=\"rf-gallery rf-gallery-cols-{cols}\" data-gallery=\"true\"><div class=\"rf-gallery-grid\">{}</div>{caption_html}</figure>",
+                    img_tags.join("")
+                )
+            }
+            Kind::Video => {
+                let safe_url = validate_safe_url(&block.rf_url, false)?;
+                let poster_attr = if block.rf_alt.trim().is_empty() {
+                    String::new()
+                } else {
+                    let safe_p = validate_safe_url(block.rf_alt.trim(), true)?;
+                    format!(" poster=\"{safe_p}\"")
+                };
+                let caption_html = if block.rf_caption.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("<figcaption class=\"rf-video-caption\">{}</figcaption>", literal(block.rf_caption.trim()))
+                };
+                format!(
+                    "<figure class=\"rf-video\"><video src=\"{safe_url}\" controls preload=\"metadata\"{poster_attr} class=\"rf-video-player\"></video>{caption_html}</figure>"
+                )
+            }
+            Kind::Audio => {
+                let safe_url = validate_safe_url(&block.rf_url, false)?;
+                let caption_html = if block.rf_caption.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("<figcaption class=\"rf-audio-caption\">{}</figcaption>", literal(block.rf_caption.trim()))
+                };
+                format!(
+                    "<figure class=\"rf-audio\"><audio src=\"{safe_url}\" controls preload=\"metadata\" class=\"rf-audio-player\"></audio>{caption_html}</figure>"
+                )
+            }
+            Kind::File => {
+                let safe_url = validate_safe_url(&block.rf_url, false)?;
+                let title = literal(block.rf_text.trim());
+                let meta = if block.rf_caption.trim().is_empty() {
+                    String::new()
+                } else {
+                    literal(block.rf_caption.trim())
+                };
+                let btn_label = if block.rf_alt.trim().is_empty() {
+                    "Télécharger"
+                } else {
+                    block.rf_alt.trim()
+                };
+                format!(
+                    "<div class=\"rf-file-card\"><div class=\"rf-file-details\"><span class=\"rf-file-icon\" aria-hidden=\"true\">📄</span><div class=\"rf-file-info\"><strong class=\"rf-file-title\">{title}</strong><span class=\"rf-file-meta\">{meta}</span></div></div><a href=\"{safe_url}\" download class=\"rf-btn rf-btn-outline\">{btn_label}</a></div>"
                 )
             }
         });
@@ -1019,7 +1126,141 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
             continue;
         }
 
-        // 15. Paragraphe
+        // 15. Galerie (<figure class="rf-gallery...")
+        if trimmed.starts_with("<figure class=\"rf-gallery") {
+            let style = if trimmed.contains("rf-gallery-cols-2") {
+                "grid-2".to_string()
+            } else if trimmed.contains("rf-gallery-cols-4") {
+                "grid-4".to_string()
+            } else if trimmed.contains("rf-gallery-cols-6") {
+                "grid-6".to_string()
+            } else {
+                "grid-3".to_string()
+            };
+            let mut items = Vec::new();
+            let mut search_pos = 0;
+            while let Some(src_pos) = trimmed[search_pos..].find("<img src=\"") {
+                let actual_start = search_pos + src_pos + 10;
+                if let Some(src_end) = trimmed[actual_start..].find('"') {
+                    let u = &trimmed[actual_start..actual_start + src_end];
+                    items.push(u.to_string());
+                    search_pos = actual_start + src_end;
+                } else {
+                    break;
+                }
+            }
+            let caption = if let Some(c_start) = trimmed.find("<figcaption class=\"rf-gallery-caption\">") {
+                let rest = &trimmed[c_start + 39..];
+                unescape_literal(rest.split('<').next().unwrap_or(""))
+            } else {
+                String::new()
+            };
+            if !items.is_empty() {
+                let mut b = Block::new(next_id()?, Kind::Gallery);
+                b.rf_style = style;
+                b.rf_items = items;
+                b.rf_caption = caption;
+                blocks.push(b);
+                idx += 1;
+                continue;
+            }
+        }
+
+        // 16. Vidéo (<figure class="rf-video...")
+        if trimmed.starts_with("<figure class=\"rf-video") {
+            let url = if let Some(src_pos) = trimmed.find("<video src=\"") {
+                let sub = &trimmed[src_pos + 12..];
+                sub.split('"').next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+            let poster = if let Some(pos_poster) = trimmed.find("poster=\"") {
+                let sub = &trimmed[pos_poster + 8..];
+                sub.split('"').next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+            let caption = if let Some(c_start) = trimmed.find("<figcaption class=\"rf-video-caption\">") {
+                let rest = &trimmed[c_start + 37..];
+                unescape_literal(rest.split('<').next().unwrap_or(""))
+            } else {
+                String::new()
+            };
+            if !url.is_empty() {
+                let mut b = Block::new(next_id()?, Kind::Video);
+                b.rf_url = url;
+                b.rf_alt = poster;
+                b.rf_caption = caption;
+                blocks.push(b);
+                idx += 1;
+                continue;
+            }
+        }
+
+        // 17. Audio (<figure class="rf-audio...")
+        if trimmed.starts_with("<figure class=\"rf-audio") {
+            let url = if let Some(src_pos) = trimmed.find("<audio src=\"") {
+                let sub = &trimmed[src_pos + 12..];
+                sub.split('"').next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+            let caption = if let Some(c_start) = trimmed.find("<figcaption class=\"rf-audio-caption\">") {
+                let rest = &trimmed[c_start + 37..];
+                unescape_literal(rest.split('<').next().unwrap_or(""))
+            } else {
+                String::new()
+            };
+            if !url.is_empty() {
+                let mut b = Block::new(next_id()?, Kind::Audio);
+                b.rf_url = url;
+                b.rf_caption = caption;
+                blocks.push(b);
+                idx += 1;
+                continue;
+            }
+        }
+
+        // 18. Fichier (<div class="rf-file-card...")
+        if trimmed.starts_with("<div class=\"rf-file-card") {
+            let title = if let Some(pos) = trimmed.find("rf-file-title\">") {
+                let sub = &trimmed[pos + 15..];
+                unescape_literal(sub.split('<').next().unwrap_or(""))
+            } else {
+                String::new()
+            };
+            let meta = if let Some(pos) = trimmed.find("rf-file-meta\">") {
+                let sub = &trimmed[pos + 14..];
+                unescape_literal(sub.split('<').next().unwrap_or(""))
+            } else {
+                String::new()
+            };
+            let (url, btn_label) = if let Some(pos) = trimmed.find("<a href=\"") {
+                let sub = &trimmed[pos + 9..];
+                let u = sub.split('"').next().unwrap_or("").to_string();
+                let label = if let Some(lpos) = sub.find('>') {
+                    let lsub = &sub[lpos + 1..];
+                    unescape_literal(lsub.split('<').next().unwrap_or(""))
+                } else {
+                    "Télécharger".to_string()
+                };
+                (u, label)
+            } else {
+                (String::new(), "Télécharger".to_string())
+            };
+            if !url.is_empty() && !title.is_empty() {
+                let mut b = Block::new(next_id()?, Kind::File);
+                b.rf_text = title;
+                b.rf_caption = meta;
+                b.rf_url = url;
+                b.rf_alt = btn_label;
+                blocks.push(b);
+                idx += 1;
+                continue;
+            }
+        }
+
+        // 19. Paragraphe
         let mut para_lines = Vec::new();
         while idx < lines.len() {
             let t = lines[idx].trim();
@@ -1033,6 +1274,7 @@ pub fn from_markdown(markdown: &str) -> CoreResult<Value> {
                 || t.starts_with("+ ")
                 || (t.starts_with('|') && t.ends_with('|'))
                 || t.starts_with("<div class=\"rf-")
+                || t.starts_with("<figure class=\"rf-")
                 || (t.chars().take_while(|&c| c == '#').count() >= 1
                     && t.chars().take_while(|&c| c == '#').count() <= 6
                     && t[t.chars().take_while(|&c| c == '#').count()..].starts_with(' '))
@@ -1453,5 +1695,110 @@ mod tests {
         assert_eq!(blocks[0]["rf_ref"], "course-uuid-4567");
         assert_eq!(blocks[0]["rf_alt"], "Commencer le cours");
         assert_eq!(blocks[0]["rf_style"], "card");
+    }
+
+    #[test]
+    fn test_multimedia_blocks() {
+        // 1. Gallery
+        let gallery_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"g1",
+                "rf_type":"gallery",
+                "rf_text":"",
+                "rf_caption":"Photos du sommet",
+                "rf_items":["/uploads/photo1.webp", "/uploads/photo2.webp", "/uploads/photo3.webp"],
+                "rf_style":"grid-3"
+            }
+        ]});
+        let (body, html) = project("", &gallery_doc).unwrap();
+        assert!(body.contains("rf-gallery rf-gallery-cols-3"));
+        assert!(body.contains("/uploads/photo1.webp"));
+        assert!(body.contains("Photos du sommet"));
+        assert!(html.contains("rf-gallery-grid"));
+        assert!(html.contains("loading=\"lazy\""));
+
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "gallery");
+        assert_eq!(blocks[0]["rf_items"].as_array().unwrap().len(), 3);
+        assert_eq!(blocks[0]["rf_caption"], "Photos du sommet");
+
+        // 2. Video
+        let video_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"v1",
+                "rf_type":"video",
+                "rf_text":"",
+                "rf_url":"/uploads/video.mp4",
+                "rf_alt":"/uploads/poster.webp",
+                "rf_caption":"Démonstration en direct"
+            }
+        ]});
+        let (body, html) = project("", &video_doc).unwrap();
+        assert!(body.contains("<video src=\"/uploads/video.mp4\""));
+        assert!(body.contains("poster=\"/uploads/poster.webp\""));
+        assert!(body.contains("Démonstration en direct"));
+        assert!(html.contains("<video src=\"/uploads/video.mp4\""));
+
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "video");
+        assert_eq!(blocks[0]["rf_url"], "/uploads/video.mp4");
+        assert_eq!(blocks[0]["rf_alt"], "/uploads/poster.webp");
+        assert_eq!(blocks[0]["rf_caption"], "Démonstration en direct");
+
+        // 3. Audio
+        let audio_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"a1",
+                "rf_type":"audio",
+                "rf_text":"",
+                "rf_url":"/uploads/podcast.mp3",
+                "rf_caption":"Épisode 12 - Souveraineté logicielle"
+            }
+        ]});
+        let (body, html) = project("", &audio_doc).unwrap();
+        assert!(body.contains("<audio src=\"/uploads/podcast.mp3\""));
+        assert!(body.contains("Épisode 12"));
+        assert!(html.contains("<audio src=\"/uploads/podcast.mp3\""));
+
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "audio");
+        assert_eq!(blocks[0]["rf_url"], "/uploads/podcast.mp3");
+        assert_eq!(blocks[0]["rf_caption"], "Épisode 12 - Souveraineté logicielle");
+
+        // 4. File
+        let file_doc = json!({"rf_schema":SCHEMA,"rf_blocks":[
+            {
+                "rf_id":"f1",
+                "rf_type":"file",
+                "rf_text":"Spécification Technique v2",
+                "rf_url":"/uploads/spec-v2.pdf",
+                "rf_caption":"PDF • 1.8 Mo",
+                "rf_alt":"Télécharger le document"
+            }
+        ]});
+        let (body, html) = project("", &file_doc).unwrap();
+        assert!(body.contains("rf-file-card"));
+        assert!(body.contains("Spécification Technique v2"));
+        assert!(body.contains("PDF"));
+        assert!(body.contains("1\\.8 Mo"));
+        assert!(body.contains("Télécharger le document"));
+        assert!(body.contains("href=\"/uploads/spec-v2.pdf\" download"));
+        assert!(html.contains("rf-file-card"));
+        assert!(html.contains("download"));
+
+        let parsed = from_markdown(&body).unwrap();
+        let blocks = parsed["rf_blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["rf_type"], "file");
+        assert_eq!(blocks[0]["rf_text"], "Spécification Technique v2");
+        assert_eq!(blocks[0]["rf_url"], "/uploads/spec-v2.pdf");
+        assert_eq!(blocks[0]["rf_caption"], "PDF • 1.8 Mo");
+        assert_eq!(blocks[0]["rf_alt"], "Télécharger le document");
     }
 }

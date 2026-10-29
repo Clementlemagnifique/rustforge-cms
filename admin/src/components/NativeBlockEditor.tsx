@@ -362,6 +362,14 @@ export function NativeBlockEditor({
                     ? `🛒 ${b.rf_text || 'Produit'} (${b.rf_caption || '0,00 €'})`
                     : b.rf_type === 'course'
                     ? `🎓 ${b.rf_text || 'Formation'} (${b.rf_caption || 'Cours'})`
+                    : b.rf_type === 'gallery'
+                    ? `🖼️ Galerie (${b.rf_items?.length || 0} photos)`
+                    : b.rf_type === 'video'
+                    ? `🎬 Vidéo (${b.rf_caption || b.rf_url?.split('/').pop() || 'Vidéo'})`
+                    : b.rf_type === 'audio'
+                    ? `🎵 Audio (${b.rf_caption || b.rf_url?.split('/').pop() || 'Audio'})`
+                    : b.rf_type === 'file'
+                    ? `📎 Fichier (${b.rf_text || 'Document'})`
                     : b.rf_text;
                 return (
                   <li
@@ -1306,6 +1314,188 @@ export function NativeBlockEditor({
                   </div>
                   <span className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white shadow shrink-0">
                     {block.rf_alt || 'Accéder à la formation'}
+                  </span>
+                </div>
+              </div>
+            ) : block.rf_type === 'gallery' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.galleryCols} :</label>
+                    <select
+                      value={block.rf_style || 'grid-3'}
+                      onChange={e => edit(block.rf_id, { rf_style: e.target.value })}
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    >
+                      <option value="grid-2">{text.galleryCols2}</option>
+                      <option value="grid-3">{text.galleryCols3}</option>
+                      <option value="grid-4">{text.galleryCols4}</option>
+                      <option value="grid-6">{text.galleryCols6}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.galleryCaption} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_caption || ''}
+                      onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                      placeholder="Légende de la galerie"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.galleryItems} :</label>
+                  <textarea
+                    rows={4}
+                    value={block.rf_items ? block.rf_items.join('\n') : ''}
+                    onChange={e => {
+                      const lines = e.target.value.split('\n').map(l => l.trim()).filter(Boolean);
+                      edit(block.rf_id, { rf_items: lines });
+                    }}
+                    placeholder="/uploads/photo1.webp&#10;/uploads/photo2.webp&#10;/uploads/photo3.webp"
+                    className="w-full rounded bg-slate-800 border border-white/10 p-2 text-xs text-white font-mono"
+                  />
+                </div>
+                {block.rf_items && block.rf_items.length > 0 && (
+                  <div className={`grid gap-2 p-3 rounded-lg bg-black/40 border border-white/10 ${
+                    block.rf_style === 'grid-2' ? 'grid-cols-2' :
+                    block.rf_style === 'grid-4' ? 'grid-cols-4' :
+                    block.rf_style === 'grid-6' ? 'grid-cols-6' : 'grid-cols-3'
+                  }`}>
+                    {block.rf_items.map((url, i) => (
+                      <div key={i} className="relative aspect-video rounded overflow-hidden bg-slate-900 border border-white/5">
+                        <img src={url} alt="" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLElement).style.display = 'none'; }} />
+                        <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/70 text-[9px] text-slate-300 font-mono">#{i + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : block.rf_type === 'video' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.videoUrl} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_url || ''}
+                      onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                      placeholder="/uploads/video.mp4 ou https://..."
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.videoPoster} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_alt || ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="/uploads/affiche.webp"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.videoCaption} :</label>
+                  <input
+                    type="text"
+                    value={block.rf_caption || ''}
+                    onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                    placeholder="Légende explicative de la vidéo"
+                    className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  />
+                </div>
+                {block.rf_url && (
+                  <div className="rounded-lg overflow-hidden border border-white/10 bg-black">
+                    <video src={block.rf_url} poster={block.rf_alt || undefined} controls className="w-full max-h-48 object-contain" />
+                  </div>
+                )}
+              </div>
+            ) : block.rf_type === 'audio' ? (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.audioUrl} :</label>
+                  <input
+                    type="text"
+                    value={block.rf_url || ''}
+                    onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                    placeholder="/uploads/morceau.mp3"
+                    className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">{text.audioCaption} :</label>
+                  <input
+                    type="text"
+                    value={block.rf_caption || ''}
+                    onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                    placeholder="Titre du podcast ou de la piste audio"
+                    className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                  />
+                </div>
+                {block.rf_url && (
+                  <div className="p-3 rounded-lg bg-black/40 border border-white/10">
+                    <audio src={block.rf_url} controls className="w-full h-8" />
+                  </div>
+                )}
+              </div>
+            ) : block.rf_type === 'file' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.fileName} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_text || ''}
+                      onChange={e => edit(block.rf_id, { rf_text: e.target.value })}
+                      placeholder="Documentation Technique PDF"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.fileMeta} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_caption || ''}
+                      onChange={e => edit(block.rf_id, { rf_caption: e.target.value })}
+                      placeholder="PDF • 2,4 Mo"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.fileUrl} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_url || ''}
+                      onChange={e => edit(block.rf_id, { rf_url: e.target.value })}
+                      placeholder="/uploads/documents/spec.pdf"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">{text.fileButtonText} :</label>
+                    <input
+                      type="text"
+                      value={block.rf_alt || ''}
+                      onChange={e => edit(block.rf_id, { rf_alt: e.target.value })}
+                      placeholder="Télécharger"
+                      className="w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-xl">📄</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-white text-xs truncate">{block.rf_text || 'Fichier sans nom'}</p>
+                      <p className="text-slate-400 text-[11px] font-mono mt-0.5">{block.rf_caption || '0 Ko'}</p>
+                    </div>
+                  </div>
+                  <span className="rounded border border-indigo-400/40 px-3 py-1 text-[11px] font-medium text-indigo-200 shrink-0">
+                    {block.rf_alt || 'Télécharger'}
                   </span>
                 </div>
               </div>

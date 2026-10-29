@@ -1038,6 +1038,32 @@ Livrables et validations :
   - Frontend : Oxlint 0 avertissement / 0 erreur, Vite build réussi en 495ms (`dist/assets/index-*.js`).
   - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
 
+## 29 octobre 2026 — Phase 6 : Organisation des Médias (MOD-MED-01, 02) et Blocs Multimédia Cœur (WP-B035, WP-B114, WP-B006, WP-B032)
+
+Demande : Validation complète de l'organisation des médias en dossiers virtuels (inspiration FileBird Pro) et enrichissement du moteur de document `rf.document/1` et du Studio d'administration avec la palette complète des blocs multimédias souverains (`gallery`, `video`, `audio`, `file`), avec assainissement Ammonia, intégration responsive sans dépendance JS externe et roundtrip Markdown déterministe.
+
+Livrables et validations :
+- **Organisation des dossiers médias (`MOD-MED-01`, `MOD-MED-02`)** :
+  - Qualification et validation de l'arborescence virtuelle dans `crates/rustforge-core/src/media.rs:243` et routes `crates/rustforge-api/src/routes/media.rs:36` (`list_folders`, `create_folder`, `delete_folder`, upload avec `folder_id`).
+  - Interface Studio dans `admin/src/components/MediaView.tsx:237` et `611` : panneau latéral de navigation par dossier, filtrage instantané, création/suppression de dossiers et affectation de médias via l'inspecteur.
+- **Blocs Multimédia Cœur dans `rf.document/1` (`WP-B035`, `WP-B114`, `WP-B006`, `WP-B032`)** :
+  - `Kind::Gallery` (`"gallery"` / `WP-B035`) : Grille de 1 à 32 photos, sélection de colonnes (2, 3, 4, 6), projection responsive `.rf-gallery-grid`, `loading="lazy"` et `decoding="async"` automatiques.
+  - `Kind::Video` (`"video"` / `WP-B114`) : Lecteur vidéo natif HTML5 avec contrôles, préchargement de métadonnées, image de couverture optionnelle (`poster`) et légende assainie.
+  - `Kind::Audio` (`"audio"` / `WP-B006`) : Lecteur audio souverain avec méta-titre et contrôles natifs.
+  - `Kind::File` (`"file"` / `WP-B032`) : Carte de téléchargement de document PDF / Archive avec taille, type MIME et bouton d'action `download`.
+  - Assainissement Ammonia dans `crates/rustforge-core/src/markdown.rs` étendu aux balises `video`, `audio`, `source`, `track` et attributs sûrs (`controls`, `preload`, `poster`, `download`, `data-gallery`).
+  - Fonction `unescape_literal` assurant un aller-retour 100% sans perte entre Markdown et blocs typés.
+  - Test unitaire dédié `test_multimedia_blocks` validé dans `document.rs`.
+- **Interface Studio (`NativeBlockEditor.tsx`, `editor/document.ts`, `messages.fr.ts`)** :
+  - Blocs ajoutés à `BLOCK_TYPES` et au catalogue d'insertion.
+  - Inspecteur de blocs dédié avec aperçu dynamique en temps réel pour chaque média (grille de miniatures, lecteur vidéo interactif, lecteur audio, carte fichier).
+  - Outline / plan interactif enrichi (`🖼️ Galerie`, `🎬 Vidéo`, `🎵 Audio`, `📎 Fichier`).
+- **Vérifications qualité réussies** :
+  - Tests unitaires Rust : 75 tests `rustforge-core`, 19 tests `rustforge-api`, 2 tests `rustforge-plugins`, 2 tests `rustforge`, 3 tests de consolidation (101 tests réussis).
+  - Clippy strict : 0 avertissement sur tout l'espace de travail (`-D warnings`).
+  - Frontend : Oxlint 0 avertissement / 0 erreur, Vite build réussi en 557ms.
+  - Pilotage : `py scripts/pilotage.py --check` OK (434 tâches, 38 composants), `py scripts/verifier-documentation.py` OK (0 erreur).
+
 ## Modèle pour le prochain lot
 
 Copier une entrée avec : date; objectif; IDs des tâches; composants réutilisés; code et migrations modifiés; critères exécutés et résultats; preuves; écarts ouverts; décision de passage; prochain geste précis. Conserver les limites et les opérations non testées.
