@@ -49,6 +49,43 @@ pub struct CommentCounts {
     pub trash: i64,
 }
 
+/// Contrat public partagé entre API et rendu : aucune donnée privée de réglage.
+#[derive(Debug, Clone, Serialize)]
+pub struct DiscussionPolicy {
+    pub open: bool,
+    pub require_identity: bool,
+    pub require_registration: bool,
+    pub threaded: bool,
+    pub depth: usize,
+    pub newest_first: bool,
+    pub show_avatars: bool,
+    pub close_old: bool,
+    pub close_days: i64,
+}
+
+impl DiscussionPolicy {
+    pub fn from_settings(values: &std::collections::BTreeMap<String, serde_json::Value>) -> Self {
+        let flag = |key: &str, default| values.get(key).and_then(|v| v.as_bool()
+            .or_else(|| v.as_str().map(|s| s == "open"))).unwrap_or(default);
+        let number = |key: &str, default| values.get(key).and_then(|v| v.as_i64()).unwrap_or(default);
+        Self {
+            open: flag("discussion.default_comment_status", true),
+            require_identity: flag("discussion.require_name_email", true),
+            require_registration: flag("discussion.comment_registration", false),
+            threaded: flag("discussion.thread_comments", true),
+            depth: number("discussion.thread_comments_depth", 3).clamp(1, 5) as usize,
+            newest_first: values.get("discussion.comment_order").and_then(|v| v.as_str()) == Some("desc"),
+            show_avatars: flag("discussion.show_avatars", true),
+            close_old: flag("discussion.close_comments_for_old_posts", false),
+            close_days: number("discussion.close_comments_days", 14).max(0),
+        }
+    }
+    pub fn can_submit(&self, published_at: Option<DateTime<Utc>>) -> bool {
+        self.open && !(self.close_old && published_at.is_some_and(|date|
+            Utc::now() >= date + chrono::Duration::days(self.close_days.min(365000))))
+    }
+}
+
 /// Seuls les liens web absolus sont acceptés pour un auteur public.
 fn validated_author_url(raw: Option<&str>) -> CoreResult<Option<String>> {
     let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
@@ -177,7 +214,7 @@ pub async fn evaluate_comment_status(
     }
 
     // 2. Trop de liens -> modération
-    if count_links(content) >= max_links as usize {
+    if max_links > 0 && count_links(content) >= max_links as usize {
         return Ok(CommentStatus::Pending);
     }
 
@@ -193,6 +230,7 @@ pub async fn evaluate_comment_status(
 
     // 5. Approbation si commentaire précédent approuvé
     if require_previously_approved {
+        if author_email.is_empty() { return Ok(CommentStatus::Pending); }
         let has_approved: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM comments WHERE author_email = $1 AND status = 'approved')",
         )
@@ -212,16 +250,17 @@ pub async fn evaluate_comment_status(
 /// Crée un nouveau commentaire avec validation et formatage.
 pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreResult<Comment> {
     let author_url = validated_author_url(params.author_url.as_deref())?;
+    let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?);
     let name = params.author_name.trim();
     let email = params.author_email.trim();
     let content = params.content.trim();
 
-    if name.is_empty() || name.chars().count() > 100 {
+    if (policy.require_identity && name.is_empty()) || name.chars().count() > 100 {
         return Err(CoreError::validation(
             "Le nom de l'auteur est requis (max 100 caractères).",
         ));
     }
-    if email.is_empty() || email.chars().count() > 254 || !email.contains('@') {
+    if (policy.require_identity && email.is_empty()) || email.chars().count() > 254 || (!email.is_empty() && !email.contains('@')) {
         return Err(CoreError::validation("L'adresse e-mail est invalide."));
     }
     if content.is_empty() {
@@ -239,38 +278,30 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
     let entry = crate::entries::get_published_by_id(db, params.entry_id).await?;
     let published_at = entry.published_at;
 
-    // Vérifier si les commentaires sont fermés pour les anciens articles
-    let all_settings = crate::settings::all(db).await?;
-    let close_old = all_settings
-        .get("discussion.close_comments_for_old_posts")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let close_days = all_settings
-        .get("discussion.close_comments_days")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(14);
-
-    if close_old && let Some(pub_at) = published_at {
-        let age_days = (Utc::now() - pub_at).num_days();
-        if age_days > close_days {
-            return Err(CoreError::validation(
-                "Les commentaires sont fermés pour cet article ancien.",
-            ));
-        }
+    if !policy.can_submit(published_at) {
+        return Err(CoreError::validation("Les commentaires sont fermés pour cette publication."));
+    }
+    if policy.require_registration && params.author_id.is_none() {
+        return Err(CoreError::Forbidden);
+    }
+    let name = if name.is_empty() { "Visiteur" } else { name };
+    if params.parent_id.is_some() && !policy.threaded {
+        return Err(CoreError::validation("Les réponses imbriquées sont désactivées."));
     }
 
     // Vérifier le parent_id s'il est spécifié
     if let Some(pid) = params.parent_id {
-        let parent_exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM comments WHERE id = $1 AND entry_id = $2)",
-        )
-        .bind(pid)
-        .bind(params.entry_id)
-        .fetch_one(db)
-        .await?;
-
-        if !parent_exists {
-            return Err(CoreError::validation("Le commentaire parent est introuvable."));
+        let depth: Option<i32> = sqlx::query_scalar(
+            "WITH RECURSIVE ancestors AS (
+                SELECT id, parent_id, 1 AS depth FROM comments
+                WHERE id=$1 AND entry_id=$2 AND status='approved'
+                UNION ALL
+                SELECT c.id, c.parent_id, a.depth+1 FROM comments c
+                JOIN ancestors a ON c.id=a.parent_id WHERE a.depth < 6
+            ) SELECT max(depth) FROM ancestors")
+            .bind(pid).bind(params.entry_id).fetch_one(db).await?;
+        if depth.is_none_or(|depth| depth as usize >= policy.depth) {
+            return Err(CoreError::validation("Parent inaccessible ou profondeur maximale atteinte."));
         }
     }
 
@@ -564,6 +595,7 @@ pub async fn get_entry_approved_comments_tree(
     max_depth: usize,
 ) -> CoreResult<Vec<PublicCommentView>> {
     crate::entries::get_published_by_id(db, entry_id).await?;
+    let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?);
     #[derive(sqlx::FromRow)]
     struct FlatCommentNode {
         id: Uuid,
@@ -574,17 +606,34 @@ pub async fn get_entry_approved_comments_tree(
         created_at: DateTime<Utc>,
     }
 
-    let nodes: Vec<FlatCommentNode> = sqlx::query_as(
+    let mut nodes: Vec<FlatCommentNode> = sqlx::query_as(
         r#"
         SELECT id, parent_id, author_name, author_url, content_html, created_at
         FROM comments
         WHERE entry_id = $1 AND status = 'approved'
-        ORDER BY created_at ASC
+        ORDER BY created_at ASC, id ASC
         "#,
     )
     .bind(entry_id)
     .fetch_all(db)
     .await?;
+
+    if policy.newest_first { nodes.reverse(); }
+    let visible_depth = if policy.threaded { max_depth.clamp(1, 5).min(policy.depth) } else { 1 };
+    let parents: std::collections::HashMap<_, _> = nodes.iter().map(|n| (n.id, n.parent_id)).collect();
+    for node in &mut nodes {
+        let mut chain = Vec::new();
+        let mut parent = node.parent_id;
+        while let Some(id) = parent {
+            if chain.contains(&id) || chain.len() >= 64 { break; }
+            chain.push(id);
+            parent = parents.get(&id).copied().flatten();
+        }
+        if visible_depth == 1 { node.parent_id = None; }
+        else if chain.len() >= visible_depth {
+            node.parent_id = Some(chain[chain.len() - visible_depth + 1]);
+        }
+    }
 
     if nodes.is_empty() {
         return Ok(Vec::new());
@@ -617,7 +666,7 @@ pub async fn get_entry_approved_comments_tree(
         result
     }
 
-    Ok(build_subtree(None, &nodes, 1, max_depth.clamp(1, 5)))
+    Ok(build_subtree(None, &nodes, 1, visible_depth))
 }
 
 #[cfg(test)]
@@ -633,6 +682,22 @@ mod tests {
         assert!(formatted.contains("&amp;"));
         assert!(formatted.contains("&gt; 42"));
         assert!(formatted.contains("<p>"));
+    }
+
+    #[test]
+    fn discussion_policy_applies_switches_and_legacy_closed() {
+        let values = serde_json::from_value(serde_json::json!({
+            "discussion.default_comment_status":"closed",
+            "discussion.require_name_email":false,
+            "discussion.thread_comments_depth":999,
+            "discussion.comment_order":"desc", "discussion.show_avatars":false
+        })).unwrap();
+        let policy = DiscussionPolicy::from_settings(&values);
+        assert!(!policy.can_submit(Some(Utc::now())));
+        assert!(!policy.require_identity);
+        assert_eq!(policy.depth, 5);
+        assert!(policy.newest_first);
+        assert!(!policy.show_avatars);
     }
 
     #[test]

@@ -5,7 +5,8 @@
     "sha256": "bc32a5b10dcf7fb19aedf0b4d261d19f5b1795c28d8dce0c7add375d214655b3",
     "statut": "Preuve historique conservée",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "bc32a5b10dcf7fb19aedf0b4d261d19f5b1795c28d8dce0c7add375d214655b3"
   },
   {
     "path": "docs/CADRAGE_CONSOLIDATION_WORDPRESS.md",
@@ -13,7 +14,8 @@
     "sha256": "53e034181ded4042b4b5f410b09cac34854378782dec64a3b5acaaecd2b40c9f",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Demande de fidélité fonctionnelle au moins 95 %; reprise autorisée le 28 octobre, phase documentaire actuelle.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "53e034181ded4042b4b5f410b09cac34854378782dec64a3b5acaaecd2b40c9f"
   },
   {
     "path": "docs/CAPABILITY_INTELLIGENCE_SPEC.md",
@@ -21,7 +23,8 @@
     "sha256": "45404689b110ebf1f9950d2ff6af360b55b08ca4d876f57e042d19d3c7dd6caa",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Registre de capacités versionnées; réutiliser, composer, générer seulement en dernier recours.",
-    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md"
+    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md",
+    "sha256_lf": "45404689b110ebf1f9950d2ff6af360b55b08ca4d876f57e042d19d3c7dd6caa"
   },
   {
     "path": "docs/DEMARRAGE_ET_REPRISE.md",
@@ -29,7 +32,8 @@
     "sha256": "533a4a2fcf40b92d5b158bf337db524ac6423e8ba6ae71f520c4dd7c435ff667",
     "statut": "Guide actif actualisé",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "3d4b8389a7a927b9deb6f23610d138abfb2a55f4962d065969128d9f433d8a35"
   },
   {
     "path": "docs/FEUILLE_DE_ROUTE.md",
@@ -37,7 +41,8 @@
     "sha256": "8863712bed69b4174b70bf7ab854472692210f73bd2afe76ec2a3d3a67e722ca",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Anciennes phases reclassées selon code et preuves; les cases cochées ne valent pas validation.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "8863712bed69b4174b70bf7ab854472692210f73bd2afe76ec2a3d3a67e722ca"
   },
   {
     "path": "docs/FEUILLE_DE_ROUTE_APRES_CONSOLIDATION.md",
@@ -45,7 +50,8 @@
     "sha256": "dcae8bdd29601351b9cef966b4a4702c8b598e7f006f2dcef6c1edddfa905917",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Journal des corrections du lot précédent et limites de sécurité/conservation; historique utile, ancien ordre de priorités remplacé.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "25b67b26dab5c2cefe416bf5cfb0cb55913a8a26538ad79a2af983b2179b6385"
   },
   {
     "path": "docs/PITCH_RUSTFORGE_2027.md",
@@ -53,7 +59,8 @@
     "sha256": "93b6a901f8ed71480997e2d2abdbc72147af728db39be245bf3265d1f98a2639",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Simplicité, IA facultative, modularité et modernisation avec conservation des données.",
-    "reference": "docs/VISION_RUSTFORGE_CMS.md"
+    "reference": "docs/VISION_RUSTFORGE_CMS.md",
+    "sha256_lf": "93b6a901f8ed71480997e2d2abdbc72147af728db39be245bf3265d1f98a2639"
   },
   {
     "path": "docs/PITCH_TRUSTPRESS_2027.md",
@@ -61,7 +68,8 @@
     "sha256": "bbb2ad3cd6246289c7e9566cbfd22a168974dfd45e21d763b659598d3fd72a9d",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Vision initiale conservée historiquement; marque abandonnée et promesses à requalifier.",
-    "reference": "docs/VISION_RUSTFORGE_CMS.md"
+    "reference": "docs/VISION_RUSTFORGE_CMS.md",
+    "sha256_lf": "bbb2ad3cd6246289c7e9566cbfd22a168974dfd45e21d763b659598d3fd72a9d"
   },
   {
     "path": "docs/PLAN_DE_FINITION_V0.1.0.md",
@@ -69,7 +77,8 @@
     "sha256": "195b4213e2e5e34c30aa826084257ef0101d3e3bf7d937e1f31792ba2c405562",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Ancien objectif de finition remplacé par des portes de validation et une V1 testable.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "195b4213e2e5e34c30aa826084257ef0101d3e3bf7d937e1f31792ba2c405562"
   },
   {
     "path": "docs/PLAN_DE_TRANSITION_RUSTFORGE.md",
@@ -77,7 +86,8 @@
     "sha256": "5b63cabf76350c2903284aebd13d9021940344bbc5239148b0f1da3247ea9753",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Entrées historiques tolérées; noms natifs rf_; provenance et alias de lecture conservés.",
-    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md"
+    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md",
+    "sha256_lf": "5b63cabf76350c2903284aebd13d9021940344bbc5239148b0f1da3247ea9753"
   },
   {
     "path": "docs/REA_INTEGRATION_SPEC.md",
@@ -85,7 +95,8 @@
     "sha256": "f66d3f3b87c3ef020a79c25d9ae8239325548f3b5e7f0d0c6b7f28d94900566d",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Fournisseur d’investigation avancée: piste différée, ni dépendance ni preuve de fonctionnement.",
-    "reference": "docs/pilotage/00_PLAN_DIRECTEUR.md"
+    "reference": "docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "sha256_lf": "f66d3f3b87c3ef020a79c25d9ae8239325548f3b5e7f0d0c6b7f28d94900566d"
   },
   {
     "path": "docs/REVERSE_ENGINEERING_ET_REFERENCES.md",
@@ -93,7 +104,8 @@
     "sha256": "0d8147e4f6d46e21d6188adbf1c596c5fd12771003e90dd743b9be9286bcec90",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Mutualisation des fonctions des extensions; inventaire ancien remplacé: 17 extensions dans le nouveau dossier.",
-    "reference": "docs/pilotage/06_AUDIT_REFERENCES.md"
+    "reference": "docs/pilotage/06_AUDIT_REFERENCES.md",
+    "sha256_lf": "0d8147e4f6d46e21d6188adbf1c596c5fd12771003e90dd743b9be9286bcec90"
   },
   {
     "path": "docs/STRATEGIE_ET_ARCHITECTURE.md",
@@ -101,7 +113,8 @@
     "sha256": "6ed30e94b4a9a8277ec7d126b709bdf34820d28d5ffc222ceede1bfc169f567c",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Rust modulaire et SSR; les promesses non mesurées de vitesse, coût ou sécurité ne sont pas reprises.",
-    "reference": "docs/pilotage/00_PLAN_DIRECTEUR.md"
+    "reference": "docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "sha256_lf": "6ed30e94b4a9a8277ec7d126b709bdf34820d28d5ffc222ceede1bfc169f567c"
   },
   {
     "path": "docs/SUIVI_DES_TACHES_RUSTFORGE.md",
@@ -109,7 +122,8 @@
     "sha256": "94b567c1c5de48e3d5fdb756325e89a182f21cc781d67fef81429920210d1457",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Suivi remplacé par quatre matrices avec état réel et preuves datées.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "94b567c1c5de48e3d5fdb756325e89a182f21cc781d67fef81429920210d1457"
   },
   {
     "path": "docs/UNIVERSAL_CONVERTER_SPEC.md",
@@ -117,7 +131,8 @@
     "sha256": "dccf92bd000083ab3d87c463e29a8845779b1b7c54a5827c281463f80fd37342",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Analyse avant conversion; pivot RFIR; quatre stratégies et coffre des éléments non interprétés.",
-    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md"
+    "reference": "docs/pilotage/04_CONTRATS_TRANSVERSES.md",
+    "sha256_lf": "dccf92bd000083ab3d87c463e29a8845779b1b7c54a5827c281463f80fd37342"
   },
   {
     "path": "docs/V1_TESTABLE.md",
@@ -125,7 +140,8 @@
     "sha256": "1553dc5b0a60425658bc45293794fb173658b472c14b9babf33ee74521577c63",
     "statut": "Guide actif actualisé",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "1553dc5b0a60425658bc45293794fb173658b472c14b9babf33ee74521577c63"
   },
   {
     "path": "docs/VALIDATION_CONSOLIDATION_2026-10-27.md",
@@ -133,7 +149,8 @@
     "sha256": "cdc41a02b4ea21febad11fc12a3fe685c2ce457b386ef181e3ca686f242de83a",
     "statut": "Preuve historique conservée",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "cdc41a02b4ea21febad11fc12a3fe685c2ce457b386ef181e3ca686f242de83a"
   },
   {
     "path": "docs/VALIDATION_V1_2026-10-28.md",
@@ -141,7 +158,8 @@
     "sha256": "dfedfce61cc30e9a771c4e70d8eaac74c85c2683d9ff19b09dd220965a562a9f",
     "statut": "Preuve historique conservée",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "dfedfce61cc30e9a771c4e70d8eaac74c85c2683d9ff19b09dd220965a562a9f"
   },
   {
     "path": "README.md",
@@ -149,7 +167,8 @@
     "sha256": "c161161958c0022cddb29a70f88f447bea4a07ef82847200d4280fd431ef56df",
     "statut": "Guide actif actualisé",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "f081f599b0e7dbe17132e18a3c8d732285e512f4025f739e94ebc6e781675ee1"
   },
   {
     "path": "FEUILLE_DE_ROUTE.md",
@@ -157,7 +176,8 @@
     "sha256": "8863712bed69b4174b70bf7ab854472692210f73bd2afe76ec2a3d3a67e722ca",
     "statut": "Remplacé par entrée de redirection",
     "apport": "Anciennes phases reclassées selon code et preuves; les cases cochées ne valent pas validation.",
-    "reference": "docs/PLAN_ACTION_GLOBAL.md"
+    "reference": "docs/PLAN_ACTION_GLOBAL.md",
+    "sha256_lf": "8863712bed69b4174b70bf7ab854472692210f73bd2afe76ec2a3d3a67e722ca"
   },
   {
     "path": "SECURITY.md",
@@ -165,7 +185,8 @@
     "sha256": "afaaa773b112c4069e1391b9050967ea6d3fbd934d10d5f76e1ccb39a329285f",
     "statut": "Guide actif actualisé",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "27209897e41010ca93cd56f099e2163770e83127a29b3176f39225fbbcc49b80"
   },
   {
     "path": "admin/README.md",
@@ -173,6 +194,7 @@
     "sha256": "bf0db9d8d8c6c1a602d8ac27f2e15b988a108d5f83fe07fbecae0022beffcb23",
     "statut": "Guide actif actualisé",
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
-    "reference": "docs/README.md"
+    "reference": "docs/README.md",
+    "sha256_lf": "bf0db9d8d8c6c1a602d8ac27f2e15b988a108d5f83fe07fbecae0022beffcb23"
   }
 ]

@@ -1,5 +1,29 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Discussion effective (STAB-05A) et empreintes portables (STAB-09)
+
+**Point de reprise le plus récent.** Suite autorisée de la consolidation. Règles de Discussion partagées entre core, API publique et SSR via `DiscussionPolicy`. Aucun changement SQL ni dépendance ajoutée.
+
+### Livré et limites
+
+- Nom/email obligatoires ou facultatifs selon réglage ; identité manquante affichée « Visiteur », aucun email fictif généré. Un email vide ne bénéficie pas de la règle auteur préalablement approuvé. Seuil de liens 0 désactive ce critère antispam.
+- Inscription obligatoire : l'API accepte maintenant les Bearer valides via l'extracteur AuthUser existant, relit le compte et utilise son identité ; un nom fourni dans le payload ne peut pas usurper cette identité. Sans session : 401. Un en-tête de session invalide n'est pas dégradé en invité.
+- Fermeture globale et ancienneté appliquées côté service, y compris forme historique open/closed. Fermeture masquée dans SSR ; erreurs DB ne sont plus transformées en faux commentaires vides. **Limite temporelle** : le cache ne suit pas encore automatiquement l'échéance de fermeture par ancienneté ; le serveur de soumission applique toujours la règle, mais un formulaire déjà en cache peut rester visible jusqu'à invalidation. À intégrer avant validation WP-83.
+- Imbrication : réponses désactivables, parent approuvé de la même publication exigé, profondeur maximale contrôlée à l'écriture. Anciennes réponses réattachées au niveau visible plutôt que supprimées quand la profondeur est réduite. Ordre asc/desc stable par date/ID et rendu récursif de toutes les profondeurs autorisées. Le service charge encore l'ensemble des commentaires approuvés ; pagination et charge restent ouvertes.
+- Option show_avatars appliquée aux initiales locales du thème public. **Pas de choix de fournisseur/default/rating ni cookies d'identité dans ce lot.** Le formulaire invite à la connexion lorsque l'inscription est obligatoire ; le parcours de connexion et retour au commentaire depuis le site public reste à construire. La session API fonctionne, mais la connexion Studio n'est pas transférée implicitement au site public. Pas de nouveau statut de parité validé.
+- STAB-09 : `sha256_lf` ajouté aux 22 enregistrements d'archives **après vérification de leur correspondance avec l'empreinte historique** ; `sha256` original conservé, octets des archives inchangés. Le vérificateur normalise uniquement CRLF→LF lorsqu'une empreinte LF est disponible ; compatibilité avec anciens registres conservée. Tests en mémoire : octets actuels, LF et CRLF acceptés ; contenu altéré refusé. Ce contrôle tolère les fins de ligne, pas une modification du texte.
+
+### Validation
+
+**69 tests unitaires réussis** (API 15, core 52, plugins 2), **4 tests intégrés réussis** incluant PostgreSQL/HTTP/capsule et les nouvelles règles, Clippy strict workspace/all-targets réussi. Preuves [unitaires](../validations/reprise-g1-g2-2026-10-28/discussion-2026-10-29-unit.txt), [intégration](../validations/reprise-g1-g2-2026-10-28/discussion-2026-10-29-integration.txt), [Clippy](../validations/reprise-g1-g2-2026-10-28/discussion-2026-10-29-clippy.txt).
+
+Recettes : fermeture refuse POST ; inscription anonyme 401/authentifiée 200 sans usurpation ; identité facultative sans fuite privée ; réponse quand imbrication Off refusée ; ancienne réponse conservée en profondeur 1 ; SSR sur cache invalidé masque formulaire fermé et avatar désactivé. Scénario complet de sauvegarde/restauration antérieur également passé. Templates disque/embarqué identiques. Cluster jetable arrêté ; assets Studio existants réutilisés, pas de nouveau build Studio ni de recette navigateur manuelle.
+
+Contrôles documentaires avant ajout de cette entrée : 37 documents, 1 462 liens, 22 archives, zéro erreur ; 434 tâches et 38 composants cohérents. Références résolues temporairement vers le Bureau ; aucune référence tiers copiée ni exécutée. Les nouveaux liens de preuves nécessitent la vérification finale habituelle.
+
+**Suite prioritaire : STAB-05B**, pagination des commentaires avec requêtes bornées, tri/default page, compteur réel incluant réponses et échéances de fermeture du cache. Puis connexion publique cohérente, STAB-06 notifications/cookies/avatars et STAB-07/08 éditeur/navigation. WP-83/84/85/87 restent EN_COURS. STAB-09 est résolu dans la portée LF/CRLF, pas un audit d'authenticité des sources. Sauvegarder sur la branche de consolidation ; main et dépôt public inchangés.
+
+
 ## 29 octobre 2026 — G3.STAB-01 à 04 : régression intégrée et sécurisation ciblée
 
 **Point de reprise le plus récent.** L'utilisateur confirme la révocation du jeton et autorise le maintien du dépôt public. origin/main reste `27b6b599` après fetch. L'index de l'ancien worktree est **exactement identique à 8df3bb7f**, commit ancêtre de main : aucun travail inédit à fusionner, aucun reset nécessaire. Ancien checkout préservé.

@@ -27,7 +27,10 @@ for path in files:
                 errors.append('Ancre absente: '+raw)
 registry = json.loads((ROOT/'docs/pilotage/registre_documents.json').read_text(encoding='utf-8'))
 for row in registry:
-    if hashlib.sha256((ROOT/row['archive']).read_bytes()).hexdigest() != row['sha256']:
+    raw = (ROOT/row['archive']).read_bytes()
+    checked_bytes = raw.replace(b'\r\n', b'\n') if 'sha256_lf' in row else raw
+    expected = row.get('sha256_lf', row['sha256'])
+    if hashlib.sha256(checked_bytes).hexdigest() != expected:
         errors.append('Archive modifiée: '+row['path'])
 with (ROOT/'docs/pilotage/registre_sources.csv').open(encoding='utf-8-sig', newline='') as stream:
     sources = list(csv.DictReader(stream))

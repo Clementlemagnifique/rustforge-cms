@@ -4612,6 +4612,62 @@ async fn postgres_http_and_native_backup_regressions() {
         .bind(permalink_post.id).bind(previous.published_at).bind(previous.scheduled_unpublish_at)
         .execute(&db).await.unwrap();
 
+    // Discussion rules must affect HTTP, not just saved settings.
+    let before_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
+    let update_setting = |key: &str, value: Value| {
+        let mut map = serde_json::Map::new(); map.insert(key.to_string(), value); Value::Object(map)
+    };
+    let closed = request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        update_setting("discussion.default_comment_status", json!(false))).await;
+    assert_eq!(closed.0, 200);
+    let submit = json!({"author_name":"Invité", "author_email":"invite@example.test", "content":"Commentaire de recette"});
+    assert_eq!(request(&app, "POST", &comments_url, None, submit.clone()).await.0, 422);
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.default_comment_status":true,"discussion.comment_registration":true})).await.0, 200);
+    assert_eq!(request(&app, "POST", &comments_url, None, submit.clone()).await.0, 401);
+    let authenticated = request(&app, "POST", &comments_url, Some(&admin),
+        json!({"author_name":"Usurpation", "author_email":"fake@example.test", "content":"Compte authentifié"})).await;
+    assert_eq!(authenticated.0, 200, "{authenticated:?}");
+    assert_ne!(authenticated.1["author_name"], "Usurpation");
+    let authenticated_id=Uuid::parse_str(authenticated.1["id"].as_str().unwrap()).unwrap();
+    sqlx::query("DELETE FROM comments WHERE id=$1").bind(authenticated_id).execute(&db).await.unwrap();
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.comment_registration":false,"discussion.require_name_email":false})).await.0, 200);
+    let anonymous = request(&app, "POST", &comments_url, None, json!({"content":"Sans identité obligatoire"})).await;
+    assert_eq!(anonymous.0, 200, "{anonymous:?}");
+    assert_eq!(anonymous.1["author_name"], "Visiteur");
+    sqlx::query("DELETE FROM comments WHERE id=$1")
+        .bind(Uuid::parse_str(anonymous.1["id"].as_str().unwrap()).unwrap()).execute(&db).await.unwrap();
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.require_name_email":true,"discussion.thread_comments":false})).await.0, 200);
+    let no_thread = request(&app, "POST", &comments_url, None,
+        json!({"author_name":"Invité", "author_email":"invite@example.test", "content":"Réponse", "parent_id":comment_id})).await;
+    assert_eq!(no_thread.0, 422, "{no_thread:?}");
+    let flattened=request(&app, "GET", &comments_url, None, Value::Null).await;
+    assert!(flattened.1.as_array().unwrap().iter().all(|n| n["children"].as_array().unwrap().is_empty()));
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.thread_comments":true})).await.0, 200);
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.show_avatars":false,"discussion.default_comment_status":false})).await.0, 200);
+    let closed_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
+    assert_eq!(closed_html.0,200);
+    let closed_html=closed_html.1.as_str().unwrap();
+    assert!(!closed_html.contains("id=\"comment-form\""));
+    assert!(!closed_html.contains("rf-comment-avatar"));
+    assert!(closed_html.contains("commentaires sont fermés"));
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.show_avatars":true,"discussion.default_comment_status":true,"discussion.thread_comments_depth":1})).await.0, 200);
+    let depth_one=request(&app,"POST",&comments_url,None,
+        json!({"author_name":"Invité","author_email":"invite@example.test","content":"Trop profond","parent_id":comment_id})).await;
+    assert_eq!(depth_one.0,422);
+    let flattened_depth=request(&app,"GET",&comments_url,None,Value::Null).await;
+    assert_eq!(flattened_depth.1.as_array().unwrap().len(),2);
+    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
+        json!({"discussion.thread_comments_depth":3})).await.0, 200);
+
+    let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
+    assert_eq!(before_count,after_count);
+
     let counts_res = request(&app, "GET", "/api/v1/comments/counts", Some(&admin), Value::Null).await;
     assert_eq!(counts_res.0, 200);
     assert_eq!(counts_res.1["approved"], 2);

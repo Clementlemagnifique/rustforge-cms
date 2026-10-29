@@ -23,7 +23,9 @@ use crate::{
 /// Payload public de soumission d'un commentaire.
 #[derive(Debug, Deserialize)]
 pub struct PublicCommentSubmission {
+    #[serde(default)]
     pub author_name: String,
+    #[serde(default)]
     pub author_email: String,
     pub author_url: Option<String>,
     pub content: String,
@@ -90,23 +92,15 @@ pub async fn public_submit(
 
     // 2. Récupération des réglages de discussion
     let all_settings = rustforge_core::settings::all(&state.db).await?;
-    let comments_open = all_settings
-        .get("discussion.default_comment_status")
-        .map(|v| v.as_bool().unwrap_or(true) || v.as_str() == Some("open"))
-        .unwrap_or(true);
-
-    if !comments_open {
-        return Err(ApiError::BadRequest(
-            "Les commentaires sont actuellement fermés sur ce site.".into(),
-        ));
-    }
-
-    let require_reg = all_settings
-        .get("discussion.comment_registration")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    if require_reg {
+    let policy = comments::DiscussionPolicy::from_settings(&all_settings);
+    // Réutiliser exactement l'extracteur de session existant, y compris la lecture du compte.
+    let identity = if headers.contains_key(axum::http::header::AUTHORIZATION) {
+        use axum::extract::FromRequestParts;
+        let (mut parts, _) = axum::http::Request::builder().body(()).unwrap().into_parts();
+        parts.headers = headers.clone();
+        Some(AuthUser::from_request_parts(&mut parts, &state).await?.user)
+    } else { None };
+    if policy.require_registration && identity.is_none() {
         return Err(ApiError::Unauthorized);
     }
 
@@ -125,9 +119,9 @@ pub async fn public_submit(
     let params = CreateCommentParams {
         entry_id,
         parent_id: payload.parent_id,
-        author_id: None,
-        author_name: payload.author_name,
-        author_email: payload.author_email,
+        author_id: identity.as_ref().map(|u| u.id),
+        author_name: identity.as_ref().map(|u| u.display_name.clone()).unwrap_or(payload.author_name),
+        author_email: identity.as_ref().map(|u| u.email.clone()).unwrap_or(payload.author_email),
         author_url: payload.author_url,
         author_ip: ip,
         author_user_agent: user_agent,
