@@ -39,6 +39,7 @@ import { FormsView } from './components/FormsView';
 import { EcommerceView } from './components/EcommerceView';
 import { LmsView } from './components/LmsView';
 import { ColumnSettingsView } from './components/ColumnSettingsView';
+import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { studioMessages } from './i18n/messages.fr';
 import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
@@ -55,6 +56,8 @@ export const App: React.FC = () => {
   const contentTypes = useStudioStore((s) => s.contentTypes);
   const stats = useStudioStore((s) => s.stats);
   const isAiModalOpen = useStudioStore((s) => s.isAiModalOpen);
+  const isCommandPaletteOpen = useStudioStore((s) => s.isCommandPaletteOpen);
+  const zenMode = useStudioStore((s) => s.zenMode);
 
   const setUser = useStudioStore((s) => s.setUser);
   const setInstalledSession = useStudioStore((s) => s.setInstalledSession);
@@ -62,6 +65,7 @@ export const App: React.FC = () => {
   const setMobileNavigation = useStudioStore((s) => s.setMobileNavigation);
   const closeMobileNavigation = useCallback(() => setMobileNavigation(false), [setMobileNavigation]);
   const setAiModalOpen = useStudioStore((s) => s.setAiModalOpen);
+  const setCommandPaletteOpen = useStudioStore((s) => s.setCommandPaletteOpen);
   const updateNavigationData = useStudioStore((s) => s.updateNavigationData);
   const syncFromHash = useStudioStore((s) => s.syncFromHash);
   const navigate = useStudioStore((s) => s.navigate);
@@ -82,17 +86,20 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, [syncFromHash]);
 
-  // 3. Raccourci clavier global Ctrl+K / Cmd+K pour l'Assistant IA
+  // 3. Raccourcis clavier globaux (Ctrl+K / Cmd+K Palette universelle, Ctrl+I Assistant IA)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         setAiModalOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setAiModalOpen]);
+  }, [setCommandPaletteOpen, setAiModalOpen]);
 
   if (loading) {
     return (
@@ -190,17 +197,19 @@ export const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0a0d14] text-slate-100 overflow-hidden font-sans">
       {/* Navigation latérale responsive */}
-      <StudioNavigationPanel open={mobileNavigation} onClose={closeMobileNavigation}>
-        <Sidebar
-          key={user.id}
-          items={menuItems}
-          currentView={currentView}
-          onNavigate={navigate}
-          contentTypes={contentTypes}
-          user={user}
-          onLogout={logout}
-        />
-      </StudioNavigationPanel>
+      {!zenMode && (
+        <StudioNavigationPanel open={mobileNavigation} onClose={closeMobileNavigation}>
+          <Sidebar
+            key={user.id}
+            items={menuItems}
+            currentView={currentView}
+            onNavigate={navigate}
+            contentTypes={contentTypes}
+            user={user}
+            onLogout={logout}
+          />
+        </StudioNavigationPanel>
+      )}
 
       {/* Zone de contenu principale */}
       <div inert={mobileNavigation || undefined} className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
@@ -210,6 +219,7 @@ export const App: React.FC = () => {
           onToggleNavigation={() => setMobileNavigation((open) => !open)}
           canWrite={user.role !== 'subscriber'}
           onOpenAiModal={() => setAiModalOpen(true)}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -401,6 +411,14 @@ export const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Palette de commande universelle (Ctrl+K / Cmd+K) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={navigate}
+        onOpenAi={() => setAiModalOpen(true)}
+      />
 
       {/* Modale Assistant IA (Prompt & Voix) */}
       <AiAssistantModal

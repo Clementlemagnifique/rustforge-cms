@@ -46,6 +46,9 @@ export interface StudioStoreState {
   contentTypes: ContentType[];
   stats: DashboardStats | null;
   isAiModalOpen: boolean;
+  isCommandPaletteOpen: boolean;
+  zenMode: boolean;
+  studioDensity: 'comfortable' | 'compact';
 
   // --- Actions synchrones ---
   setUser: (user: User | null) => void;
@@ -53,6 +56,10 @@ export interface StudioStoreState {
   setUnsaved: (unsaved: boolean) => void;
   setMobileNavigation: (open: boolean | ((prev: boolean) => boolean)) => void;
   setAiModalOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  setCommandPaletteOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  toggleZenMode: () => void;
+  setZenMode: (zen: boolean) => void;
+  setStudioDensity: (density: 'comfortable' | 'compact') => void;
   updateNavigationData: (data: AdminNavigation) => void;
   syncFromHash: () => void;
   navigate: (view: string, afterSave?: boolean) => void;
@@ -78,6 +85,9 @@ export const useStudioStore = create<StudioStoreState>((set, get) => ({
   contentTypes: [],
   stats: null,
   isAiModalOpen: false,
+  isCommandPaletteOpen: false,
+  zenMode: false,
+  studioDensity: (localStorage.getItem('rf_studio_density') as 'comfortable' | 'compact') || 'comfortable',
 
   setUser: (user) => set({ user }),
 
@@ -98,6 +108,24 @@ export const useStudioStore = create<StudioStoreState>((set, get) => ({
     set((state) => ({
       isAiModalOpen: typeof open === 'function' ? open(state.isAiModalOpen) : open,
     })),
+
+  setCommandPaletteOpen: (open) =>
+    set((state) => ({
+      isCommandPaletteOpen: typeof open === 'function' ? open(state.isCommandPaletteOpen) : open,
+    })),
+
+  toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
+
+  setZenMode: (zen) => set({ zenMode: zen }),
+
+  setStudioDensity: (density) => {
+    try {
+      localStorage.setItem('rf_studio_density', density);
+    } catch {
+      // Ignorer
+    }
+    set({ studioDensity: density });
+  },
 
   updateNavigationData: (data) => {
     const currentUser = get().user;

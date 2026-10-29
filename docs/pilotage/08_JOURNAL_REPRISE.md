@@ -1,5 +1,22 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Expérience Studio Sobre : Palette Universelle (Ctrl+K), Mode Zen et Densité Ergonomique (Inspiration Adminify & Astra)
+
+**Point de reprise le plus récent.** Phase 7 du plan d'ergonomie et de sobriété Studio validée. Modernisation de l'expérience d'administration inspirée des meilleures pratiques d'Adminify, Raycast et WordPress 6.x :
+- **Palette de Commande Universelle (`Ctrl+K` / `Cmd+K`)** : composant modal interactif `CommandPaletteModal.tsx`, déclenchable au clavier ou via la barre centrale de l'en-tête `StudioHeader.tsx`. Recherche floue multi-critères (titres, rubriques, mots-clés) structurée en trois sections distinctes :
+  1. *Navigation & Vues* : accès direct en 1 frappe au Tableau de bord, Articles, Pages, Médiathèque, Formulaires, Boutique, LMS, Colonnes & Vues, Styles & Apparence, Réglages, Utilisateurs, Tâches et Sauvegardes.
+  2. *Création Rapide* : raccourcis immédiats pour composer un nouvel article (`N`), une nouvelle page, un produit numérique ou un cours de formation.
+  3. *Actions & Sobriété* : bascule du mode Zen, modification de la densité, ouverture de l'Assistant IA (`⌘I`) et ouverture du site public.
+- **Mode Zen sans Distraction** : bascule plein écran (`zenMode`) masquant instantanément la barre latérale pour libérer 100% de l'espace de rédaction dans l'éditeur de blocs et les tableaux, avec indicateur et sortie immédiate par raccourci clavier (`Échap` / `F11`) ou bouton d'en-tête.
+- **Densité Ergonomique Configurable** : bascule instantanée entre mode *Confortable* (espacement généreux) et mode *Compact* (vue tableur épurée), mémorisée localement (`rf_studio_density`) pour un confort de travail adapté à chaque profil d'utilisateur.
+
+### Validations et métriques
+- 75 tests unitaires `rustforge-core` et 101 tests workspace réussis.
+- Clippy strict : 0 avertissement sur l'ensemble de l'espace de travail (`-D warnings`).
+- Frontend : Oxlint 0 avertissement / 0 erreur sur 63 fichiers scannés en 67ms.
+- Build Frontend : `tsc -b && vite build` réussi en 499ms.
+- Pilotage & Documentation : `py scripts/pilotage.py --check` et `verifier-documentation.py` validés à 100% (0 erreur).
+
 ## 29 octobre 2026 — Colonnes & Vues de Données Souveraines : validation intégrale de MOD-COL-01, 02, 03, 04 et 05 (Inspiration Admin Columns Pro)
 
 **Point de reprise le plus récent.** Phase 7 du plan d'action validée. Intégration complète de la cartographie du plugin de référence `codepress-admin-columns` et de ses fonctionnalités Pro, transposées en architecture 100% Rust & TypeScript/React sans aucun runtime PHP :
