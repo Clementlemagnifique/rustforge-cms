@@ -92,6 +92,15 @@ export interface MediaFolder {
   created_at: string;
 }
 
+export interface MediaVariant {
+  path: string;
+  url: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  mime_type: string;
+}
+
 export interface Media {
   id: string;
   path: string;
@@ -107,6 +116,11 @@ export interface Media {
   webp_path?: string | null;
   webp_url?: string | null;
   created_at: string;
+  metadata?: {
+    is_webp_optimized?: boolean;
+    variants?: Record<string, MediaVariant>;
+    original_path?: string;
+  };
 }
 
 export interface PublicMenuItem {

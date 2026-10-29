@@ -16,6 +16,7 @@ import {
   PenTool,
   Link2,
   MessageSquare,
+  Image as ImageIcon,
   AlertTriangle,
 } from 'lucide-react';
 import { settingsMessages, discussionSettingsMessages } from '../i18n/messages.fr';
@@ -156,6 +157,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         >
           <MessageSquare className="w-3.5 h-3.5" />
           <span>{discussionSettingsMessages.tabDiscussion}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('media')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            activeTab === 'media'
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <ImageIcon className="w-3.5 h-3.5" />
+          <span>Médias</span>
         </button>
       </div>
 
@@ -1071,6 +1085,162 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   <option value="identicon">Identicon (Motif géométrique)</option>
                   <option value="retro">Rétro (Pixel art 8-bit)</option>
                 </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ONGLET 6 : MÉDIAS (WP-88, WP-89) */}
+      {activeTab === 'media' && (
+        <div className="space-y-6">
+          {/* Tailles des images (WP-88) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Tailles des images (WP-88)
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Les tailles listées ci-dessous déterminent les dimensions maximales en pixels à utiliser lors de l’insertion d’une image dans le contenu.
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              {/* Taille de la miniature */}
+              <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+                <div className="text-xs font-semibold text-slate-200">Taille de la miniature</div>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                  <label className="flex items-center gap-2">
+                    <span>Largeur :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.thumbnail_size_w'] ?? 150}
+                      onChange={(e) => setSetting('media.thumbnail_size_w', parseInt(e.target.value, 10) || 150)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span>Hauteur :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.thumbnail_size_h'] ?? 150}
+                      onChange={(e) => setSetting('media.thumbnail_size_h', parseInt(e.target.value, 10) || 150)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={settings['media.thumbnail_crop'] !== false}
+                    onChange={(e) => setSetting('media.thumbnail_crop', e.target.checked)}
+                    className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-300">
+                    Recadrer la miniature aux dimensions exactes (normalement les miniatures sont proportionnelles)
+                  </span>
+                </label>
+              </div>
+
+              {/* Taille moyenne */}
+              <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+                <div className="text-xs font-semibold text-slate-200">Taille moyenne</div>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                  <label className="flex items-center gap-2">
+                    <span>Largeur max :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.medium_size_w'] ?? 600}
+                      onChange={(e) => setSetting('media.medium_size_w', parseInt(e.target.value, 10) || 600)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span>Hauteur max :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.medium_size_h'] ?? 600}
+                      onChange={(e) => setSetting('media.medium_size_h', parseInt(e.target.value, 10) || 600)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Grande taille */}
+              <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+                <div className="text-xs font-semibold text-slate-200">Grande taille</div>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                  <label className="flex items-center gap-2">
+                    <span>Largeur max :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.large_size_w'] ?? 1200}
+                      onChange={(e) => setSetting('media.large_size_w', parseInt(e.target.value, 10) || 1200)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span>Hauteur max :</span>
+                    <input
+                      type="number"
+                      min={32}
+                      max={4096}
+                      value={settings['media.large_size_h'] ?? 1200}
+                      onChange={(e) => setSetting('media.large_size_h', parseInt(e.target.value, 10) || 1200)}
+                      className="w-20 rounded-lg bg-black/30 border border-white/10 px-2 py-1 text-xs text-white"
+                    />
+                    <span>px</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Optimisation WebP & Organisation du stockage (WP-39, WP-89) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Organisation des fichiers et optimisation (WP-89)
+              </h4>
+            </div>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings['media.auto_webp'] !== false}
+                  onChange={(e) => setSetting('media.auto_webp', e.target.checked)}
+                  className="rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                />
+                <div>
+                  <span className="text-xs text-slate-300 font-medium">
+                    Optimisation WebP automatique
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Convertit et compresse automatiquement les images en format WebP pour accélérer l’affichage de 40 à 75%.
+                  </p>
+                </div>
+              </label>
+
+              <div className="p-3.5 rounded-xl bg-black/20 border border-white/5 text-xs text-slate-400">
+                <span className="font-semibold text-slate-200">Arborescence physique : </span>
+                Les fichiers téléversés sont classés automatiquement dans des dossiers annuels et mensuels (ex. <code className="text-indigo-300 font-mono">uploads/2026/10/</code>) et organisables via les dossiers virtuels de la médiathèque.
               </div>
             </div>
           </div>

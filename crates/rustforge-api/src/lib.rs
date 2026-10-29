@@ -158,6 +158,8 @@ pub fn build_router(state: AppState) -> Router {
             put(routes::media::update).delete(routes::media::delete),
 
         )
+        .route("/{id}/rotate", post(routes::media::rotate))
+        .route("/{id}/restore", post(routes::media::restore))
         .layer(DefaultBodyLimit::max(32 * 1024 * 1024));
 
     let forms_routes = Router::new()

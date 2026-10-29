@@ -1,5 +1,49 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Médias & Variantes : validation intégrale de WP-39, WP-41, WP-88 et WP-89
+
+**Point de reprise le plus récent.** Sous-lot Médias & Variantes d'images responsives (`WP-39`, `WP-41`, `WP-88`, `WP-89`) livré et qualifié. Implémentation complète du moteur de génération de variantes dimensionnées en Rust natif (WebP haute fidélité), des transformations réversibles en mémoire (rotation 90°/180°/270°, recadrage) avec conservation et restauration de l'original souverain, des réglages complets de tailles d'images (`options-media.php`), et de l'optimisation responsive (`srcset`, `sizes`, `loading="lazy"`, `decoding="async"`).
+
+### Livré et protections
+
+- **Pipeline de Variantes & Formats Responsives (WP-39, WP-88, WP-89)** :
+  - `media_processor::generate_variants_for_image` et `generate_variants_from_bytes` : génération automatique sans upscaling artificiel des formats `thumbnail` (150x150, crop), `medium` (600x600, proportionnel) et `large` (1200x1200, proportionnel).
+  - Encodage systématique en WebP optimisé pour réduire le poids de 40 à 75%.
+  - Persistance des variantes dans `media.metadata->'variants'` avec dimensions, poids et URLs directes.
+  - Nettoyage atomique complet : lors de la suppression d'un média (`media::delete_checked`), tous les fichiers de variantes physiques ainsi que l'archive originale sont purgés du disque sans résidus orphelins.
+- **Transformations réversibles & Restauration de l'original (WP-39)** :
+  - `POST /api/v1/media/{id}/rotate` : rotation en mémoire (`rotate_image_bytes`) de 90°, 180° ou 270°.
+  - Sauvegarde préalable et immuable de l'original souverain dans `uploads/YYYY/MM/{uuid}-original.{ext}` lors de la première altération.
+  - `POST /api/v1/media/{id}/restore` : réversibilité totale restaurant l'image originale intacte et recalculant l'ensemble des variantes.
+- **Rendu Responsive & Lazy Loading universel (WP-41)** :
+  - `markdown::render` : injection automatique des attributs `loading="lazy"` et `decoding="async"` sur les balises `<img>` générées sans perturber le HTML existant.
+  - Whitelist Ammonia étendue autorisant explicitement `["src", "alt", "title", "width", "height", "srcset", "sizes", "loading", "decoding"]`.
+  - Bouton « HTML responsive » dans l'inspecteur du Studio copiant un extrait `<img ... srcset="..." sizes="..." />` prêt à l'emploi.
+- **Configuration Studio & Réglages Médias (WP-88, WP-89, SettingsView.tsx)** :
+  - Onglet dédié « Médias » dans le Studio conforme à `options-media.php`.
+  - Contrôle des tailles miniatures (largeur, hauteur, recadrage exact), moyennes et grandes (bornées entre 32 et 4096 px).
+  - Bascule de l'optimisation WebP automatique (`media.auto_webp`).
+  - Arborescence physique `uploads/YYYY/MM/` et dossiers virtuels souverains.
+
+### Validation et preuves
+
+- **87 tests unitaires Rust réussis** :
+  - 18 tests API (dont validation de catalog, permissions et sessions).
+  - 67 tests core (dont tests unitaires `media_processor::tests::test_sanitize_svg_removes_scripts`, `test_generate_image_variants`, `test_rotate_and_crop_image`, `markdown::tests::test_responsive_images_lazy_loading_and_srcset` et `settings::tests::test_validate_media_settings`).
+  - 2 tests plugins.
+- **Clippy workspace strict** (`cargo clippy --workspace --all-targets -- -D warnings`) : 0 avertissement.
+- **Contrôles qualité Studio** :
+  - `npm run lint` (`oxlint`) : 0 erreur, 0 avertissement sur 57 fichiers.
+  - `npm run build` (`tsc -b && vite build`) : succès en ~640ms.
+- **Pilotage & documentation** :
+  - `WP-39`, `WP-41`, `WP-88`, `WP-89` validés (`VALIDE`) dans `01_COEUR_ADMIN.csv`.
+  - `py scripts/pilotage.py` : 434 tâches, 38 composants cohérents.
+  - `py scripts/verifier-documentation.py` : 37 documents, 1 504 liens, 0 erreur.
+
+### Prochaine étape
+
+Poursuite dans l'ordre de la feuille de route G2 / G3 : Réglages généraux et identité du site (`WP-74` icône de site / favicon multi-résolutions), ou blocs Gutenberg essentiels de l'éditeur.
+
 ## 29 octobre 2026 — Option A / STAB-08 : Navigation hiérarchique, résolution dynamique et métadonnées de menu
 
 **Point de reprise le plus récent.** Sous-lot Option A (`WP-46`, `WP-51` / `NAV-A`, `NAV-B`, `STAB-08`) livré et qualifié. Implémentation complète de la structure d'éléments de menu enrichie (`NAV-A`), de la résolution dynamique automatique des cibles sans URLs cassées en cas de renommage (`NAV-B` / `STAB-08`), et synchronisation avec le Studio (`AppearanceView.tsx`).

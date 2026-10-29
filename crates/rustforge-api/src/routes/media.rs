@@ -101,7 +101,7 @@ pub async fn upload(
             .await
             .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-        // Exécution du pipeline de traitement Rust (WebP + Sanitization SVG)
+        // Exécution du pipeline de traitement Rust (WebP + Variantes responsives + Sanitization SVG)
         let processed =
             media_processor::process_upload(&raw_bytes, &original_name, &raw_mime).await?;
 
@@ -136,6 +136,29 @@ pub async fn upload(
             None
         };
 
+        // Écriture des variantes responsives (WP-39, WP-88)
+        let mut variants_json = serde_json::Map::new();
+        for variant in &processed.variants {
+            let var_filename = format!("{base_uuid}-{}.{}", variant.name, variant.ext);
+            let var_rel = format!("{sub_dir}/{var_filename}");
+            let var_abs = state.uploads_dir.join(&var_rel);
+            tokio::fs::write(&var_abs, &variant.bytes)
+                .await
+                .map_err(|e| ApiError::Internal(e.into()))?;
+
+            variants_json.insert(
+                variant.name.clone(),
+                serde_json::json!({
+                    "path": var_rel,
+                    "url": format!("/uploads/{var_rel}"),
+                    "width": variant.width,
+                    "height": variant.height,
+                    "size_bytes": variant.bytes.len(),
+                    "mime_type": variant.mime,
+                }),
+            );
+        }
+
         let record = media::create(
             &state.db,
             NewMedia {
@@ -150,7 +173,8 @@ pub async fn upload(
                 webp_path: webp_rel_path,
                 external_provider: Some("local".into()),
                 metadata: serde_json::json!({
-                    "is_webp_optimized": processed.is_webp_converted
+                    "is_webp_optimized": processed.is_webp_converted,
+                    "variants": variants_json,
                 }),
             },
         )
@@ -190,11 +214,222 @@ pub async fn delete(
     if !auth.user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
-    let (rel_path, webp_path) = media::delete_checked(&state.db, id, query.force).await?;
+    let (rel_path, webp_path, extra_paths) =
+        media::delete_checked(&state.db, id, query.force).await?;
     let _ = tokio::fs::remove_file(state.uploads_dir.join(rel_path)).await;
     if let Some(wp) = webp_path {
         let _ = tokio::fs::remove_file(state.uploads_dir.join(wp)).await;
     }
+    for extra in extra_paths {
+        let _ = tokio::fs::remove_file(state.uploads_dir.join(extra)).await;
+    }
 
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RotateRequest {
+    pub degrees: i32,
+}
+
+/// Applique une rotation à une image et régénère les variantes avec archivage de l'original (WP-39).
+pub async fn rotate(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<RotateRequest>,
+) -> ApiResult<Json<Media>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let current = media::get(&state.db, id).await?;
+    if !matches!(
+        current.mime_type.as_str(),
+        "image/jpeg" | "image/png" | "image/webp"
+    ) {
+        return Err(ApiError::BadRequest(
+            "Seules les images matricielles (JPEG, PNG, WebP) peuvent être pivotées.".into(),
+        ));
+    }
+
+    let main_abs = state.uploads_dir.join(&current.path);
+    let bytes = tokio::fs::read(&main_abs)
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    // Sauvegarde de l'original souverain si pas encore archivé (WP-39)
+    let mut metadata = current.metadata.clone();
+    if metadata.get("original_path").is_none() {
+        let ext = current
+            .path
+            .rsplit('.')
+            .next()
+            .unwrap_or("bin");
+        let orig_filename = format!("{}-original.{}", current.id, ext);
+        let sub_dir = current
+            .path
+            .rsplit_once('/')
+            .map(|(d, _)| d)
+            .unwrap_or("");
+        let orig_rel = if sub_dir.is_empty() {
+            orig_filename
+        } else {
+            format!("{sub_dir}/{orig_filename}")
+        };
+        let orig_abs = state.uploads_dir.join(&orig_rel);
+        tokio::fs::write(&orig_abs, &bytes)
+            .await
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        metadata["original_path"] = serde_json::Value::String(orig_rel);
+    }
+
+    // Applique la rotation
+    let (rotated_bytes, w, h) = media_processor::rotate_image_bytes(&bytes, req.degrees, 85.0)?;
+    tokio::fs::write(&main_abs, &rotated_bytes)
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    // Régénère les variantes depuis l'image pivotée
+    let (new_variants, _, _) = media_processor::generate_variants_from_bytes(
+        &rotated_bytes,
+        &media_processor::default_variant_specs(),
+        80.0,
+    )?;
+
+    let sub_dir = current
+        .path
+        .rsplit_once('/')
+        .map(|(d, _)| d)
+        .unwrap_or("");
+    let base_id = current.id.to_string();
+    let mut variants_json = serde_json::Map::new();
+    for var in &new_variants {
+        let var_filename = format!("{base_id}-{}.{}", var.name, var.ext);
+        let var_rel = if sub_dir.is_empty() {
+            var_filename
+        } else {
+            format!("{sub_dir}/{var_filename}")
+        };
+        let var_abs = state.uploads_dir.join(&var_rel);
+        tokio::fs::write(&var_abs, &var.bytes)
+            .await
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        variants_json.insert(
+            var.name.clone(),
+            serde_json::json!({
+                "path": var_rel,
+                "url": format!("/uploads/{var_rel}"),
+                "width": var.width,
+                "height": var.height,
+                "size_bytes": var.bytes.len(),
+                "mime_type": var.mime,
+            }),
+        );
+    }
+    metadata["variants"] = serde_json::Value::Object(variants_json);
+
+    let updated = media::update_transformed(
+        &state.db,
+        id,
+        w,
+        h,
+        rotated_bytes.len() as i64,
+        metadata,
+    )
+    .await?;
+
+    Ok(Json(updated))
+}
+
+/// Restaure un média transformé à son état original souverain (WP-39).
+pub async fn restore(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Media>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let current = media::get(&state.db, id).await?;
+    let Some(orig_rel) = current
+        .metadata
+        .get("original_path")
+        .and_then(|v| v.as_str())
+    else {
+        return Err(ApiError::BadRequest(
+            "Ce média n'a pas été transformé ou son original est introuvable.".into(),
+        ));
+    };
+
+    let orig_abs = state.uploads_dir.join(orig_rel);
+    let orig_bytes = tokio::fs::read(&orig_abs)
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    let main_abs = state.uploads_dir.join(&current.path);
+    tokio::fs::write(&main_abs, &orig_bytes)
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    // Supprime le fichier d'original archivé
+    let _ = tokio::fs::remove_file(orig_abs).await;
+
+    // Régénère les variantes depuis l'original restauré
+    let (new_variants, orig_w, orig_h) = media_processor::generate_variants_from_bytes(
+        &orig_bytes,
+        &media_processor::default_variant_specs(),
+        80.0,
+    )?;
+
+    let sub_dir = current
+        .path
+        .rsplit_once('/')
+        .map(|(d, _)| d)
+        .unwrap_or("");
+    let base_id = current.id.to_string();
+    let mut variants_json = serde_json::Map::new();
+    for var in &new_variants {
+        let var_filename = format!("{base_id}-{}.{}", var.name, var.ext);
+        let var_rel = if sub_dir.is_empty() {
+            var_filename
+        } else {
+            format!("{sub_dir}/{var_filename}")
+        };
+        let var_abs = state.uploads_dir.join(&var_rel);
+        tokio::fs::write(&var_abs, &var.bytes)
+            .await
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        variants_json.insert(
+            var.name.clone(),
+            serde_json::json!({
+                "path": var_rel,
+                "url": format!("/uploads/{var_rel}"),
+                "width": var.width,
+                "height": var.height,
+                "size_bytes": var.bytes.len(),
+                "mime_type": var.mime,
+            }),
+        );
+    }
+
+    let mut metadata = current.metadata.clone();
+    if let Some(obj) = metadata.as_object_mut() {
+        obj.remove("original_path");
+        obj.insert(
+            "variants".to_string(),
+            serde_json::Value::Object(variants_json),
+        );
+    }
+
+    let updated = media::update_transformed(
+        &state.db,
+        id,
+        orig_w,
+        orig_h,
+        orig_bytes.len() as i64,
+        metadata,
+    )
+    .await?;
+
+    Ok(Json(updated))
 }

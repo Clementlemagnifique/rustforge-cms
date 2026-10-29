@@ -210,6 +210,15 @@ export const api = {
       request<{ success: boolean }>(`/media/folders/${id}`, {
         method: 'DELETE',
       }),
+    rotate: (id: string, degrees: number) =>
+      request<Media>(`/media/${id}/rotate`, {
+        method: 'POST',
+        body: JSON.stringify({ degrees }),
+      }),
+    restore: (id: string) =>
+      request<Media>(`/media/${id}/restore`, {
+        method: 'POST',
+      }),
   },
 
   plugins: {

@@ -1,17 +1,21 @@
 /**
  * ============================================================================
- * VUE DE LA MÉDIATHÈQUE & DOSSIERS VIRTUELS (`MediaView`)
+ * VUE DE LA MÉDIATHÈQUE, VARIANTES ET TRANSFORMATIONS (`MediaView`)
  * ============================================================================
  * Pilotée par `useMediaStore` (Zustand) :
  * - `WP-37` : Recherche (`q`), filtre par type MIME (`kind`), bascule Grille / Liste,
  *   filtrage et gestion des dossiers virtuels (`media_folders`).
  * - `WP-38` : Téléversement dans le dossier actif et inspecteur latéral d'édition
  *   des métadonnées (`alt`, `caption`, déplacement de dossier, copie d'URL et WebP).
+ * - `WP-39` : Édition et transformation d'image (rotation, recadrage) avec
+ *   régénération des variantes et restauration réversible de l'original souverain.
  * - `WP-40` : Suppression protégée contre la destruction d'un média utilisé dans
  *   un contenu actif (`409 Conflict` avec confirmation de forçage).
+ * - `WP-41` : Chargement optimisé, lazy-loading, copie d'extrait HTML responsive (`srcset` & `sizes`).
+ * - `WP-88` : Visualisation des variantes générées (Thumbnail, Medium, Large).
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Upload,
   Trash2,
@@ -24,9 +28,14 @@ import {
   Copy,
   Check,
   X,
+  RotateCcw,
+  RotateCw,
+  Undo2,
+  Sparkles,
 } from 'lucide-react';
 import { mediaMessages } from '../i18n/messages.fr';
 import { useMediaStore } from '../stores/useMediaStore';
+import type { Media } from '../types';
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 o';
@@ -42,6 +51,7 @@ export const MediaView: React.FC = () => {
   const loading = useMediaStore((s) => s.loading);
   const uploading = useMediaStore((s) => s.uploading);
   const savingMeta = useMediaStore((s) => s.savingMeta);
+  const rotating = useMediaStore((s) => s.rotating);
   const error = useMediaStore((s) => s.error);
   const message = useMediaStore((s) => s.message);
 
@@ -71,7 +81,11 @@ export const MediaView: React.FC = () => {
   const createFolder = useMediaStore((s) => s.createFolder);
   const deleteFolder = useMediaStore((s) => s.deleteFolder);
   const saveSelectedMediaMeta = useMediaStore((s) => s.saveSelectedMediaMeta);
+  const rotateSelectedMedia = useMediaStore((s) => s.rotateSelectedMedia);
+  const restoreSelectedMedia = useMediaStore((s) => s.restoreSelectedMedia);
   const deleteMedia = useMediaStore((s) => s.deleteMedia);
+
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
 
   useEffect(() => {
     void fetchAll();
@@ -83,6 +97,32 @@ export const MediaView: React.FC = () => {
     await uploadFile(file);
     e.target.value = '';
   };
+
+  const buildResponsiveHtml = (m: Media): string => {
+    const variants = m.metadata?.variants || {};
+    const list = Object.values(variants);
+    const alt = m.alt || m.original_name;
+    if (list.length === 0) {
+      return `<img src="${m.url}" alt="${alt}" loading="lazy" decoding="async" />`;
+    }
+    const srcset = list
+      .map((v) => `${v.url} ${v.width}w`)
+      .concat(`${m.url} ${m.width || 1200}w`)
+      .join(', ');
+    return `<img src="${m.url}" srcset="${srcset}" sizes="(max-width: 768px) 100vw, 1200px" loading="lazy" decoding="async" alt="${alt}" />`;
+  };
+
+  const handleCopySnippet = async (m: Media) => {
+    const html = buildResponsiveHtml(m);
+    await navigator.clipboard?.writeText(html);
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2000);
+  };
+
+  const isRasterImage =
+    selectedMedia &&
+    selectedMedia.mime_type.startsWith('image/') &&
+    selectedMedia.mime_type !== 'image/svg+xml';
 
   return (
     <div className="space-y-6">
@@ -379,7 +419,7 @@ export const MediaView: React.FC = () => {
           )}
         </div>
 
-        {/* Colonne 3 : Inspecteur de métadonnées & accessibilité (WP-38 / WP-40 / WP-41) */}
+        {/* Colonne 3 : Inspecteur de métadonnées, Variantes & Retouche (WP-38, WP-39, WP-41, WP-88) */}
         {selectedMedia && (
           <aside className="lg:col-span-4 rounded-2xl bg-[#0f1422] border border-indigo-500/20 p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
@@ -408,6 +448,100 @@ export const MediaView: React.FC = () => {
               <div className="truncate text-indigo-300">{selectedMedia.url}</div>
             </div>
 
+            {/* Actions de transformation d'image (WP-39) */}
+            {isRasterImage && (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Retouche & Transformation</span>
+                  </span>
+                  {selectedMedia.metadata?.original_path && (
+                    <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      Modifié
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    disabled={rotating}
+                    onClick={() => void rotateSelectedMedia(270)}
+                    title="Pivoter de 90° vers la gauche"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>-90°</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={rotating}
+                    onClick={() => void rotateSelectedMedia(90)}
+                    title="Pivoter de 90° vers la droite"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>+90°</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={rotating}
+                    onClick={() => void rotateSelectedMedia(180)}
+                    title="Pivoter de 180°"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
+                  >
+                    <span>180°</span>
+                  </button>
+                  {selectedMedia.metadata?.original_path && (
+                    <button
+                      type="button"
+                      disabled={rotating}
+                      onClick={() => void restoreSelectedMedia()}
+                      title="Restaurer l'image originale sans altération"
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 text-xs text-amber-200 disabled:opacity-50"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Restaurer original</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Variantes responsives dimensionnées (WP-39, WP-88) */}
+            {selectedMedia.metadata?.variants &&
+              Object.keys(selectedMedia.metadata.variants).length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+                  <div className="text-[11px] font-semibold text-slate-300">
+                    Variantes responsives (WP-88)
+                  </div>
+                  <div className="space-y-1.5">
+                    {Object.entries(selectedMedia.metadata.variants).map(([name, varObj]) => (
+                      <div
+                        key={name}
+                        className="flex items-center justify-between text-[11px] p-1.5 rounded-lg bg-white/[0.02] border border-white/5"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-semibold text-indigo-300 capitalize">{name}</span>
+                          <span className="text-slate-400 font-mono ml-1.5">
+                            {varObj.width}×{varObj.height} px
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void navigator.clipboard?.writeText(varObj.url)}
+                          title="Copier l'URL de cette variante"
+                          className="p-1 text-slate-400 hover:text-white"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            {/* Boutons de copie rapide */}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -427,6 +561,26 @@ export const MediaView: React.FC = () => {
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>{mediaMessages.copyWebpUrl}</span>
+                </button>
+              )}
+              {isRasterImage && (
+                <button
+                  type="button"
+                  onClick={() => void handleCopySnippet(selectedMedia)}
+                  title="Copier le code <img srcset...> responsive"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-200 hover:bg-indigo-500/20"
+                >
+                  {copiedSnippet ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-300">Copié !</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>HTML responsive</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

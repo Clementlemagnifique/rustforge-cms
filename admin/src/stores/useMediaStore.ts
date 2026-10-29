@@ -25,6 +25,7 @@ export interface MediaStoreState {
   loading: boolean;
   uploading: boolean;
   savingMeta: boolean;
+  rotating: boolean;
   error: string;
   message: string;
 
@@ -58,6 +59,8 @@ export interface MediaStoreState {
   createFolder: () => Promise<void>;
   deleteFolder: (folderId: string) => Promise<void>;
   saveSelectedMediaMeta: () => Promise<void>;
+  rotateSelectedMedia: (degrees: number) => Promise<void>;
+  restoreSelectedMedia: () => Promise<void>;
   deleteMedia: (id: string) => Promise<void>;
 }
 
@@ -68,6 +71,7 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
   loading: true,
   uploading: false,
   savingMeta: false,
+  rotating: false,
   error: '',
   message: '',
 
@@ -207,6 +211,52 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       set({
         savingMeta: false,
         error: err instanceof Error ? err.message : 'Enregistrement impossible',
+      });
+    }
+  },
+
+  rotateSelectedMedia: async (degrees) => {
+    const { selectedMedia, fetchAll } = get();
+    if (!selectedMedia) return;
+    set({ rotating: true, error: '', message: '' });
+    try {
+      const updated = await api.media.rotate(selectedMedia.id, degrees);
+      await fetchAll();
+      get().selectMedia(updated);
+      set({
+        rotating: false,
+        message: `Image pivotée de ${degrees}° avec succès.`,
+      });
+    } catch (err) {
+      set({
+        rotating: false,
+        error: err instanceof Error ? err.message : 'Impossible de pivoter l’image',
+      });
+    }
+  },
+
+  restoreSelectedMedia: async () => {
+    const { selectedMedia, fetchAll } = get();
+    if (!selectedMedia) return;
+    if (
+      !window.confirm(
+        'Restaurer l’image originale ? Les transformations actuelles seront annulées.'
+      )
+    )
+      return;
+    set({ rotating: true, error: '', message: '' });
+    try {
+      const updated = await api.media.restore(selectedMedia.id);
+      await fetchAll();
+      get().selectMedia(updated);
+      set({
+        rotating: false,
+        message: 'Image originale restaurée avec succès.',
+      });
+    } catch (err) {
+      set({
+        rotating: false,
+        error: err instanceof Error ? err.message : 'Impossible de restaurer l’original',
       });
     }
   },

@@ -173,16 +173,17 @@ pub async fn usage_count(db: &PgPool, id: Uuid) -> CoreResult<i64> {
     Ok(count)
 }
 
-pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<(String, Option<String>)> {
+pub async fn delete(db: &PgPool, id: Uuid) -> CoreResult<(String, Option<String>, Vec<String>)> {
     delete_checked(db, id, false).await
 }
 
 /// Supprime un média après avoir vérifié qu'il n'est pas référencé par un contenu actif (sauf si `force = true`) (`WP-40`).
+/// Retourne le chemin principal, le chemin WebP et tous les chemins des variantes et sauvegardes originales.
 pub async fn delete_checked(
     db: &PgPool,
     id: Uuid,
     force: bool,
-) -> CoreResult<(String, Option<String>)> {
+) -> CoreResult<(String, Option<String>, Vec<String>)> {
     if !force {
         let usages = usage_count(db, id).await?;
         if usages > 0 {
@@ -191,12 +192,48 @@ pub async fn delete_checked(
             )));
         }
     }
-    let row: (String, Option<String>) =
-        sqlx::query_as("DELETE FROM media WHERE id = $1 RETURNING path, webp_path")
+    let (path, webp_path, metadata): (String, Option<String>, serde_json::Value) =
+        sqlx::query_as("DELETE FROM media WHERE id = $1 RETURNING path, webp_path, metadata")
             .bind(id)
             .fetch_one(db)
             .await?;
-    Ok(row)
+
+    let mut extra_paths = Vec::new();
+    if let Some(orig) = metadata.get("original_path").and_then(|v| v.as_str()) {
+        extra_paths.push(orig.to_string());
+    }
+    if let Some(variants) = metadata.get("variants").and_then(|v| v.as_object()) {
+        for (_, var_obj) in variants {
+            if let Some(p) = var_obj.get("path").and_then(|v| v.as_str()) {
+                extra_paths.push(p.to_string());
+            }
+        }
+    }
+
+    Ok((path, webp_path, extra_paths))
+}
+
+/// Met à jour les dimensions, poids et métadonnées après une transformation d'image (rotation, recadrage) (WP-39).
+pub async fn update_transformed(
+    db: &PgPool,
+    id: Uuid,
+    width: i32,
+    height: i32,
+    size_bytes: i64,
+    metadata: serde_json::Value,
+) -> CoreResult<Media> {
+    sqlx::query(
+        "UPDATE media SET width = $2, height = $3, size_bytes = $4, metadata = $5 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(width)
+    .bind(height)
+    .bind(size_bytes)
+    .bind(metadata)
+    .execute(db)
+    .await?;
+
+    get(db, id).await
 }
 
 // ---------------------------------------------------------------------------

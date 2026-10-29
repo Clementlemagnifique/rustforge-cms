@@ -592,6 +592,31 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         && !value.as_str().is_some_and(|s| matches!(s, "none" | "starttls" | "tls"))
     {
         return Err(CoreError::validation("Chiffrement SMTP invalide : none, starttls ou tls attendu."));
+    } else if key == "media.thumbnail_size_w"
+        || key == "media.thumbnail_size_h"
+        || key == "media.medium_size_w"
+        || key == "media.medium_size_h"
+        || key == "media.large_size_w"
+        || key == "media.large_size_h"
+    {
+        let Some(n) = value.as_i64() else {
+            return Err(CoreError::validation(format!(
+                "{key} doit être un entier positif (32 à 4096 px)."
+            )));
+        };
+        if !(32..=4096).contains(&n) {
+            return Err(CoreError::validation(format!(
+                "{key} doit être compris entre 32 et 4096 px."
+            )));
+        }
+    } else if key == "media.thumbnail_crop" && !value.is_boolean() {
+        return Err(CoreError::validation(
+            "media.thumbnail_crop doit être un booléen.",
+        ));
+    } else if key == "media.auto_webp" && !value.is_boolean() {
+        return Err(CoreError::validation(
+            "media.auto_webp doit être un booléen.",
+        ));
     }
     Ok(())
 }
@@ -713,6 +738,79 @@ pub async fn get_active_modules(db: &PgPool) -> CoreResult<BTreeMap<String, bool
 pub async fn is_module_active(db: &PgPool, module: &str) -> bool {
     let modules = get_active_modules(db).await.unwrap_or_default();
     *modules.get(module).unwrap_or(&false)
+}
+
+/// Réglages média conformes à options-media.php (WP-88, WP-89).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MediaSettings {
+    pub thumbnail_size_w: i32,
+    pub thumbnail_size_h: i32,
+    pub thumbnail_crop: bool,
+    pub medium_size_w: i32,
+    pub medium_size_h: i32,
+    pub large_size_w: i32,
+    pub large_size_h: i32,
+    pub auto_webp: bool,
+}
+
+impl Default for MediaSettings {
+    fn default() -> Self {
+        Self {
+            thumbnail_size_w: 150,
+            thumbnail_size_h: 150,
+            thumbnail_crop: true,
+            medium_size_w: 600,
+            medium_size_h: 600,
+            large_size_w: 1200,
+            large_size_h: 1200,
+            auto_webp: true,
+        }
+    }
+}
+
+pub async fn load_media_settings(db: &PgPool) -> MediaSettings {
+    let mut s = MediaSettings::default();
+    if let Ok(Some(val)) = get(db, "media.thumbnail_size_w").await
+        && let Some(n) = val.as_i64()
+    {
+        s.thumbnail_size_w = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.thumbnail_size_h").await
+        && let Some(n) = val.as_i64()
+    {
+        s.thumbnail_size_h = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.thumbnail_crop").await
+        && let Some(b) = val.as_bool()
+    {
+        s.thumbnail_crop = b;
+    }
+    if let Ok(Some(val)) = get(db, "media.medium_size_w").await
+        && let Some(n) = val.as_i64()
+    {
+        s.medium_size_w = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.medium_size_h").await
+        && let Some(n) = val.as_i64()
+    {
+        s.medium_size_h = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.large_size_w").await
+        && let Some(n) = val.as_i64()
+    {
+        s.large_size_w = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.large_size_h").await
+        && let Some(n) = val.as_i64()
+    {
+        s.large_size_h = n as i32;
+    }
+    if let Ok(Some(val)) = get(db, "media.auto_webp").await
+        && let Some(b) = val.as_bool()
+    {
+        s.auto_webp = b;
+    }
+    s
 }
 
 #[cfg(test)]
@@ -905,5 +1003,16 @@ mod tests {
         assert!(validate_setting_value("mail.smtp_encryption", &json!("starttls")).is_ok());
         assert!(validate_setting_value("mail.smtp_encryption", &json!("tls")).is_ok());
         assert!(validate_setting_value("mail.smtp_encryption", &json!("insecure")).is_err());
+
+        // WP-88 : Tailles des images
+        assert!(validate_setting_value("media.thumbnail_size_w", &json!(150)).is_ok());
+        assert!(validate_setting_value("media.thumbnail_size_w", &json!(32)).is_ok());
+        assert!(validate_setting_value("media.thumbnail_size_w", &json!(4096)).is_ok());
+        assert!(validate_setting_value("media.thumbnail_size_w", &json!(10)).is_err());
+        assert!(validate_setting_value("media.thumbnail_size_w", &json!(5000)).is_err());
+        assert!(validate_setting_value("media.thumbnail_crop", &json!(true)).is_ok());
+        assert!(validate_setting_value("media.thumbnail_crop", &json!("yes")).is_err());
+        assert!(validate_setting_value("media.auto_webp", &json!(true)).is_ok());
+        assert!(validate_setting_value("media.auto_webp", &json!(1)).is_err());
     }
 }

@@ -4,6 +4,7 @@ use pulldown_cmark::{Options, Parser, html};
 
 /// Convertit du Markdown (CommonMark + GFM) en HTML, puis l'assainit
 /// pour neutraliser tout script injecté par un auteur.
+/// Enrichit automatiquement les balises `<img>` avec `loading="lazy"` et `decoding="async"` (WP-41).
 pub fn render(markdown: &str) -> String {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -16,12 +17,47 @@ pub fn render(markdown: &str) -> String {
     let mut raw = String::with_capacity(markdown.len() * 3 / 2);
     html::push_html(&mut raw, parser);
 
+    // Injection automatique de chargement différé et décodage asynchrone (WP-41)
+    let enriched = if raw.contains("<img ") && !raw.contains("loading=") {
+        let mut out = String::with_capacity(raw.len() + 64);
+        let mut rest = raw.as_str();
+        while let Some(start) = rest.find("<img ") {
+            out.push_str(&rest[..start]);
+            let img_part = &rest[start..];
+            if let Some(end) = img_part.find("/>") {
+                let img_content = &img_part[..end];
+                out.push_str(img_content);
+                out.push_str(" loading=\"lazy\" decoding=\"async\" />");
+                rest = &img_part[end + 2..];
+            } else if let Some(end) = img_part.find('>') {
+                let img_content = &img_part[..end];
+                out.push_str(img_content);
+                out.push_str(" loading=\"lazy\" decoding=\"async\">");
+                rest = &img_part[end + 1..];
+            } else {
+                out.push_str(img_part);
+                rest = "";
+            }
+        }
+        out.push_str(rest);
+        out
+    } else {
+        raw
+    };
+
     ammonia::Builder::default()
         .add_generic_attributes(["id", "class", "data-pattern", "data-pattern-title"])
         .add_tags(["input", "details", "summary", "div", "span", "figure", "figcaption"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
         .add_tag_attributes("details", ["open"])
-        .clean(&raw)
+        .add_tag_attributes(
+            "img",
+            [
+                "src", "alt", "title", "width", "height", "srcset", "sizes", "loading",
+                "decoding",
+            ],
+        )
+        .clean(&enriched)
         .to_string()
 }
 
@@ -73,5 +109,20 @@ mod tests {
     fn builds_excerpt() {
         assert_eq!(excerpt("# Hello\n\nworld *fine*", 100), "Hello world fine");
         assert_eq!(excerpt("un deux trois quatre", 10), "un deux…");
+    }
+
+    #[test]
+    fn test_responsive_images_lazy_loading_and_srcset() {
+        let md = "![Illustration](/uploads/photo.webp)";
+        let html = render(md);
+        assert!(html.contains("loading=\"lazy\""));
+        assert!(html.contains("decoding=\"async\""));
+        assert!(html.contains("<img src=\"/uploads/photo.webp\" alt=\"Illustration\""));
+
+        // Vérification de la préservation de srcset et sizes personnalisés (WP-41)
+        let custom_img = "<img src=\"/uploads/img.webp\" srcset=\"/uploads/img-300.webp 300w, /uploads/img-600.webp 600w\" sizes=\"(max-width: 600px) 100vw, 600px\" alt=\"Adaptatif\" />";
+        let cleaned = render(custom_img);
+        assert!(cleaned.contains("srcset="));
+        assert!(cleaned.contains("sizes="));
     }
 }
