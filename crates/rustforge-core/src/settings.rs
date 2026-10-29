@@ -803,15 +803,53 @@ mod tests {
         assert!(validate_setting_value("discussion.default_comment_status", &json!(true)).is_ok());
         assert!(validate_setting_value("discussion.default_comment_status", &json!("invalid")).is_err());
 
+        // WP-83 : Conditions de commentaire
+        assert!(validate_setting_value("discussion.require_name_email", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.require_name_email", &json!("not_bool")).is_err());
+        assert!(validate_setting_value("discussion.comment_registration", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.close_comments_for_old_posts", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.close_comments_days", &json!(14)).is_ok());
+        assert!(validate_setting_value("discussion.close_comments_days", &json!(0)).is_err());
+        assert!(validate_setting_value("discussion.close_comments_days", &json!(4000)).is_err());
+
+        // WP-84 : Organisation des réponses & pagination
         assert!(validate_setting_value("discussion.thread_comments_depth", &json!(3)).is_ok());
         assert!(validate_setting_value("discussion.thread_comments_depth", &json!(0)).is_err());
         assert!(validate_setting_value("discussion.thread_comments_depth", &json!(6)).is_err());
-
+        assert!(validate_setting_value("discussion.page_comments", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.comments_per_page", &json!(50)).is_ok());
+        assert!(validate_setting_value("discussion.comments_per_page", &json!(0)).is_err());
+        assert!(validate_setting_value("discussion.comments_per_page", &json!(150)).is_err());
+        assert!(validate_setting_value("discussion.default_comments_page", &json!("oldest")).is_ok());
+        assert!(validate_setting_value("discussion.default_comments_page", &json!("newest")).is_ok());
+        assert!(validate_setting_value("discussion.default_comments_page", &json!("middle")).is_err());
         assert!(validate_setting_value("discussion.comment_order", &json!("asc")).is_ok());
         assert!(validate_setting_value("discussion.comment_order", &json!("desc")).is_ok());
         assert!(validate_setting_value("discussion.comment_order", &json!("random")).is_err());
 
+        // WP-87 : Consentement cookies, avatars locaux et transport e-mail
+        assert!(validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(123)).is_err());
+        assert!(validate_setting_value("discussion.show_avatars", &json!(true)).is_ok());
+        assert!(validate_setting_value("discussion.avatar_default", &json!("mystery")).is_ok());
+        assert!(validate_setting_value("discussion.avatar_default", &json!("identicon")).is_ok());
+        assert!(validate_setting_value("discussion.avatar_default", &json!("retro")).is_ok());
+        assert!(validate_setting_value("discussion.avatar_default", &json!("blank")).is_ok());
+        assert!(validate_setting_value("discussion.avatar_default", &json!("gravatar_thirdparty")).is_err());
+
+        // WP-85 : Modération & antispam
         assert!(validate_setting_value("discussion.comment_max_links", &json!(2)).is_ok());
         assert!(validate_setting_value("discussion.comment_max_links", &json!(-1)).is_err());
+
+        // M1-C : Transport e-mail
+        assert!(validate_setting_value("mail.mode", &json!("capture")).is_ok());
+        assert!(validate_setting_value("mail.mode", &json!("simulated")).is_ok());
+        assert!(validate_setting_value("mail.mode", &json!("smtp")).is_ok());
+        assert!(validate_setting_value("mail.mode", &json!("sendmail")).is_err());
+        assert!(validate_setting_value("mail.smtp_port", &json!(587)).is_ok());
+        assert!(validate_setting_value("mail.smtp_port", &json!(70000)).is_err());
+        assert!(validate_setting_value("mail.smtp_encryption", &json!("starttls")).is_ok());
+        assert!(validate_setting_value("mail.smtp_encryption", &json!("tls")).is_ok());
+        assert!(validate_setting_value("mail.smtp_encryption", &json!("insecure")).is_err());
     }
 }

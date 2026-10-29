@@ -903,7 +903,137 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 onChange={(e) => setSetting('discussion.comments_notify', e.target.checked)} />
               {discussionSettingsMessages.commentsNotify}
             </label>
-            <p className="text-xs text-amber-300" role="note">{discussionSettingsMessages.emailUnavailable}</p>
+            {settings['mail.mode'] === 'smtp' ? (
+              <p className="text-xs text-emerald-300" role="note">
+                ✓ Les notifications utilisent le transport SMTP externe configuré.
+              </p>
+            ) : settings['mail.mode'] === 'simulated' ? (
+              <p className="text-xs text-indigo-300" role="note">
+                ℹ Mode simulation actif : aucun e-mail externe n’est émis (tests de résilience).
+              </p>
+            ) : (
+              <p className="text-xs text-amber-300" role="note">
+                ℹ Mode capture locale actif : les e-mails sont conservés en base pour audit et prévisualisation privée dans Outils → Tâches.
+              </p>
+            )}
+          </div>
+
+          {/* Configuration du transport e-mail (M1-C, WP-85, WP-108) */}
+          <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Transport de messagerie e-mail (M1-C, WP-85)
+            </h4>
+            <div className="space-y-3 text-xs">
+              <label className="block space-y-1">
+                <span className="text-slate-400">Mode de transport</span>
+                <select
+                  value={settings['mail.mode'] || 'capture'}
+                  onChange={(e) => setSetting('mail.mode', e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full sm:w-80"
+                >
+                  <option value="capture">Capture locale (prévisualisation privée dans Outils → Tâches)</option>
+                  <option value="simulated">Simulation déterministe (qualification pannes / tests)</option>
+                  <option value="smtp">SMTP externe sécurisé (envoi réel)</option>
+                </select>
+              </label>
+
+              {settings['mail.mode'] === 'simulated' && (
+                <label className="block space-y-1">
+                  <span className="text-slate-400">Comportement simulé</span>
+                  <select
+                    value={settings['mail.simulated_outcome'] || 'success'}
+                    onChange={(e) => setSetting('mail.simulated_outcome', e.target.value)}
+                    className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full sm:w-80"
+                  >
+                    <option value="success">Succès immédiat (livraison simulée)</option>
+                    <option value="transient_error">Erreur temporaire (rejouable par le worker)</option>
+                    <option value="permanent_error">Erreur définitive (échec immédiat sans retry)</option>
+                  </select>
+                </label>
+              )}
+
+              {settings['mail.mode'] === 'smtp' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Hôte SMTP</span>
+                    <input
+                      type="text"
+                      maxLength={255}
+                      value={settings['mail.smtp_host'] || ''}
+                      onChange={(e) => setSetting('mail.smtp_host', e.target.value)}
+                      placeholder="smtp.example.com"
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Port SMTP</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={settings['mail.smtp_port'] ?? 587}
+                      onChange={(e) => setSetting('mail.smtp_port', parseInt(e.target.value, 10) || 587)}
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Chiffrement</span>
+                    <select
+                      value={settings['mail.smtp_encryption'] || 'starttls'}
+                      onChange={(e) => setSetting('mail.smtp_encryption', e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    >
+                      <option value="starttls">STARTTLS (recommandé, port 587)</option>
+                      <option value="tls">TLS direct (port 465)</option>
+                      <option value="none">Aucun (non recommandé, port 25)</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Nom d'utilisateur SMTP</span>
+                    <input
+                      type="text"
+                      maxLength={255}
+                      value={settings['mail.smtp_username'] || ''}
+                      onChange={(e) => setSetting('mail.smtp_username', e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Mot de passe SMTP</span>
+                    <input
+                      type="password"
+                      maxLength={255}
+                      value={settings['mail.smtp_password'] || ''}
+                      onChange={(e) => setSetting('mail.smtp_password', e.target.value)}
+                      placeholder="••••••••"
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-400">Nom de l'expéditeur</span>
+                    <input
+                      type="text"
+                      maxLength={100}
+                      value={settings['mail.from_name'] || ''}
+                      onChange={(e) => setSetting('mail.from_name', e.target.value)}
+                      placeholder="RustForge CMS"
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                  <label className="block space-y-1 sm:col-span-2">
+                    <span className="text-slate-400">Adresse de l'expéditeur</span>
+                    <input
+                      type="email"
+                      maxLength={254}
+                      value={settings['mail.from_address'] || ''}
+                      onChange={(e) => setSetting('mail.from_address', e.target.value)}
+                      placeholder="notifications@example.com"
+                      className="bg-black/30 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-full"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
           </div>
           {/* Avatars (`WP-86`, `WP-87`) */}
           <div className="p-6 rounded-2xl bg-[#0f1422] border border-white/5 space-y-4">

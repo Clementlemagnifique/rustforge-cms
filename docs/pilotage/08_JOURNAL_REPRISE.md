@@ -1,5 +1,40 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Option C / Clôture Discussion : validation intégrale de WP-83, WP-84 et WP-87
+
+**Point de reprise le plus récent.** Clôture fine des sous-options de discussion (`WP-83`, `WP-84`, `WP-87`). Consolidation de la politique de discussion (`DiscussionPolicy`), du formulaire public multilingue avec session dédiée, de l'opt-in de consentement local 30 jours, des avatars locaux déterministes et de la configuration Studio du transport de messagerie transactionnelle (`M1-C`).
+
+### Livré et protections
+
+- **WP-83 — Conditions de commentaire & sessions souveraines** :
+  - `DiscussionPolicy` applique strictement `require_name_email`, `comment_registration`, `close_comments_for_old_posts` et `close_comments_days`.
+  - Session publique dédiée (`POST /api/v1/public/session/login`) avec jeton JWT à portée restreinte `scope=comments` (durée 30 minutes, non-réutilisable sur le Studio).
+  - Échéance de fermeture temporelle intégrée dans la clé du cache Moka SSR sans dépendance de scheduler d'écriture.
+- **WP-84 — Organisation des réponses, imbrication et pagination** :
+  - Imbrication récursive paramétrable de 1 à 5 niveaux avec repli gracieux et conservation de l'ordre d'affichage.
+  - Pagination des commentaires par fils racines (`?comment_page=N`), comptage total des commentaires incluant les réponses validées, en-têtes de pagination `x-comment-*`.
+  - Ordre chronologique ou antéchronologique (`comment_order: asc|desc`), sélection de la première ou dernière page par défaut (`default_comments_page: oldest|newest`).
+- **WP-87 — Souveraineté RGPD, opt-in cookies et avatars locaux** :
+  - Case à cocher d'opt-in de consentement (`show_comments_cookies_opt_in`) mémorisant les coordonnées visiteur pour 30 jours dans `localStorage` du navigateur avec vérification d'expiration et scrubbing immédiat au désengagement. Aucun cookie HTTP émis vers le serveur.
+  - Avatars locaux vectoriels SVG déterministes dérivés de l'UUID public du commentaire (`avatar_default: mystery|blank|identicon|retro`) sans fuite d'e-mail ni appel tiers externe à Gravatar (conformité RGPD stricte).
+  - Panneau de configuration du transport e-mail intégré dans l'onglet Discussion du Studio (`SettingsView.tsx`), permettant le basculement dynamique entre Capture locale, Simulation de pannes et SMTP externe sécurisé.
+
+### Validation et preuves
+
+- **82 tests unitaires Rust** (17 API, 63 core dont suite complète de validation des réglages de discussion, pagination, avatars et mail, 2 plugins).
+- **Clippy workspace strict** : 0 avertissement.
+- **Contrôles qualité Studio** :
+  - `npm run lint` (`oxlint`) : 0 erreur, 0 avertissement.
+  - `npm run build` (`tsc -b && vite build`) : succès.
+- **Pilotage & documentation** :
+  - `WP-83`, `WP-84`, `WP-87` validés (`VALIDE`) dans `docs/pilotage/01_COEUR_ADMIN.csv`.
+  - `py scripts/pilotage.py` : 434 tâches, 38 composants cohérents.
+  - `py scripts/verifier-documentation.py` : 37 documents, 1 504 liens, 0 erreur.
+
+### Prochaine étape
+
+Passage à l'**Option A** : Menus hiérarchiques et navigation (`NAV-A`, `NAV-B`, `STAB-08`).
+
 ## 29 octobre 2026 — Option B / STAB-07 : Motifs synchronisés, blocs réutilisables et styles de disposition
 
 **Point de reprise le plus récent.** Sous-lot Option B (`WP-34` / `STAB-07`) livré et qualifié. Implémentation complète des motifs synchronisés (synced patterns / reusable blocks) avec persistance PostgreSQL, validation stricte du schéma `rf.document/1`, détachement réversible sans perte de contenu, et styles de colonnes responsives natifs.
