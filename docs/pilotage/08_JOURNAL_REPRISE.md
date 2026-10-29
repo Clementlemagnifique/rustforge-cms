@@ -1,5 +1,42 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — Option A / STAB-08 : Navigation hiérarchique, résolution dynamique et métadonnées de menu
+
+**Point de reprise le plus récent.** Sous-lot Option A (`WP-46`, `WP-51` / `NAV-A`, `NAV-B`, `STAB-08`) livré et qualifié. Implémentation complète de la structure d'éléments de menu enrichie (`NAV-A`), de la résolution dynamique automatique des cibles sans URLs cassées en cas de renommage (`NAV-B` / `STAB-08`), et synchronisation avec le Studio (`AppearanceView.tsx`).
+
+### Livré et protections
+
+- **Structure d'éléments de menu enrichie (NAV-A, QM-01 à QM-03)** :
+  - Support natif des champs : `id` (UUID/identifiant stable), `type` (`custom`, `page`, `post`, `category`, `tag`), `object_id` (UUID cible), `label`, `url`, `target` (`_self`, `_blank`), `parent_id` (arborescence jusqu'à 3 niveaux), `classes` (classes CSS personnalisées), `badge` (badge visuel, ex: Pro, Nouveau), `subtitle` (sous-titre/phrase d'accroche).
+  - Validation stricte dans `settings.rs` : interdiction des auto-références (`parent_id == id`), détection des cycles récursifs (A -> B -> A), limitation de profondeur à 3 niveaux et validation du format UUID d'`object_id`.
+- **Résolution dynamique des références (NAV-B, STAB-08)** :
+  - Moteur asynchrone `resolve_and_transform_menus` dans `crates/rustforge-api/src/routes/public.rs` :
+    - Regroupement des `entry_ids` et `term_ids` et requêtes d'index par lots (`WHERE id = ANY($1)`).
+    - Résolution dynamique de l'URL réelle en direct (`/{locale}/page/{slug}`, `/{locale}/post/{slug}`, `/{locale}/archive/{tax}/{slug}`).
+    - Lorsqu'un rédacteur modifie le titre ou le slug d'une page, d'un article ou d'une catégorie, les menus publics reflètent immédiatement la nouvelle URL sans modification manuelle et sans liens morts.
+    - Repli gracieux : si la cible a été supprimée ou est temporairement inaccessible, l'URL enregistrée est préservée sans provoquer d'erreur 500 ni casser le rendu du site.
+- **Studio d'administration (`admin/src/components/AppearanceView.tsx`, `useAppearanceStore.ts`, `types.ts`)** :
+  - Ajout rapide en 1 clic depuis les pages publiées et les catégories avec transmission automatique de `type` et `object_id`.
+  - Badges visuels distincts dans l'arbre pour les liens dynamiques (`Page dynamique`, `Catégorie dynamique`).
+  - Édition des classes CSS personnalisées (`classes`) dans le volet déroulant de chaque élément.
+  - Sauvegarde et restauration transactionnelles avec le backend.
+
+### Validation et preuves
+
+- **83 tests unitaires Rust** (18 API dont tests de structure de menus et repli sans DB, 63 core dont validation stricte `settings::tests::test_validate_hierarchical_menus` avec `object_id` et types dynamiques, 2 plugins).
+- **Clippy workspace strict** (`cargo clippy --workspace --all-targets -- -D warnings`) : 0 avertissement.
+- **Contrôles qualité Studio** :
+  - `npm run lint` (`oxlint`) : 0 erreur, 0 avertissement.
+  - `npm run build` (`tsc -b && vite build`) : succès.
+- **Pilotage & documentation** :
+  - `WP-46` et `WP-51` validés (`VALIDE`) dans `docs/pilotage/01_COEUR_ADMIN.csv`.
+  - `py scripts/pilotage.py` : 434 tâches, 38 composants cohérents.
+  - `py scripts/verifier-documentation.py` : 37 documents, 1 504 liens, 0 erreur.
+
+### Prochaine étape
+
+Cycle complet **Option B, Option C et Option A achevé** avec succès. Préparation du point d'étape avec le pilotage et qualification visuelle globale.
+
 ## 29 octobre 2026 — Option C / Clôture Discussion : validation intégrale de WP-83, WP-84 et WP-87
 
 **Point de reprise le plus récent.** Clôture fine des sous-options de discussion (`WP-83`, `WP-84`, `WP-87`). Consolidation de la politique de discussion (`DiscussionPolicy`), du formulaire public multilingue avec session dédiée, de l'opt-in de consentement local 30 jours, des avatars locaux déterministes et de la configuration Studio du transport de messagerie transactionnelle (`M1-C`).

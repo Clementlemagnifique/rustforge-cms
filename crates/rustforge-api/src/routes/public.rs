@@ -111,6 +111,111 @@ pub fn transform_menus_to_tree(raw_menus: &serde_json::Value) -> serde_json::Val
     serde_json::Value::Object(out)
 }
 
+/// Résout dynamiquement les références d'objets (pages, articles, catégories, tags)
+/// et génère l'arbre hiérarchique des menus (NAV-A, NAV-B, STAB-08).
+pub async fn resolve_and_transform_menus(
+    db: &sqlx::PgPool,
+    raw_menus: &serde_json::Value,
+    locale: &str,
+) -> serde_json::Value {
+    let Some(obj) = raw_menus.as_object() else {
+        return transform_menus_to_tree(raw_menus);
+    };
+
+    // 1. Collecte des identifiants cibles à résoudre
+    let mut entry_ids: Vec<uuid::Uuid> = Vec::new();
+    let mut term_ids: Vec<uuid::Uuid> = Vec::new();
+
+    for (_loc, items_val) in obj {
+        if let Some(items) = items_val.as_array() {
+            for item in items {
+                if let Some(item_obj) = item.as_object() {
+                    let item_type = item_obj
+                        .get("type")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("custom");
+                    if let Some(id_str) = item_obj.get("object_id").and_then(serde_json::Value::as_str)
+                        && let Ok(uid) = uuid::Uuid::parse_str(id_str.trim())
+                    {
+                        if matches!(item_type, "page" | "post") {
+                            entry_ids.push(uid);
+                        } else if matches!(item_type, "category" | "tag") {
+                            term_ids.push(uid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Requête groupée des slugs et types actuels
+    let mut entry_map: std::collections::HashMap<uuid::Uuid, (String, String)> =
+        std::collections::HashMap::new();
+    if !entry_ids.is_empty()
+        && let Ok(rows) = sqlx::query_as::<_, (uuid::Uuid, String, String)>(
+            "SELECT id, slug, content_type FROM entries WHERE id = ANY($1)",
+        )
+        .bind(&entry_ids)
+        .fetch_all(db)
+        .await
+    {
+        for (id, slug, content_type) in rows {
+            entry_map.insert(id, (slug, content_type));
+        }
+    }
+
+    let mut term_map: std::collections::HashMap<uuid::Uuid, (String, String)> =
+        std::collections::HashMap::new();
+    if !term_ids.is_empty()
+        && let Ok(rows) = sqlx::query_as::<_, (uuid::Uuid, String, String)>(
+            "SELECT id, slug, taxonomy FROM terms WHERE id = ANY($1)",
+        )
+        .bind(&term_ids)
+        .fetch_all(db)
+        .await
+    {
+        for (id, slug, taxonomy) in rows {
+            term_map.insert(id, (slug, taxonomy));
+        }
+    }
+
+    // 3. Substitution des URLs par les URLs réelles résolues
+    let mut resolved_obj = obj.clone();
+    for (_loc, items_val) in resolved_obj.iter_mut() {
+        if let Some(items) = items_val.as_array_mut() {
+            for item in items.iter_mut() {
+                if let Some(item_obj) = item.as_object_mut() {
+                    let item_type = item_obj
+                        .get("type")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("custom");
+                    if let Some(id_str) = item_obj.get("object_id").and_then(serde_json::Value::as_str)
+                        && let Ok(uid) = uuid::Uuid::parse_str(id_str.trim())
+                    {
+                        if matches!(item_type, "page" | "post") {
+                            if let Some((slug, ct)) = entry_map.get(&uid) {
+                                let live_url = if ct == "page" {
+                                    format!("/{locale}/page/{slug}")
+                                } else {
+                                    format!("/{locale}/post/{slug}")
+                                };
+                                item_obj.insert("url".into(), serde_json::json!(live_url));
+                            }
+                        } else if matches!(item_type, "category" | "tag")
+                            && let Some((slug, tax)) = term_map.get(&uid)
+                        {
+                            let live_url = format!("/{locale}/archive/{tax}/{slug}");
+                            item_obj.insert("url".into(), serde_json::json!(live_url));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    transform_menus_to_tree(&serde_json::Value::Object(resolved_obj))
+}
+
 pub(super) async fn build_site_context(
     state: &AppState,
     locale: &str,
@@ -142,7 +247,7 @@ pub(super) async fn build_site_context(
             "footer": []
         })
     });
-    let menus = transform_menus_to_tree(&raw_menus);
+    let menus = resolve_and_transform_menus(&state.db, &raw_menus, locale).await;
     let blog_public = site_settings
         .get("reading.blog_public")
         .and_then(|v| v.as_bool())
@@ -764,6 +869,30 @@ mod tests {
 
         assert_eq!(res_header[1]["id"], "a-propos");
         assert_eq!(res_header[1]["children"], json!([]));
+    }
+
+    #[test]
+    fn test_resolve_menus_structure_and_fallback() {
+        let dynamic_menu = json!({
+            "header": [
+                {
+                    "id": "item-1",
+                    "label": "Documentation",
+                    "url": "/fr/page/docs",
+                    "type": "page",
+                    "object_id": "00000000-0000-0000-0000-000000000001",
+                    "classes": "nav-highlight"
+                }
+            ],
+            "footer": []
+        });
+        let tree = transform_menus_to_tree(&dynamic_menu);
+        let header = tree.get("header").and_then(Value::as_array).unwrap();
+        assert_eq!(header.len(), 1);
+        assert_eq!(header[0]["label"], "Documentation");
+        assert_eq!(header[0]["url"], "/fr/page/docs");
+        assert_eq!(header[0]["classes"], "nav-highlight");
+        assert_eq!(header[0]["object_id"], "00000000-0000-0000-0000-000000000001");
     }
 }
 

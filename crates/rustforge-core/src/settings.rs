@@ -138,7 +138,15 @@ fn validate_menu_items(arr: &[Value]) -> CoreResult<()> {
             ));
         }
         let url = item_obj.get("url").and_then(Value::as_str).unwrap_or("");
-        validate_menu_url(url)?;
+        let has_object_id = item_obj
+            .get("object_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_some();
+        if !url.trim().is_empty() || !has_object_id {
+            validate_menu_url(url)?;
+        }
 
         if let Some(badge) = item_obj.get("badge").and_then(Value::as_str)
             && badge.chars().count() > 20
@@ -165,10 +173,27 @@ fn validate_menu_items(arr: &[Value]) -> CoreResult<()> {
         }
 
         if let Some(item_type) = item_obj.get("type").and_then(Value::as_str)
-            && !matches!(item_type, "custom" | "page" | "category" | "tag")
+            && !matches!(item_type, "custom" | "page" | "post" | "category" | "tag")
         {
             return Err(CoreError::validation(
-                "Le type d'élément de menu doit être 'custom', 'page', 'category' ou 'tag'.",
+                "Le type d'élément de menu doit être 'custom', 'page', 'post', 'category' ou 'tag'.",
+            ));
+        }
+
+        if let Some(obj_id) = item_obj.get("object_id").and_then(Value::as_str) {
+            let trimmed = obj_id.trim();
+            if !trimmed.is_empty() && uuid::Uuid::parse_str(trimmed).is_err() {
+                return Err(CoreError::validation(
+                    "L'identifiant d'objet (object_id) d'un élément de menu doit être un UUID valide.",
+                ));
+            }
+        }
+
+        if let Some(classes) = item_obj.get("classes").and_then(Value::as_str)
+            && classes.chars().count() > 100
+        {
+            return Err(CoreError::validation(
+                "Les classes CSS d'un élément de menu sont limitées à 100 caractères.",
             ));
         }
 
@@ -795,6 +820,35 @@ mod tests {
             ]
         });
         assert!(validate_setting_value("site.menus", &deep_menu).is_err());
+
+        // Valid dynamic menu with object_id, type post/page, and classes (NAV-A, STAB-08)
+        let dynamic_menu = json!({
+            "header": [
+                {
+                    "id": "item-1",
+                    "label": "Guide Rust",
+                    "type": "post",
+                    "object_id": "a0000000-0000-0000-0000-000000000001",
+                    "classes": "nav-highlight bold"
+                },
+                {
+                    "id": "item-2",
+                    "label": "Catégorie Tech",
+                    "type": "category",
+                    "object_id": "a0000000-0000-0000-0000-000000000002"
+                }
+            ],
+            "footer": []
+        });
+        assert!(validate_setting_value("site.menus", &dynamic_menu).is_ok());
+
+        // Invalid object_id rejected
+        let invalid_obj_id = json!({
+            "header": [
+                {"label": "Test", "type": "page", "object_id": "not-a-valid-uuid"}
+            ]
+        });
+        assert!(validate_setting_value("site.menus", &invalid_obj_id).is_err());
     }
 
     #[test]

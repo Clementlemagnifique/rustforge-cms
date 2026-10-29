@@ -115,8 +115,9 @@ export interface PublicMenuItem {
   label: string;
   url: string;
   target?: '_self' | '_blank';
-  type?: 'custom' | 'page' | 'category' | 'tag';
+  type?: 'custom' | 'page' | 'post' | 'category' | 'tag';
   object_id?: string | null;
+  classes?: string;
   badge?: string;
   subtitle?: string;
   children?: PublicMenuItem[];

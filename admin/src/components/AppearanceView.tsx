@@ -343,7 +343,7 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => addMenuItem(p.title, `/fr/page/${p.slug}`, '_self')}
+                        onClick={() => addMenuItem(p.title, `/fr/page/${p.slug}`, '_self', { type: 'page', object_id: p.id })}
                         className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-200 hover:border-indigo-400"
                       >
                         + {p.title}
@@ -364,7 +364,7 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() => addMenuItem(c.name, `/fr?term=${c.slug}`, '_self')}
+                        onClick={() => addMenuItem(c.name, `/fr?term=${c.slug}`, '_self', { type: 'category', object_id: c.id })}
                         className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-200 hover:border-emerald-400"
                       >
                         + {c.name}
@@ -444,6 +444,11 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                             {item.badge && (
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
                                 {item.badge}
+                              </span>
+                            )}
+                            {item.type && item.type !== 'custom' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/20 text-indigo-300">
+                                {item.type === 'page' ? 'Page' : item.type === 'category' ? 'Catégorie' : item.type === 'post' ? 'Article' : 'Tag'} dynamique
                               </span>
                             )}
                           </div>
@@ -577,6 +582,17 @@ export const AppearanceView: React.FC<AppearanceViewProps> = ({ initialTab }) =>
                               onChange={(e) => updateMenuItem(item.id, { subtitle: e.target.value })}
                               placeholder="Courte description ou phrase d'appel"
                               className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </label>
+                          <label className="md:col-span-2 block space-y-1">
+                            <span className="text-slate-400">Classes CSS personnalisées</span>
+                            <input
+                              type="text"
+                              maxLength={100}
+                              value={item.classes ?? ''}
+                              onChange={(e) => updateMenuItem(item.id, { classes: e.target.value })}
+                              placeholder="Ex: nav-btn highlight menu-cta"
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 font-mono text-xs text-white"
                             />
                           </label>
                         </div>
