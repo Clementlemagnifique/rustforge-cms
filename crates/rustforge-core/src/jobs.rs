@@ -235,12 +235,22 @@ pub async fn skip(db: &PgPool, id: Uuid, token: Uuid, code: &str) -> CoreResult<
 }
 
 pub async fn cancel(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    cancel_if_current(db, id, None).await
+}
+
+/// Version attendue fournie par le Studio ; None conserve le contrat CLI.
+pub async fn cancel_if_current(
+    db: &PgPool,
+    id: Uuid,
+    expected: Option<DateTime<Utc>>,
+) -> CoreResult<()> {
     let rows = sqlx::query(
         "UPDATE rf_jobs SET state='cancelled',lease_token=NULL,lease_until=NULL,
         finished_at=now(),updated_at=now(),error_code='operator_cancelled'
-        WHERE id=$1 AND state IN ('queued','retry','running','paused_restore')",
+        WHERE id=$1 AND ($2::timestamptz IS NULL OR updated_at=$2) AND state IN ('queued','retry','running','paused_restore')",
     )
     .bind(id)
+    .bind(expected)
     .execute(db)
     .await?
     .rows_affected();
@@ -249,12 +259,22 @@ pub async fn cancel(db: &PgPool, id: Uuid) -> CoreResult<()> {
 
 /// Seul un opérateur autorisé doit appeler cette fonction, jamais un retry automatique.
 pub async fn retry(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    retry_if_current(db, id, None).await
+}
+
+/// Version attendue fournie par le Studio ; None conserve le contrat CLI.
+pub async fn retry_if_current(
+    db: &PgPool,
+    id: Uuid,
+    expected: Option<DateTime<Utc>>,
+) -> CoreResult<()> {
     let rows = sqlx::query(
         "UPDATE rf_jobs SET state='queued',attempts=0,available_at=now(),
         updated_at=now(),finished_at=NULL,error_code=NULL
-        WHERE id=$1 AND state='failed'",
+        WHERE id=$1 AND ($2::timestamptz IS NULL OR updated_at=$2) AND state='failed'",
     )
     .bind(id)
+    .bind(expected)
     .execute(db)
     .await?
     .rows_affected();
@@ -262,15 +282,25 @@ pub async fn retry(db: &PgPool, id: Uuid) -> CoreResult<()> {
 }
 
 pub async fn resume_restored(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    resume_restored_if_current(db, id, None).await
+}
+
+/// Version attendue fournie par le Studio ; None conserve le contrat CLI.
+pub async fn resume_restored_if_current(
+    db: &PgPool,
+    id: Uuid,
+    expected: Option<DateTime<Utc>>,
+) -> CoreResult<()> {
     let rows = sqlx::query(
         "UPDATE rf_jobs SET
         state=CASE WHEN attempts<max_attempts THEN 'queued' ELSE 'failed' END,
         available_at=now(),updated_at=now(),
         finished_at=CASE WHEN attempts<max_attempts THEN NULL ELSE now() END,
         error_code='operator_resumed'
-        WHERE id=$1 AND state='paused_restore'",
+        WHERE id=$1 AND ($2::timestamptz IS NULL OR updated_at=$2) AND state='paused_restore'",
     )
     .bind(id)
+    .bind(expected)
     .execute(db)
     .await?
     .rows_affected();

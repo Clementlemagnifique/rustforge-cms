@@ -403,7 +403,15 @@ pub fn build_router(state: AppState) -> Router {
         .route("/restore", post(routes::capsules::restore_capsule))
         .layer(DefaultBodyLimit::max(128 * 1024 * 1024));
 
+    let jobs_routes = Router::new()
+        .route("/", get(routes::jobs::list))
+        .route("/capture", post(routes::jobs::capture_batch))
+        .route("/{id}/capture", get(routes::jobs::capture))
+        .route("/{id}/{action}", post(routes::jobs::action))
+        .layer(axum::middleware::map_response(routes::jobs::no_store));
+
     let api_v1 = Router::new()
+        .nest("/jobs", jobs_routes)
         .route("/admin/navigation", get(routes::admin::navigation))
         .route("/admin/modules", put(routes::admin::update_modules))
         .nest("/setup", setup_routes)

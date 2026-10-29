@@ -415,3 +415,18 @@ export const discussionSettingsMessages = {
   avatarDefault: 'Avatar par défaut pour les utilisateurs sans image de profil',
 } as const;
 
+
+export const jobsMessages = {
+  title: 'Tâches et diagnostic',
+  note: 'Messagerie en capture locale uniquement : aucun e-mail externe envoyé. Les autres diagnostics du site restent à compléter.',
+  refresh: 'Actualiser', captureBatch: 'Traiter jusqu’à 10 tâches e-mail en capture locale',
+  filter: 'Filtrer par état', all: 'Tous les états', loading: 'Chargement…', empty: 'Aucune tâche pour ce filtre.',
+  previous: 'Précédent', next: 'Suivant', attempts: 'Tentatives', available: 'Disponible à partir du',
+  actions: 'Actions', type: 'Type / identifiant', state: 'État', error: 'Code diagnostic',
+  cancel: 'Annuler', retry: 'Réessayer', resume: 'Reprendre après restauration', preview: 'Voir la capture privée',
+  confirm: 'Confirmer cette action sur la tâche sélectionnée ? Une reprise peut répéter un effet déjà commencé. L’annulation ne peut pas retirer un effet distant déjà commencé.',
+  yes: 'Confirmer', no: 'Revenir', close: 'Fermer la capture', recipient: 'Destinataire',
+  failed: 'Opération impossible. Actualisez la liste avant de réessayer.',
+  handled: 'Tâches traitées (captures, annulations ou échecs) : ',
+  states: {queued: 'En attente', running: 'En cours', retry: 'Nouvelle tentative prévue', succeeded: 'Terminée', failed: 'Échec', cancelled: 'Annulée', paused_restore: 'En pause après restauration'},
+} as const;

@@ -237,3 +237,16 @@ export interface CommentListResponse {
   total_pages: number;
 }
 
+
+export interface JobSummary {
+  id: string; kind: string; state: string; payload_version: number;
+  attempts: number; max_attempts: number; available_at: string;
+  lease_until: string | null; error_code: string | null;
+  created_at: string; updated_at: string; finished_at: string | null;
+  capture_available: boolean;
+}
+export interface JobsPage {
+  items: JobSummary[]; total: number; page: number; pages: number;
+  counts: Record<string, number>; mail_mode: 'capture_only';
+}
+export interface JobCapture { recipient: string; subject: string; text: string }

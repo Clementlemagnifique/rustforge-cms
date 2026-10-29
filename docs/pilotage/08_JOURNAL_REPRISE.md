@@ -1,5 +1,32 @@
 # RustForge CMS — journal de reprise
 
+## 29 octobre 2026 — M1-E : diagnostic des jobs dans le Studio
+
+**Point de reprise le plus récent.** Sous-lot diagnostic livré en capture locale. Menu existant Outils → Tâches et diagnostic (`rf_health`, route `jobs`, état partial) raccordé à JobsView et aux services Rust existants. Pas de seconde file, nouvelle migration SQL, dépendance ou transport réseau. Les diagnostics DB/stockage/cache et la configuration SMTP/API restent prévus, explicitement visibles dans le registre et le texte de l'écran.
+
+### Livré et protections
+
+- GET /api/v1/jobs : compteurs globaux par état, liste filtrée par état, pagination bornée 1–100, tri stable date/id ; compteurs et page dans une transaction de lecture repeatable-read. Projection SQL explicite : type/version, état, tentatives/plafond, dates, code stable et présence d'une capture. Aucun payload, résultat brut, clé de déduplication ou token de bail dans la liste.
+- GET /api/v1/jobs/{id}/capture : uniquement une capture réussie, trois champs projetés destinataire/sujet/texte. Réservée à une ouverture explicite ; affichage React comme texte, sans interprétation HTML. Ces messages sont privés et restent présents dans les sauvegardes existantes.
+- POST /api/v1/jobs/{id}/cancel, retry, resume-restored : confirmation Studio, états autorisés contrôlés et expected_updated_at obligatoire. Comparaison atomique dans l'UPDATE : version périmée ou état devenu incompatible = 409, aucun écrasement d'une progression worker. Les commandes CLI existantes gardent leur contrat. Une annulation ne retire pas un effet distant déjà commencé ; une reprise peut répéter un effet externe.
+- POST /api/v1/jobs/capture : lot de 1 à 10 tâches e-mail, CaptureTransport existant uniquement. Le Studio dit « tâches traitées », jamais « messages envoyés » ; le compteur inclut annulations et échecs. Aucun déclenchement au démarrage du site, aucune purge dans l'interface.
+- Toutes ces routes exigent un administrateur relu en DB. Auteur/éditeur refusés ; JWT de session commentaires refusé même s'il appartient à un administrateur. Cache-Control: no-store ajouté aussi aux réponses d'erreur. Libellés centralisés dans messages.fr.ts ; traductions reportées. Gestion des réponses tardives, chargement/erreur/vide, tableau défilant, filtres et confirmation explicite ; aucune lecture des messages avant demande.
+
+### Validation et limites
+
+**74 tests unitaires Rust**, **2 scénarios PostgreSQL jobs/mail/notifications** et **4 tests intégrés CMS** réussis ; Clippy strict workspace/all-targets, build Studio et lint sans avertissement de code réussis. Preuves [unitaires](../validations/m1-2026-10-29/diagnostic-unit.txt), [jobs](../validations/m1-2026-10-29/diagnostic-integration.txt), [HTTP](../validations/m1-2026-10-29/diagnostic-regression.txt), [Clippy](../validations/m1-2026-10-29/diagnostic-clippy.txt), [build](../validations/m1-2026-10-29/diagnostic-admin-build.txt), [lint](../validations/m1-2026-10-29/diagnostic-admin-lint.txt).
+
+La recette HTTP couvre accès anonyme/auteur/éditeur/JWT restreint, confidentialité de liste, no-store, filtres/pagination hors limites, versions périmées et transitions annuler/reprendre/réessayer, lot de capture borné, résultat privé et menu administrateur. Les régressions de sauvegarde/capsule passent. PostgreSQL jetable arrêté après la recette. Pas de recette visuelle navigateur, de panne OS ou de charge/multi-hôte réel. Le bundle Studio >500 Ko reste signalé. Les premiers essais ont corrigé un problème d'encodage/fins de ligne Windows et un avertissement React avant ces validations finales.
+
+WP-56, WP-108 et MOD-MAIL-11 restent EN_COURS : ce diagnostic ne valide ni toute la santé du site ni le parcours agence/multi-sites. Les captures sont locales ; WP-85 et la délivrabilité restent ouverts. Aucun pourcentage global de parité annoncé.
+
+### Reprise exacte
+
+**Prochain sous-lot : finir M1-C**, adaptateur de production configurable et testable avec fournisseur simulé, état non configuré explicite et secrets hors API/logs/exports ; conserver CaptureTransport pour les recettes. Puis M1-F : panne après acceptation, rétention/effacement des captures, volumétrie, restauration/reprise et invalidation du cache de commentaires entre instances (gap décrit dans M1-D). Ne pas configurer un compte personnel ni envoyer à des tiers sans autorisation. Les diagnostics DB/stockage/cache et export restent à compléter dans WP-56.
+
+Checkout `C:/Users/cleme/.codex/worktrees/audit-reprise-29-oct/CMS Rust`, branche fix/consolidation-2026-10-29. Conserver l'ancien index 32c4 et la base personnelle. Sauvegarde locale du lot ; aucun push ou merge main demandé. Le plan, les contrats et les tableaux existants portent la suite ; aucun nouveau MD stratégique.
+
+
 ## 29 octobre 2026 — M1-D : notifications de commentaires dans l'outbox, capture locale
 
 **Point de reprise le plus récent.** Notifications de création, modération, édition et réponse raccordées à rf_jobs. Préférences Studio ajoutées, désactivées par défaut. Aucun SMTP/API externe, aucune exécution automatique au démarrage ; `jobs capture-mail` traite désormais les jobs transactionnels génériques ET `rf.mail.comment`.

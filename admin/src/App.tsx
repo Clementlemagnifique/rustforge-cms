@@ -23,6 +23,7 @@ import { EntryEditorView } from './components/EntryEditorView';
 import { MediaView } from './components/MediaView';
 import { PluginsView } from './components/PluginsView';
 import { ContentTypesView } from './components/ContentTypesView';
+import { JobsView } from './components/JobsView';
 import { SettingsView } from './components/SettingsView';
 import { ConverterView } from './components/ConverterView';
 import { CapsulesView } from './components/CapsulesView';
@@ -165,6 +166,7 @@ export const App: React.FC = () => {
     if (currentView === 'media') return 'Médiathèque';
     if (currentView === 'plugins') return 'Plugins WebAssembly';
     if (currentView === 'content-types') return 'Types de Contenu';
+    if (currentView === 'jobs') return 'Tâches et diagnostic';
     if (currentView === 'settings') return 'Réglages';
     if (currentView === 'converter') return 'Conversion de thèmes · avancé';
     if (currentView === 'migration') return 'Importer WordPress';
@@ -259,6 +261,7 @@ export const App: React.FC = () => {
               {currentView === 'content-types' && (
                 <ContentTypesView contentTypes={contentTypes} onRefresh={refreshData} />
               )}
+              {currentView === 'jobs' && <JobsView />}
               {currentView === 'settings' && <SettingsView key="settings-general" initialTab="general" />}
               {currentView === 'settings:reading' && <SettingsView key="settings-reading" initialTab="reading" />}
               {currentView === 'settings:writing' && <SettingsView key="settings-writing" initialTab="writing" />}

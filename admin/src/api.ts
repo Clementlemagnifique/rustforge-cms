@@ -44,6 +44,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  jobs: {
+    list: (state: string, page: number) => request<import('./types').JobsPage>(`/jobs?page=${page}&per_page=20${state ? `&state=${encodeURIComponent(state)}` : ''}`),
+    action: (job: import('./types').JobSummary, action: 'cancel' | 'retry' | 'resume-restored') => request<{ok: boolean}>(`/jobs/${job.id}/${action}`, {method: 'POST', body: JSON.stringify({expected_updated_at: job.updated_at})}),
+    capture: (id: string) => request<import('./types').JobCapture>(`/jobs/${id}/capture`),
+    captureBatch: () => request<{handled: number; mail_mode: string}>('/jobs/capture', {method: 'POST', body: JSON.stringify({limit: 10})}),
+  },
   admin: {
     navigation: () => request<import('./types').AdminNavigation>('/admin/navigation'),
     updateModules: (patch: Record<string, boolean>) => request<import('./types').AdminNavigation>('/admin/modules', { method: 'PUT', body: JSON.stringify(patch) }),

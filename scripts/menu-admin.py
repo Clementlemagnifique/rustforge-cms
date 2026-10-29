@@ -32,7 +32,7 @@ DESIGNS={
  'workflow':'Workflow: colonnes, transitions, permissions, détail et historique.',
  'translation':'Traduction: source, contexte, pluriels, cible, état et validation.',
 }
-COMPONENTS={'dashboard':'StartDashboard','entries:post':'EntriesView','entries:page':'EntriesView','new:post':'EntryEditorView','new:page':'EntryEditorView','taxonomy:category':'TaxonomiesView','taxonomy:tag':'TaxonomiesView','media':'MediaView','appearance':'AppearanceView','menus':'AppearanceView','settings':'SettingsView','settings:reading':'SettingsView','settings:writing':'SettingsView','users':'UsersView','users:new':'UsersView','profile':'UsersView','modules':'NativeModulesView','plugins':'PluginsView','content-types':'ContentTypesView','converter':'ConverterView','migration':'MigrationView','capsules':'CapsulesView','admin-map':'AdminPlanView','ai-studio':'App'}
+COMPONENTS={'jobs':'JobsView','dashboard':'StartDashboard','entries:post':'EntriesView','entries:page':'EntriesView','new:post':'EntryEditorView','new:page':'EntryEditorView','taxonomy:category':'TaxonomiesView','taxonomy:tag':'TaxonomiesView','media':'MediaView','appearance':'AppearanceView','menus':'AppearanceView','settings':'SettingsView','settings:reading':'SettingsView','settings:writing':'SettingsView','users':'UsersView','users:new':'UsersView','profile':'UsersView','modules':'NativeModulesView','plugins':'PluginsView','content-types':'ContentTypesView','converter':'ConverterView','migration':'MigrationView','capsules':'CapsulesView','admin-map':'AdminPlanView','ai-studio':'App'}
 
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--check',action='store_true');args=parser.parse_args()

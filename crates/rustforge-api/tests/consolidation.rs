@@ -491,6 +491,8 @@ async fn postgres_http_and_native_backup_regressions() {
 
         rustforge_api::auth::create_token(subscriber.id, subscriber.role, SECRET).unwrap();
 
+    jobs_diagnostics(&app, &db, &admin, &token, admin_id).await;
+
     let preview = request(
 
         &app,
@@ -5039,3 +5041,66 @@ async fn postgres_http_and_native_backup_regressions() {
 
 }
 
+
+/// API réelle : droits, projection privée, version attendue et capture sans réseau.
+async fn jobs_diagnostics(app: &Router, db: &PgPool, admin: &str, author: &str, admin_id: Uuid) {
+    use core::jobs::{self, NewJob};
+    let spec = NewJob {
+        kind: core::mail::KIND.into(), payload_version: 1,
+        payload: json!({"recipient_id":admin_id,"subject":"Capture privée","text":"private-job-marker"}),
+        dedup_key: "diagnostic:private-marker".into(), max_attempts: 3, priority: 0,
+        available_at: chrono::Utc::now(),
+    };
+    let job = jobs::enqueue(db, &spec).await.unwrap();
+    let scoped = rustforge_api::auth::create_comment_token(admin_id, Role::Admin, SECRET).unwrap();
+    let editor = account(db, "jobs_editor", Role::Editor).await;
+    let editor_token = rustforge_api::auth::create_token(editor.id, editor.role, SECRET).unwrap();
+    for (credential, expected) in [(None,401),(Some(author),403),(Some(editor_token.as_str()),403),(Some(scoped.as_str()),401)] {
+        for (method, url, body) in [
+            ("GET", "/api/v1/jobs".to_string(), json!(null)),
+            ("GET", format!("/api/v1/jobs/{}/capture", job.id), json!(null)),
+            ("POST", format!("/api/v1/jobs/{}/cancel", job.id), json!({"expected_updated_at":job.updated_at})),
+            ("POST", "/api/v1/jobs/capture".to_string(), json!({"limit":1})),
+        ] {
+            assert_eq!(request(app,method,&url,credential,body).await.0,expected);
+        }
+    }
+    let res = app.clone().oneshot(Request::builder().uri("/api/v1/jobs")
+        .header("authorization",format!("Bearer {admin}")).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(res.status(),200);
+    assert_eq!(res.headers()["cache-control"],"no-store");
+    let bytes=to_bytes(res.into_body(),1024*1024).await.unwrap();
+    let body: Value=serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["mail_mode"],"capture_only");
+    let text=String::from_utf8(bytes.to_vec()).unwrap();
+    for private in ["private-job-marker","diagnostic:private-marker","lease_token","payload\"","output\""] { assert!(!text.contains(private)); }
+    assert_eq!(request(app,"GET","/api/v1/jobs?state=unknown",Some(admin),json!(null)).await.0,400);
+    assert_eq!(request(app,"GET","/api/v1/jobs?per_page=101",Some(admin),json!(null)).await.0,400);
+    assert_eq!(request(app,"GET","/api/v1/jobs?page=1000",Some(admin),json!(null)).await.0,404);
+    assert_eq!(request(app,"POST","/api/v1/jobs/capture",Some(admin),json!({"limit":11})).await.0,400);
+    let cancel=format!("/api/v1/jobs/{}/cancel",job.id);
+    let stale=job.updated_at-chrono::Duration::seconds(1);
+    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":stale})).await.0,409);
+    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,200);
+    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
+    sqlx::query("UPDATE rf_jobs SET state='paused_restore',updated_at=clock_timestamp() WHERE id=$1").bind(job.id).execute(db).await.unwrap();
+    let current: chrono::DateTime<chrono::Utc>=sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1").bind(job.id).fetch_one(db).await.unwrap();
+    let resume=format!("/api/v1/jobs/{}/resume-restored",job.id);
+    assert_eq!(request(app,"POST",&resume,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
+    assert_eq!(request(app,"POST",&resume,Some(admin),json!({"expected_updated_at":current})).await.0,200);
+    sqlx::query("UPDATE rf_jobs SET state='failed',updated_at=clock_timestamp() WHERE id=$1").bind(job.id).execute(db).await.unwrap();
+    let current: chrono::DateTime<chrono::Utc>=sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1").bind(job.id).fetch_one(db).await.unwrap();
+    let retry=format!("/api/v1/jobs/{}/retry",job.id);
+    assert_eq!(request(app,"POST",&retry,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
+    assert_eq!(request(app,"POST",&retry,Some(admin),json!({"expected_updated_at":current})).await.0,200);
+    let captured=request(app,"POST","/api/v1/jobs/capture",Some(admin),json!({"limit":1})).await;
+    assert_eq!(captured.0,200); assert_eq!(captured.1["handled"],1);
+    let preview=request(app,"GET",&format!("/api/v1/jobs/{}/capture",job.id),Some(admin),json!(null)).await;
+    assert_eq!(preview.0,200); assert_eq!(preview.1["text"],"private-job-marker");
+    assert_eq!(preview.1.as_object().unwrap().len(),3);
+    let page=request(app,"GET","/api/v1/jobs?state=succeeded&per_page=1",Some(admin),json!(null)).await;
+    assert_eq!(page.0,200); assert_eq!(page.1["items"][0]["capture_available"],true);
+    let nav=request(app,"GET","/api/v1/admin/navigation",Some(admin),json!(null)).await;
+    assert!(nav.1["items"].as_array().unwrap().iter().any(|n|n["id"]=="rf_health" && n["route"]=="jobs"));
+    sqlx::query("DELETE FROM rf_jobs WHERE id=$1").bind(job.id).execute(db).await.unwrap();
+}

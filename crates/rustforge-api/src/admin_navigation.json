@@ -878,23 +878,27 @@
   {
     "id": "rf_health",
     "parent": "rf_tools",
-    "label": "Santé du site",
-    "route": null,
+    "label": "Tâches et diagnostic",
+    "route": "jobs",
     "module": null,
     "roles": [
       "admin"
     ],
-    "state": "planned",
+    "state": "partial",
     "design": "diagnostic",
     "features": [
-      "DB",
-      "Stockage",
-      "Email",
-      "Jobs",
-      "Cache"
+      "File durable",
+      "Tentatives et codes expurgés",
+      "Reprise versionnée",
+      "Capture e-mail locale privée",
+      "DB (prévu)",
+      "Stockage (prévu)",
+      "Cache (prévu)",
+      "Transport de production (prévu)"
     ],
     "tasks": [
-      "WP-56"
+      "WP-56",
+      "WP-108"
     ],
     "source": "wordpress-plugins-ref/wordpress/wp-admin/menu.php",
     "label_key": "rf.admin.health"

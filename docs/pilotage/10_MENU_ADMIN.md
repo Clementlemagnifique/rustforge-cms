@@ -53,7 +53,7 @@ Les accueils Formation/Boutique/Formulaires/Galeries affichent actuellement le p
 | rf_tools | Outils | — | — | socle | — / Groupe sans écran | ready | list :  |
 | rf_migration | Outils | Migration WordPress | — | socle | migration / MigrationView | partial | wizard : Analyse;Confirmation;Rapport;Conservation |
 | rf_backups | Outils | Sauvegardes | — | socle | capsules / CapsulesView | partial | wizard : Exporter;Inspecter;Restaurer |
-| rf_health | Outils | Santé du site | — | socle | — / À réaliser | planned | diagnostic : DB;Stockage;Email;Jobs;Cache |
+| rf_health | Outils | Tâches et diagnostic | — | socle | jobs / JobsView | partial | diagnostic : File durable;Tentatives et codes expurgés;Reprise versionnée;Capture e-mail locale privée;DB (prévu);Stockage (prévu);Cache (prévu);Transport de production (prévu) |
 | rf_content_types | Outils | Types de contenu | — | socle | content-types / ContentTypesView | partial | schema : Types;Champs;Validation |
 | rf_theme_converter | Outils | Conversion de thèmes | — | socle | converter / ConverterView | partial | wizard : Analyse statique;Mapping;Aperçu;Limites |
 | rf_admin_map | Outils | Plan des écrans | — | socle | admin-map / AdminPlanView | ready | catalog : Menu N1/N2/N3;État;Design;Fonctions;Modules |
