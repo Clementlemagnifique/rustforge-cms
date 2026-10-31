@@ -69,3 +69,9 @@ avec README/documents à jour, sans fusion main. Branche prévue :
 codex/reprise-macos-leptos-rustemberg. Main recevra ultérieurement le projet nettoyé et validé.
 Cette autorisation remplace la demande de confirmation main ; elle ne contourne pas son
 refus et ne donne aucune autorisation de pousser directement sur main dans ce jalon.
+
+Publication de branche confirmée : codex/reprise-macos-leptos-rustemberg, commit de consolidation
+a61bdfa309c03f2e6e86387bbf33e411b77b9aa6. Contenu local/distant identique, arbre
+5a3153d3c04e121a52387ee43339d33c3f356362 ; main reste b19866b84ef198c4b073d607bc9fe7dfdaa3ca20.
+Publication via connecteur GitHub déjà autorisé, faute d’accès CLI HTTPS/SSH configuré.
+Aucune fusion main. Passation de publication ajoutée ensuite comme mise à jour documentaire.

@@ -1,6 +1,6 @@
 # RustForge CMS — documentation de référence
 
-État documentaire au 31 octobre 2026. Projet actif : `/Users/admin/Desktop/CMS Rust`, alpha 1.0.0-alpha.1. La reprise Mac est consolidée sur `codex/reprise-macos-leptos-rustemberg`, à publier pour revue ; aucune fusion vers `main` dans ce jalon. Le socle Rust est conservé ; priorité à Rustemberg et au Studio Leptos, puis au ZIP installable. Les bilans anciens sont des preuves datées, pas un état actuel de parité.
+État documentaire au 31 octobre 2026. Projet actif : `/Users/admin/Desktop/CMS Rust`, alpha 1.0.0-alpha.1. La reprise Mac est consolidée sur `codex/reprise-macos-leptos-rustemberg`, publiée sur GitHub pour revue ; aucune fusion vers `main` dans ce jalon. Le socle Rust est conservé ; priorité à Rustemberg et au Studio Leptos, puis au ZIP installable. Les bilans anciens sont des preuves datées, pas un état actuel de parité.
 
 ## Ordre de lecture et autorité des documents
 

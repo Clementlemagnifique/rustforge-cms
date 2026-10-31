@@ -23,7 +23,15 @@ supplémentaires de liens, matrices et périmètre Git à la publication.
 Suite fonctionnelle inchangée : Rustemberg selon Gutenberg/design system WordPress,
 canevas visuel, sélection/inspecteur contextuel, imbrication et styles. Les capacités
 éditoriales des modules s’exposent par leurs blocs. ZIP léger et installation sélective
-restent des objectifs de distribution. Le résultat du push est à vérifier en clôture.
+restent des objectifs de distribution. Publication vérifiée via le connecteur GitHub : branche
+`codex/reprise-macos-leptos-rustemberg`, commit de consolidation `a61bdfa309c03f2e6e86387bbf33e411b77b9aa6`.
+656 fichiers cumulés, dont les README et guides actualisés. Empreinte de contenu locale et
+distante identique : `5a3153d3c04e121a52387ee43339d33c3f356362`. Main local et distant
+restent à `b19866b84ef198c4b073d607bc9fe7dfdaa3ca20` : aucune fusion ni publication directe.
+Git HTTPS/SSH sans accès configuré sur Mac ; publication effectuée avec le connecteur
+GitHub déjà autorisé, sans installer ni enregistrer de nouvel identifiant. Le commit local
+initial est conservé dans la branche locale `codex/reprise-macos-leptos-rustemberg-local-snapshot`.
+La branche de travail suit la branche distante, contenu vérifié sans réécriture des fichiers.
 
 ## 31 octobre 2026 — Rustemberg : constructeur commun, compositions et landing pages
 
