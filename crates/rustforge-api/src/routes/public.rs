@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::{error::ApiResult, state::AppState};
 use rustforge_core::{
-    HookRunner, Page,
+    HookRunner,
     entries::{self, EntryQuery},
     hooks::names,
     models::{Entry, Term},
@@ -40,8 +40,10 @@ pub fn transform_menus_to_tree(raw_menus: &serde_json::Value) -> serde_json::Val
             continue;
         }
 
-        let mut by_id: std::collections::BTreeMap<String, serde_json::Map<String, serde_json::Value>> =
-            std::collections::BTreeMap::new();
+        let mut by_id: std::collections::BTreeMap<
+            String,
+            serde_json::Map<String, serde_json::Value>,
+        > = std::collections::BTreeMap::new();
         let mut item_order: Vec<String> = Vec::new();
 
         for (idx, item) in items.iter().enumerate() {
@@ -134,7 +136,9 @@ pub async fn resolve_and_transform_menus(
                         .get("type")
                         .and_then(serde_json::Value::as_str)
                         .unwrap_or("custom");
-                    if let Some(id_str) = item_obj.get("object_id").and_then(serde_json::Value::as_str)
+                    if let Some(id_str) = item_obj
+                        .get("object_id")
+                        .and_then(serde_json::Value::as_str)
                         && let Ok(uid) = uuid::Uuid::parse_str(id_str.trim())
                     {
                         if matches!(item_type, "page" | "post") {
@@ -189,7 +193,9 @@ pub async fn resolve_and_transform_menus(
                         .get("type")
                         .and_then(serde_json::Value::as_str)
                         .unwrap_or("custom");
-                    if let Some(id_str) = item_obj.get("object_id").and_then(serde_json::Value::as_str)
+                    if let Some(id_str) = item_obj
+                        .get("object_id")
+                        .and_then(serde_json::Value::as_str)
                         && let Ok(uid) = uuid::Uuid::parse_str(id_str.trim())
                     {
                         if matches!(item_type, "page" | "post") {
@@ -282,7 +288,8 @@ pub(super) async fn build_site_context(
         .unwrap_or(site_url);
 
     let site_icon = site_settings.get("site.icon");
-    let (site_icon_url, site_icon_32, site_icon_180, site_icon_192, site_icon_512) = match site_icon {
+    let (site_icon_url, site_icon_32, site_icon_180, site_icon_192, site_icon_512) = match site_icon
+    {
         Some(serde_json::Value::Object(obj)) => (
             obj.get("url").and_then(serde_json::Value::as_str),
             obj.get("icon_32").and_then(serde_json::Value::as_str),
@@ -290,7 +297,13 @@ pub(super) async fn build_site_context(
             obj.get("icon_192").and_then(serde_json::Value::as_str),
             obj.get("icon_512").and_then(serde_json::Value::as_str),
         ),
-        Some(serde_json::Value::String(s)) => (Some(s.as_str()), Some(s.as_str()), Some(s.as_str()), Some(s.as_str()), Some(s.as_str())),
+        Some(serde_json::Value::String(s)) => (
+            Some(s.as_str()),
+            Some(s.as_str()),
+            Some(s.as_str()),
+            Some(s.as_str()),
+            Some(s.as_str()),
+        ),
         _ => (None, None, None, None, None),
     };
 
@@ -309,6 +322,21 @@ pub(super) async fn build_site_context(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+
+    let active_langs = rustforge_core::i18n::get_active_languages(&state.db)
+        .await
+        .unwrap_or_default();
+    let available_locales: Vec<serde_json::Value> = active_langs
+        .iter()
+        .map(|l| {
+            serde_json::json!({
+                "code": l.code,
+                "label": l.label,
+                "is_rtl": l.is_rtl,
+                "url": format!("/{}", l.code)
+            })
+        })
+        .collect();
 
     Ok(serde_json::json!({
         "locale": locale,
@@ -331,9 +359,7 @@ pub(super) async fn build_site_context(
         "permalink_structure": permalink_structure,
         "category_base": category_base,
         "tag_base": tag_base,
-        "available_locales": [
-            { "code": "fr", "url": "/fr" }
-        ]
+        "available_locales": available_locales
     }))
 }
 
@@ -341,9 +367,24 @@ pub(super) async fn build_site_context(
 // Rendu SSR Pages Publiques (< 1ms via cache Moka L1)
 // ---------------------------------------------------------------------------
 
-/// Redirection de la racine `/` vers la locale par défaut `/fr`
-pub async fn root_redirect() -> impl IntoResponse {
-    Redirect::temporary("/fr")
+/// Redirection de la racine `/` vers la locale négociée via Accept-Language (RFC 9110, MOD-I18N-01)
+pub async fn root_redirect(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let accept_header = headers
+        .get(axum::http::header::ACCEPT_LANGUAGE)
+        .and_then(|v| v.to_str().ok());
+    let active_langs = rustforge_core::i18n::get_active_languages(&state.db)
+        .await
+        .unwrap_or_default();
+    let default_lang = rustforge_core::i18n::get_default_language(&state.db)
+        .await
+        .unwrap_or_else(|_| "fr".to_string());
+    let active_codes: Vec<String> = active_langs.into_iter().map(|l| l.code).collect();
+    let target_lang =
+        rustforge_core::i18n::negotiate_language(accept_header, &active_codes, &default_lang);
+    Redirect::temporary(&format!("/{target_lang}"))
 }
 
 /// Page d'accueil publique multilingue
@@ -379,7 +420,10 @@ pub async fn ssr_home(
                 .and_then(|v| v.as_str())
                 .and_then(|s| uuid::Uuid::parse_str(s).ok());
 
-            let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+            let site_url = base_ctx
+                .get("site_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             base_ctx["canonical_url"] = serde_json::json!(if number > 1 {
                 format!("{site_url}/{loc}?page={number}")
             } else {
@@ -396,9 +440,14 @@ pub async fn ssr_home(
                         }
                         entry.body_html =
                             plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
-                        let site_url = base_ctx.get("site_url").and_then(|v| v.as_str()).unwrap_or("");
+                        let site_url = base_ctx
+                            .get("site_url")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
                         base_ctx["canonical_url"] = serde_json::json!(format!("{site_url}/{loc}"));
                         base_ctx["template"] = serde_json::json!("single.html");
+                        base_ctx["entry_template"] =
+                            serde_json::json!(entry.presentation_template());
                         base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
                         return Ok(MinijinjaValue::from_serialize(&base_ctx));
                     }
@@ -423,7 +472,7 @@ pub async fn ssr_home(
         .await;
 
     match html {
-        Ok(html) => Ok(Html(html).into_response()),
+        Ok(html) => super::public_forms::page_response(&state, html).await,
         Err(crate::error::ApiError::NotFound) => {
             super::public_lists::not_found(&state, &locale).await
         }
@@ -434,10 +483,17 @@ pub async fn ssr_home(
 fn decorate_comment_avatars(value: &mut Value, style: &str) {
     if let Some(items) = value.as_array_mut() {
         for item in items {
-            if let Some(id) = item.get("id").and_then(Value::as_str).and_then(|id| uuid::Uuid::parse_str(id).ok()) {
-                item["avatar_svg"] = serde_json::json!(rustforge_core::comments::avatar_svg(style, id));
+            if let Some(id) = item
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| uuid::Uuid::parse_str(id).ok())
+            {
+                item["avatar_svg"] =
+                    serde_json::json!(rustforge_core::comments::avatar_svg(style, id));
             }
-            if let Some(children) = item.get_mut("children") { decorate_comment_avatars(children, style); }
+            if let Some(children) = item.get_mut("children") {
+                decorate_comment_avatars(children, style);
+            }
         }
     }
 }
@@ -454,10 +510,14 @@ async fn render_single_entry(
         return super::public_lists::not_found(&state, &locale).await;
     }
     state.ssr.synchronize(&state.db).await?;
-    let discussion = rustforge_core::comments::DiscussionPolicy::from_settings(&settings::all(&state.db).await?);
+    let discussion =
+        rustforge_core::comments::DiscussionPolicy::from_settings(&settings::all(&state.db).await?)
+            .with_entry_fields(&entry.fields);
     let comments_open = discussion.can_submit(entry.published_at);
     // L'état temporel fait partie de la clé, même sans écriture/scheduler à l'échéance.
-    let path = format!("{canonical_url_path}?page={number}&comment_page={comment_page:?}&comments_open={comments_open}");
+    let path = format!(
+        "{canonical_url_path}?page={number}&comment_page={comment_page:?}&comments_open={comments_open}"
+    );
     let plugins = state.plugins.clone();
     let state_ref = state.clone();
     let loc = locale.clone();
@@ -471,11 +531,41 @@ async fn render_single_entry(
             let site_url = base_ctx
                 .get("site_url")
                 .and_then(|v| v.as_str())
-                .unwrap_or("");
+                .unwrap_or("")
+                .to_string();
             base_ctx["canonical_url"] =
                 serde_json::json!(format!("{site_url}{canonical_url_path}"));
             base_ctx["template"] = serde_json::json!("single.html");
+            base_ctx["entry_template"] = serde_json::json!(entry.presentation_template());
             base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
+
+            let translations = entries::get_translations(&state_ref.db, entry.id).await.unwrap_or_default();
+            let default_lang = rustforge_core::i18n::get_default_language(&state_ref.db).await.unwrap_or_else(|_| "fr".to_string());
+
+            let mut alternate_links: Vec<serde_json::Value> = Vec::new();
+            let mut default_href = None;
+
+            for sibling in &translations {
+                if sibling.status == rustforge_core::models::EntryStatus::Published {
+                    let sib_permalink = format!("{site_url}/{}/{}/{}", sibling.locale, entry.content_type, sibling.slug);
+                    alternate_links.push(serde_json::json!({
+                        "locale": sibling.locale,
+                        "url": sib_permalink,
+                        "hreflang": sibling.locale,
+                    }));
+                    if sibling.locale == default_lang {
+                        default_href = Some(sib_permalink);
+                    }
+                }
+            }
+            if let Some(href) = default_href.or_else(|| alternate_links.first().and_then(|v| v.get("url").and_then(|s| s.as_str()).map(str::to_string))) {
+                alternate_links.push(serde_json::json!({
+                    "locale": "x-default",
+                    "url": href,
+                    "hreflang": "x-default",
+                }));
+            }
+            base_ctx["alternate_languages"] = serde_json::to_value(alternate_links).unwrap_or_default();
 
             let comments_page = rustforge_core::comments::get_entry_comment_page(
                 &state_ref.db, entry.id, comment_page).await?;
@@ -507,7 +597,7 @@ async fn render_single_entry(
         .await;
 
     match rendered {
-        Ok(html) => Ok(Html(html).into_response()),
+        Ok(html) => super::public_forms::page_response(&state, html).await,
         Err(
             crate::error::ApiError::NotFound
             | crate::error::ApiError::Core(rustforge_core::CoreError::NotFound),
@@ -536,7 +626,9 @@ pub async fn ssr_single(
         } else {
             "category"
         };
-        return Ok(Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response());
+        return Ok(
+            Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response(),
+        );
     }
     if (!tag_base.is_empty() && content_type == tag_base) || content_type == "tag" {
         let base = if !tag_base.is_empty() {
@@ -544,7 +636,9 @@ pub async fn ssr_single(
         } else {
             "tag"
         };
-        return Ok(Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response());
+        return Ok(
+            Redirect::permanent(&format!("/{locale}/archive/{base}/{slug}")).into_response(),
+        );
     }
 
     // Permalien numérique /archives/{id}
@@ -558,7 +652,15 @@ pub async fn ssr_single(
                     if canonical != current_path {
                         return Ok(Redirect::permanent(&canonical).into_response());
                     }
-                    return render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await;
+                    return render_single_entry(
+                        state,
+                        locale,
+                        entry,
+                        canonical,
+                        number,
+                        params.comment_page()?,
+                    )
+                    .await;
                 }
                 Err(rustforge_core::CoreError::NotFound) => {}
                 Err(e) => return Err(e.into()),
@@ -596,9 +698,11 @@ pub async fn ssr_single(
         )?;
         let html = state
             .ssr
-            .render_page(&locale, &format!("/{locale}/{content_type}/{slug}?page={number}"), move || async move {
-                Ok(MinijinjaValue::from_serialize(listing_ctx))
-            })
+            .render_page(
+                &locale,
+                &format!("/{locale}/{content_type}/{slug}?page={number}"),
+                move || async move { Ok(MinijinjaValue::from_serialize(listing_ctx)) },
+            )
             .await?;
         return Ok(Html(html).into_response());
     }
@@ -628,7 +732,15 @@ pub async fn ssr_single(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
+    render_single_entry(
+        state,
+        locale,
+        entry,
+        canonical,
+        number,
+        params.comment_page()?,
+    )
+    .await
 }
 
 /// Permalien date et titre : `/{locale}/{year}/{month}/{day}/{slug}`
@@ -662,7 +774,8 @@ pub async fn ssr_day_and_name(
     let entry = match entry_res {
         Ok(e) => e,
         Err(rustforge_core::CoreError::NotFound) => {
-            if let Some(target_slug) = entries::resolve_slug_redirect(&state.db, "post", &slug).await?
+            if let Some(target_slug) =
+                entries::resolve_slug_redirect(&state.db, "post", &slug).await?
                 && let Ok(target) = entries::get_published(&state.db, "post", &target_slug).await
             {
                 let canonical =
@@ -680,7 +793,15 @@ pub async fn ssr_day_and_name(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
+    render_single_entry(
+        state,
+        locale,
+        entry,
+        canonical,
+        number,
+        params.comment_page()?,
+    )
+    .await
 }
 
 /// Permalien mois et titre : `/{locale}/{year}/{month}/{slug}`
@@ -690,10 +811,7 @@ pub async fn ssr_month_and_name(
     Query(params): Query<super::public_lists::ListParams>,
 ) -> ApiResult<axum::response::Response> {
     super::public_lists::validate_locale(&locale)?;
-    let (Ok(year), Ok(month)) = (
-        year_str.parse::<i32>(),
-        month_str.parse::<u32>(),
-    ) else {
+    let (Ok(year), Ok(month)) = (year_str.parse::<i32>(), month_str.parse::<u32>()) else {
         return super::public_lists::not_found(&state, &locale).await;
     };
     if !(1900..=2100).contains(&year) || !(1..=12).contains(&month) {
@@ -707,7 +825,8 @@ pub async fn ssr_month_and_name(
     let entry = match entry_res {
         Ok(e) => e,
         Err(rustforge_core::CoreError::NotFound) => {
-            if let Some(target_slug) = entries::resolve_slug_redirect(&state.db, "post", &slug).await?
+            if let Some(target_slug) =
+                entries::resolve_slug_redirect(&state.db, "post", &slug).await?
                 && let Ok(target) = entries::get_published(&state.db, "post", &target_slug).await
             {
                 let canonical =
@@ -725,7 +844,15 @@ pub async fn ssr_month_and_name(
         return Ok(Redirect::permanent(&canonical).into_response());
     }
 
-    render_single_entry(state, locale, entry, canonical, number, params.comment_page()?).await
+    render_single_entry(
+        state,
+        locale,
+        entry,
+        canonical,
+        number,
+        params.comment_page()?,
+    )
+    .await
 }
 
 /// Page en Mode Zen sans distraction
@@ -754,6 +881,7 @@ pub async fn ssr_zen(
             entry.body_html = plugins.filter(names::CONTENT_RENDER, entry.body_html).await;
 
             base_ctx["template"] = serde_json::json!("zen.html");
+            base_ctx["entry_template"] = serde_json::json!(entry.presentation_template());
             base_ctx["entry"] = serde_json::to_value(&entry).unwrap_or_default();
 
             Ok(MinijinjaValue::from_serialize(&base_ctx))
@@ -761,7 +889,7 @@ pub async fn ssr_zen(
         .await;
 
     match rendered {
-        Ok(html) => Ok(Html(html).into_response()),
+        Ok(html) => super::public_forms::page_response(&state, html).await,
         Err(
             crate::error::ApiError::NotFound
             | crate::error::ApiError::Core(rustforge_core::CoreError::NotFound),
@@ -787,22 +915,45 @@ pub async fn ssr_zen(
 pub async fn list_entries(
     State(state): State<AppState>,
     Query(mut query): Query<EntryQuery>,
-) -> ApiResult<Json<Page<Value>>> {
+) -> ApiResult<axum::response::Response> {
     query.public_only = true;
-    let page = entries::list(&state.db, &query).await?;
-    Ok(Json(page.map(Entry::public_view)))
+    let mut page = entries::list(&state.db, &query).await?;
+    let mut dynamic = false;
+    for entry in &mut page.items {
+        let (html, expanded) =
+            super::public_forms::expand(&state, std::mem::take(&mut entry.body_html)).await?;
+        entry.body_html = html;
+        dynamic |= expanded;
+    }
+    let mut response = Json(page.map(Entry::public_view)).into_response();
+    if dynamic {
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
+    }
+    Ok(response)
 }
 
 pub async fn get_entry(
     State(state): State<AppState>,
     Path((content_type, slug)): Path<(String, String)>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<axum::response::Response> {
     let mut entry = entries::get_published(&state.db, &content_type, &slug).await?;
     entry.body_html = state
         .plugins
         .filter(names::CONTENT_RENDER, entry.body_html)
         .await;
-    Ok(Json(entry.public_view()))
+    let (html, dynamic) = super::public_forms::expand(&state, entry.body_html).await?;
+    entry.body_html = html;
+    let mut response = Json(entry.public_view()).into_response();
+    if dynamic {
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
+    }
+    Ok(response)
 }
 
 pub async fn get_settings(
@@ -918,7 +1069,10 @@ mod tests {
         assert_eq!(header[0]["label"], "Documentation");
         assert_eq!(header[0]["url"], "/fr/page/docs");
         assert_eq!(header[0]["classes"], "nav-highlight");
-        assert_eq!(header[0]["object_id"], "00000000-0000-0000-0000-000000000001");
+        assert_eq!(
+            header[0]["object_id"],
+            "00000000-0000-0000-0000-000000000001"
+        );
     }
 
     #[test]
@@ -951,4 +1105,3 @@ mod tests {
         assert_eq!(i512, Some("/uploads/icons/site-icon-512.webp"));
     }
 }
-

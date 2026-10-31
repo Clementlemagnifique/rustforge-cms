@@ -1,0 +1,9 @@
+   Compiling rustforge-core v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.67s
+     Running tests\jobs_postgres.rs (target\debug\deps\jobs_postgres-0ce7d2b3199cb4c8.exe)
+
+running 2 tests
+test comment_notification_outbox_atomicity_and_dispatch_policy ... ok
+test durable_jobs_transactions_leases_and_restore ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.86s

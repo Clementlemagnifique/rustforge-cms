@@ -90,6 +90,7 @@ export interface EntriesListStoreState {
   fetchEntries: (contentTypeSlug?: string) => Promise<void>;
   deleteEntry: (id: string, force: boolean, contentTypeSlug: string) => Promise<void>;
   updateEntryStatus: (entry: Entry, newStatus: EntryStatus, contentTypeSlug: string) => Promise<void>;
+  duplicateEntry: (entry: Entry, contentTypeSlug: string) => Promise<void>;
 }
 
 export const useEntriesListStore = create<EntriesListStoreState>((set, get) => ({
@@ -353,6 +354,27 @@ export const useEntriesListStore = create<EntriesListStoreState>((set, get) => (
       window.alert(
         `Erreur de mise à jour du statut : ${err instanceof Error ? err.message : 'Erreur'}`
       );
+    }
+  },
+
+  duplicateEntry: async (entry, contentTypeSlug) => {
+    try {
+      set({ loading: true, error: '' });
+      const termIds = (entry.terms || []).map((t) => t.id);
+      const newSlug = `${entry.slug}-copie-${Date.now().toString().slice(-4)}`;
+      await api.entries.create(contentTypeSlug, {
+        title: `${entry.title} (Copie)`,
+        slug: newSlug,
+        body: entry.body,
+        status: 'draft',
+        excerpt: entry.excerpt,
+        featured_media_id: entry.featured_media_id,
+        term_ids: termIds,
+      });
+      await get().fetchEntries(contentTypeSlug);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la duplication';
+      set({ error: msg, loading: false });
     }
   },
 }));

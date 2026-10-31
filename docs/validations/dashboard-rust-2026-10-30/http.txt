@@ -1,0 +1,5 @@
+Anonyme 401 et abonné 403, y compris création de brouillon
+Publiés/brouillons/programmés distincts, archives et corbeille hors compteurs
+Activité avec états explicites, corbeille exclue
+Auteur isolé ; administrateur voit les deux auteurs
+Version serveur renseignée ; brouillon et document partagé conservés après relecture

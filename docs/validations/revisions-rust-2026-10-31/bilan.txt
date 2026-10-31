@@ -1,0 +1,51 @@
+31 octobre 2026 — R03 / WP-28 : comparaison et restauration de révisions natives
+
+Périmètre
+Le panneau Rust/Leptos de l'éditeur commun affiche les révisions avec date et auteur.
+Comparaison côte à côte : titre, extrait, corps projeté par rustforge-document,
+identifiant URL, état et dates ; structure des blocs consultable séparément.
+Le contenu historique est affiché comme texte échappé, sans exécution de HTML.
+Sur mobile les deux versions s'empilent. Les états affichés sont traduits.
+
+La restauration utilise exclusivement l'API existante avec expected_updated_at.
+Aucune nouvelle route, migration ni moteur documentaire. Elle demande une seconde
+confirmation explicite et rappelle qu'état, dates et métadonnées sont restaurés.
+Une saisie non enregistrée bloque l'action. Les champs de l'inspecteur sont également
+bloqués pendant une opération, comme le canevas, pour éviter une saisie perdue.
+Au succès : réponse serveur rechargée, historique local undo/redo réinitialisé,
+copie locale ancienne effacée et liste des révisions actualisée. Les erreurs conservent
+la saisie et ne relancent pas automatiquement le POST. Un conflit reste un refus.
+
+Preuves
+- tests.txt : 18 tests Studio réussis, dont liaison stricte révision/contenu/version,
+  exclusion des données opaques du corps de restauration et clés de traduction.
+- clippy.txt : cible WASM/UI avec avertissements traités en erreurs.
+- build.txt, admin-build.txt : Trunk/WASM, bootstrap externe et publication des assets.
+- http.txt : 13 requêtes sur un nouveau contenu fictif de la fixture 55499 identifiée.
+  Document complet et champ opaque préservés ; historique conservé ; conflit 409
+  sans écrasement ; restauration refusée pour auteur tiers et abonné (403).
+- comparaison.png, mobile.png : inspection visuelle réelle. Dans le navigateur :
+  comparaison, saisie non enregistrée bloquant la restauration, sauvegarde puis
+  actualisation de l'historique, confirmation annulée sans modification, confirmation
+  acceptée et relecture du titre/extrait/paragraphe restaurés. Après rechargement,
+  la version restaurée reste présente. Aucun message d'erreur console relevé.
+- Mobile 390x844 : body et document à 390 px ; comparaison empilée sans débordement.
+  Dimensions rétablies après vérification. La capture mobile précède la traduction
+  finale du libellé d'état ; la capture bureau montre le libellé final « Brouillon ».
+
+Menu et suivi
+170 entrées, 23 familles, cinq séparateurs, 438 tâches et 38 composants conservés.
+L'option Révisions existait déjà sous Ajouter un article : aucun ajout/suppression
+ni changement de statut du registre requis. WP-28 reste EN_COURS : cette comparaison
+textuelle/structurelle ne constitue pas un diff graphique exhaustif ou la parité WordPress.
+Les options futures et le catalogue des blocs restent présents. Preuves et matrice
+rattachées à R03, sans clôture globale.
+
+Limites et suite
+Pas de surlignage fin des différences ni de comparaison visuelle de toutes les
+métadonnées opaques. Les anciennes révisions dépourvues de document complet conservent
+le refus serveur existant pour préserver les blocs. Recette des annonces/focus au clavier
+et cas d'erreur réseau à approfondir. Suite prévue : taxonomies et hiérarchie des pages,
+puis premier bloc métier avec rendu serveur partagé et permissions du module.
+Aucun commit/push, aucune modification des données Windows ni du serveur 8080.
+Assets seuls modifiés : aucun redémarrage serveur nécessaire.

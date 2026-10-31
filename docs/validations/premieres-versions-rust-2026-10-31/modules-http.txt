@@ -1,0 +1,1 @@
+PASS 48 contrats HTTP ; préférences isolées, formulaire public typé, droits, LMS, campagnes et recettes en capture locale. Identifiant recette-1793403351474

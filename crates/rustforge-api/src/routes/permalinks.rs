@@ -105,7 +105,9 @@ pub fn compute_term_permalink(
     locale: &str,
 ) -> String {
     let base = match taxonomy {
-        "category" => category_base.filter(|s| !s.is_empty()).unwrap_or("category"),
+        "category" => category_base
+            .filter(|s| !s.is_empty())
+            .unwrap_or("category"),
         "tag" => tag_base.filter(|s| !s.is_empty()).unwrap_or("tag"),
         other => other,
     };
@@ -146,7 +148,9 @@ mod tests {
     use uuid::Uuid;
 
     fn sample_entry(content_type: &str, slug: &str) -> Entry {
-        let dt = chrono::Utc.with_ymd_and_hms(2026, 10, 28, 14, 30, 0).unwrap();
+        let dt = chrono::Utc
+            .with_ymd_and_hms(2026, 10, 28, 14, 30, 0)
+            .unwrap();
         let id = Uuid::parse_str("a0000000-0000-0000-0000-000000000001").unwrap();
         Entry {
             id,
@@ -166,9 +170,13 @@ mod tests {
             author_name: Some("Jean Dupont".into()),
             featured_media_id: None,
             featured_media_url: None,
+            featured_media_alt: None,
+            featured_media_caption: None,
             fields: serde_json::json!({}),
             published_at: Some(dt),
             scheduled_unpublish_at: None,
+            locale: "fr".into(),
+            translation_group_id: None,
             created_at: dt,
             updated_at: dt,
             terms: vec![],

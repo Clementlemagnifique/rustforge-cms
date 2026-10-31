@@ -1,0 +1,6 @@
+    Checking rustforge-core v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-core)
+    Checking rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Checking rustforge-plugins v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-plugins)
+    Checking rustforge-api v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-api)
+    Checking rustforge v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.35s

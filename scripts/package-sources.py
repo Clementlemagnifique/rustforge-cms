@@ -11,7 +11,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser()
-parser.add_argument('--name',default='rustforge-cms-sources-pilotage-2026-10-28.zip')
+parser.add_argument('--name',default='rustforge-cms-sources-clarification-2026-10-30.zip')
 args=parser.parse_args()
 if Path(args.name).name != args.name or not args.name.endswith('.zip') or '/' in args.name or '\\' in args.name:
     raise SystemExit('Nom de ZIP attendu, sans chemin.')
@@ -47,8 +47,9 @@ with zipfile.ZipFile(partial,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=
         archive.writestr(name,data)
     archive.writestr('SOURCES_MANIFEST.json',json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     archive.writestr('LIRE_DABORD.txt',
-        'RustForge CMS — sources et pilotage, 28 octobre 2026.\n'
-        'Commencer par docs/PLAN_ACTION_GLOBAL.md puis docs/README.md.\n'
+        'RustForge CMS — sources et clarification Rust, 30 octobre 2026.\n'
+        'Commencer par docs/README.md puis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md.\n'
+        'Le plan actif est docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md, puis docs/pilotage/13_PLAN_ADMIN_RUST.md.\n'
         'Cette archive contient le checkout local, y compris les travaux des lots précédents, sans historique Git.\n'
         'Ce sont des sources, pas un nouveau serveur compilé ni une sauvegarde de vos données.\n'
         'Les bases, secrets, configuration personnelle, médias, dépendances, références tierces et releases sont exclus.\n'

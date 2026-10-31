@@ -1,0 +1,32 @@
+31 octobre 2026 — Éditeur natif et thème public, lot ciblé
+
+Comparaison préalable : EntryEditorView/useEditorStore React, APIs entries/media/terms,
+services Rust et document partagé. Pas de réécriture du noyau ni de suppression React.
+
+Image mise en avant dans l’inspecteur Leptos : choix de médias image uniquement,
+aperçu, retrait explicite, historique et sauvegarde locale. GET média et modifications
+protégés par la garde existante. Validation serveur du type et du chemin des nouveaux choix.
+Image, alt et légende exposés par le contrat public et les templates communs :
+page/article, recherche/listes et accueil statique. Métadonnées échappées et cache invalidé.
+Création rapide de termes dans les taxonomies de l’inspecteur, parent optionnel,
+sélection automatique et garde de saisie ; sauvegarde de publication sérialisée.
+Lien Voir sur le site pour publication enregistrée, publiée, non expirée et sans saisie.
+
+Correction découverte visuellement : le sanitizer SVG supprimait la géométrie et le
+namespace. Profil SVG statique restreint, attributs géométriques et couleurs simples
+conservés ; scripts, événements, liens, styles et ressources externes exclus. Les anciens
+fichiers ne sont pas réécrits. Nouvelle image de fixture : décodage navigateur 960px validé.
+
+Validation : 159 tests workspace passés, cinq tests d’intégration ignorés par défaut ;
+Clippy strict API et Studio WASM ; build serveur et Studio publié via archive SHA256.
+29 contrôles HTTP dans tests/editor-featured-theme-recipe.mjs, droits des trois profils,
+CSP/bootstrap WASM. Navigateur : retrait/choix d’image, création d’un terme, sauvegarde,
+lien public et image décodée. Public 390px : largeur document375px, pas de débordement.
+Captures editeur.png, page-publique.png, page-publique-mobile.png. Première capture éditeur
+sur la fixture précédente ; fixture.json contient les identifiants du dernier passage HTTP.
+
+Limites : inspecteur auteur/modèle/discussion, compositions et options de thème avancées,
+archives taxonomiques et parité totale restent ouverts. Pas de migration de base.
+Menu172 entrées,23familles,5séparateurs ; options futures et anciens écrans conservés.
+Seule fixture55499 redémarrée ; serveur8080/basesWindows préservés. Aucun commit/push.
+Aucune intégration Candle ni modification du protocole de tests ou du modèle de travail.

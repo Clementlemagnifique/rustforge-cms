@@ -1,0 +1,80 @@
+31 octobre 2026 — Premières versions natives, options futures et recette finale
+
+Périmètre : continuer le CMS existant en Rust/WASM Leptos, services Rust,
+PostgreSQL et noyau rustforge-document partagés. Aucun commit/push.
+Les données Windows et le serveur personnel 8080 n'ont pas été modifiés.
+Seule la fixture Mac 55499 / PostgreSQL 55496 a été reconstruite et redémarrée.
+
+Implémentations de ce passage
+- Listes : filtres, tri, colonnes, pagination, édition rapide et corbeille avec
+  version attendue ; état conservé durant la session native.
+- Réglages sélectionnés, profil/comptes/sessions : formulaires Rust, sauvegardes
+  ciblées, erreurs et protection de saisie. Organisation privée du tableau de bord.
+- Éditeur commun : 23 types de blocs existants, aperçu par le noyau documentaire,
+  historique local, brouillon local par compte, média, révisions consultables,
+  sauvegarde avec détection des conflits. Ancien Markdown conservé.
+- Médias : import, sélection, détail et métadonnées ; thèmes, styles, menus publics.
+- Formulaires simples : constructeur de champs, page publique Rust et soumissions.
+- Formation : cours/leçons, inscription d'un compte, espace apprenant et progression
+  déclarée au niveau du cours. Boutique : produits et commandes manuelles.
+- Galeries : métadonnées et ajout de médias ; commentaires et statistiques natifs.
+- Mailing : brouillons pour comptes existants, mise en file idempotente et capture.
+  Automatisations : recette manuelle, destinataire, délai, exécution idempotente.
+- Centre des huit modules natifs avec désactivation conservant les données.
+  Extension des tables existantes, pas de second moteur de jobs ou de transport.
+- Menu : 170 entrées, 23 familles, cinq séparateurs ; 32 ready, 50 partial,
+  88 planned. Le registre ne constitue pas une preuve de parité.
+- Catalogue visible de dix futurs blocs métier, non insérables tant que leur
+  contrat et rendu ne sont pas réalisés. Références locales explicites.
+- Ajustements Meow Apps conservés pour enrichissement ultérieur.
+- Script de distribution macOS/Linux adapté au ZIP, thèmes et interface inclus.
+  Aucune archive release produite ni installation sur Mac vierge validée ici.
+
+Preuves exécutées
+- workspace-tests.txt : 145 tests passent ; trois tests PostgreSQL ignorés par
+  défaut. L'un est exécuté explicitement ci-dessous, les deux autres restent ignorés.
+- clippy.txt : workspace strict ; studio-clippy.txt : cible WASM/UI stricte.
+- document-build.txt, studio-build.txt, admin-build.txt, server-build.txt : builds.
+- modules-http.txt : 48 contrats, trois comptes fictifs ; préférences par compte,
+  formulaire public typé et HTML échappé, droits inter-auteurs, cours/progression,
+  produit/commande manuelle, conflits de version, campagnes et recettes sans doublon,
+  exécution en capture locale, désactivation/réactivation sans perte.
+- postgres-regression.txt : régression PostgreSQL + capsule native restaurée dans
+  une base jetable ; nouvelles campagnes, recettes et lien automation_logs.job_id
+  conservés. Tâches restaurées selon les règles de pause existantes.
+- lists-http.txt : listes paginées et droits pour admin/auteur/abonné.
+- menu-http.txt : navigation autorisée et séparation des fiches prévues, trois rôles.
+- security-http.txt : bootstrap externe, MIME/signature WASM et CSP restrictive.
+- navigateur.txt, formulaire-rust.png, modules-mobile.png : parcours UI ciblés.
+  Création/relecture formulaire, article à deux paragraphes, modification/relecture,
+  réglages, changements de vues et futur catalogue. Modules mobile 390 px :
+  document et body 390 px. Ce contrôle ne couvre pas tous les écrans mobiles.
+- package-release.sh : syntaxe bash contrôlée, exécution release différée.
+
+Corrections issues des essais
+Préférences API réassemblées ; restrictions de propriété des formulaires/galeries ;
+lien galerie/élément vérifié ; suppression des écritures de signaux détruits au
+changement d'écran ; construction des vues isolée des dépendances de routage ;
+liens du tableau de bord vers l'éditeur et les listes natifs.
+
+Limites et reprise
+Aucune parité globale WordPress ni clôture des 438 tâches. Pas de paiement bancaire,
+SMTP de campagne, liste publique consentie, événement automatique ou connecteur externe
+exécuté. Campagnes limitées aux comptes existants et à la capture locale ; recettes
+manuelles. Pas encore de quiz, certificats, progression par leçon, récurrence événement,
+FSE complet, restauration des révisions, hiérarchie avancée des pages ou lots de médias.
+Événements, Éditorial et Équipe restent des fiches prévues. Les blocs métier futurs
+ne sont pas activés par leur présence. Les blocs documentaires déjà existants restent
+un contrat distinct. Les écrans avancés en transition conservent React jusqu'à recette
+réelle de leur remplacement. Figma reste à préparer dans une étape dédiée.
+Les tests ciblés ne constituent pas une validation exhaustive de chaque contrôle
+nouvellement porté : poursuivre les scénarios navigateur par écran/rôle puis les
+options avancées dans les lots existants. Ne pas remplacer le suivi par un taux fictif.
+
+Compléments de fin de recette
+- document-parity.txt : six fixtures identiques entre noyau natif et WASM.
+- Nouvelle page créée depuis le navigateur après correction : l'éditeur recharge
+  immédiatement le titre et l'identifiant depuis le serveur après le POST.
+- Dialogue de départ avec modifications observé ; l'annulation du dialogue n'a pas
+  été vérifiée dans cette passe. Ne pas l'annoncer comme scénario entièrement recetté.
+- documentation.txt : liens, archives historiques et registres cohérents.

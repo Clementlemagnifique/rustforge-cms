@@ -120,15 +120,15 @@ export const UsersView: React.FC<UsersViewProps> = ({ initialTab = 'list' }) => 
   const reassignCandidates = items.filter((u) => u.id !== deletingUser?.id);
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="rf-users-view space-y-6 max-w-6xl">
       {/* En-tête & Navigation par onglets */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-bold text-white">{usersMessages.title}</h3>
+          <h1>{usersMessages.title}</h1>
           <p className="text-xs text-slate-400">{usersMessages.subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#0f1422] p-1 rounded-xl border border-white/5">
+        <div className="rf-view-tabs flex items-center gap-2 bg-[#0f1422] p-1 rounded-xl border border-white/5">
           {isAdmin && (
             <>
               <button
@@ -247,7 +247,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ initialTab = 'list' }) => 
                       <td className="py-3 px-4 text-slate-300">{u.email}</td>
                       <td className="py-3 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${ROLE_BADGE_CLASSES[u.role]}`}
+                          className={`rf-user-role inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${ROLE_BADGE_CLASSES[u.role]}`}
                         >
                           <Shield className="w-3 h-3" />
                           {ROLE_LABELS[u.role]}

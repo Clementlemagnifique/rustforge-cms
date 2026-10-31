@@ -1,0 +1,45 @@
+    Blocking waiting for file lock on build directory
+   Compiling smallvec v1.16.4
+   Compiling syn v3.0.9
+   Compiling string_cache_codegen v0.11.2
+   Compiling serde_core v1.0.229
+   Compiling percent-encoding v2.3.2
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.154
+   Compiling bitflags v2.13.2
+   Compiling form_urlencoded v1.2.2
+   Compiling parking_lot_core v0.9.12
+   Compiling cssparser v0.38.0
+   Compiling parking_lot v0.12.5
+   Compiling pulldown-cmark v0.13.5
+   Compiling string_cache v0.11.0
+   Compiling web_atoms v0.3.0
+   Compiling synstructure v0.14.0
+   Compiling uuid v1.29.0
+   Compiling markup5ever v0.40.0
+   Compiling html5ever v0.40.1
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.7
+   Compiling displaydoc v0.2.7
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling zerofrom v0.1.8
+   Compiling yoke v0.8.4
+   Compiling zerovec v0.11.9
+   Compiling zerotrie v0.2.5
+   Compiling tinystr v0.8.5
+   Compiling potential_utf v0.1.6
+   Compiling icu_locale_core v2.4.0
+   Compiling icu_collections v2.4.0
+   Compiling thiserror v2.0.21
+   Compiling icu_provider v2.4.0
+   Compiling icu_properties v2.4.0
+   Compiling icu_normalizer v2.4.0
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling ammonia v4.2.4
+   Compiling rustforge-document v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-document)
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5m 24s

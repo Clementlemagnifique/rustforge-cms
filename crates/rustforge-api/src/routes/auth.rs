@@ -78,13 +78,19 @@ pub async fn register(
     let login = payload.login.trim().to_string();
     let email = payload.email.trim().to_string();
     if login.is_empty() || login.len() > 64 {
-        return Err(crate::error::ApiError::BadRequest("L'identifiant doit contenir entre 1 et 64 caractères.".into()));
+        return Err(crate::error::ApiError::BadRequest(
+            "L'identifiant doit contenir entre 1 et 64 caractères.".into(),
+        ));
     }
     if email.is_empty() || email.len() > 254 || !email.contains('@') {
-        return Err(crate::error::ApiError::BadRequest("Adresse e-mail invalide.".into()));
+        return Err(crate::error::ApiError::BadRequest(
+            "Adresse e-mail invalide.".into(),
+        ));
     }
     if payload.password.len() < 6 || payload.password.len() > 128 {
-        return Err(crate::error::ApiError::BadRequest("Le mot de passe doit comporter au moins 6 caractères.".into()));
+        return Err(crate::error::ApiError::BadRequest(
+            "Le mot de passe doit comporter au moins 6 caractères.".into(),
+        ));
     }
 
     let display_name = payload
@@ -114,12 +120,21 @@ pub async fn comment_login(
     Json(payload): Json<LoginPayload>,
 ) -> ApiResult<(axum::http::HeaderMap, Json<serde_json::Value>)> {
     if payload.login.len() > 320 || payload.password.len() > 1024 {
-        return Err(crate::error::ApiError::BadRequest("Identifiants trop longs".into()));
+        return Err(crate::error::ApiError::BadRequest(
+            "Identifiants trop longs".into(),
+        ));
     }
-    let user = rustforge_core::users::authenticate(&state.db, &payload.login, &payload.password).await?;
+    let user =
+        rustforge_core::users::authenticate(&state.db, &payload.login, &payload.password).await?;
     let token = crate::auth::create_comment_token(user.id, user.role, &state.jwt_secret)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     let mut headers = axum::http::HeaderMap::new();
-    headers.insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static("no-store"));
-    Ok((headers, Json(serde_json::json!({"token":token,"display_name":user.display_name,"expires_in":1800}))))
+    headers.insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    Ok((
+        headers,
+        Json(serde_json::json!({"token":token,"display_name":user.display_name,"expires_in":1800})),
+    ))
 }

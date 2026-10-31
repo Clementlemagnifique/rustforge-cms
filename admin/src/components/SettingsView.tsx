@@ -131,18 +131,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const icon192Url = siteIconObj?.icon_192 || siteIconUrl;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
-      {/* En-tête & bouton d'enregistrement */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl">
+      {/* En-tête & bouton d'enregistrement (conforme options-general.php) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#dcdcde] dark:border-[#2c3338]">
         <div>
-          <h3 className="text-base font-bold text-white">{settingsMessages.title}</h3>
-          <p className="text-xs text-slate-400">{settingsMessages.subtitle}</p>
+          <h1 className="text-xl font-bold text-[#1d2327] dark:text-white">
+            {activeTab === 'general'
+              ? 'Réglages généraux'
+              : activeTab === 'writing'
+              ? 'Réglages d’écriture'
+              : activeTab === 'reading'
+              ? 'Réglages de lecture'
+              : activeTab === 'discussion'
+              ? 'Réglages des commentaires'
+              : activeTab === 'media'
+              ? 'Réglages des médias'
+              : 'Réglages des permaliens'}
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {settingsMessages.subtitle}
+          </p>
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-[#2271b1] hover:bg-[#135e96] text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
         >
           {saved ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-300" />
@@ -154,96 +168,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               ? settingsMessages.savingButton
               : saved
               ? settingsMessages.savedFeedback
-              : settingsMessages.saveButton}
+              : 'Enregistrer les modifications'}
           </span>
         </button>
       </div>
 
-      {/* Sous-onglets Général / Lecture / Écriture */}
-      <div className="flex items-center gap-2 bg-[#0f1422] p-1 rounded-xl border border-white/5 w-fit">
-        <button
-          type="button"
-          onClick={() => setActiveTab('general')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'general'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <Globe className="w-3.5 h-3.5" />
-          <span>{settingsMessages.tabGeneral}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('reading')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'reading'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>{settingsMessages.tabReading}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('writing')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'writing'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <PenTool className="w-3.5 h-3.5" />
-          <span>{settingsMessages.tabWriting}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('permalinks')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'permalinks'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <Link2 className="w-3.5 h-3.5" />
-          <span>{settingsMessages.tabPermalinks}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('discussion')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'discussion'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>{discussionSettingsMessages.tabDiscussion}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('media')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            activeTab === 'media'
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <ImageIcon className="w-3.5 h-3.5" />
-          <span>Médias</span>
-        </button>
+      {/* Sous-onglets de navigation WordPress (.nav-tab-wrapper) */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-[#dcdcde] dark:border-[#2c3338]">
+        {[
+          { id: 'general', label: settingsMessages.tabGeneral, icon: Globe },
+          { id: 'writing', label: settingsMessages.tabWriting, icon: PenTool },
+          { id: 'reading', label: settingsMessages.tabReading, icon: BookOpen },
+          { id: 'discussion', label: discussionSettingsMessages.tabDiscussion, icon: MessageSquare },
+          { id: 'media', label: 'Médias', icon: ImageIcon },
+          { id: 'permalinks', label: settingsMessages.tabPermalinks, icon: Link2 },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as SettingsTab)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-all ${
+                isActive
+                  ? 'border-[#2271b1] text-[#2271b1] bg-white dark:bg-[#182030]'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-[#2271b1]'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {error && (
         <div
           role="alert"
-          className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2"
+          className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2"
         >
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{error}</span>

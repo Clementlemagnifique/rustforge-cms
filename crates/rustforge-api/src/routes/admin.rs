@@ -12,7 +12,7 @@ use std::{
     sync::OnceLock,
 };
 
-pub const SUPPORTED_MODULES: [&str; 5] = ["forms", "galleries", "zen_mode", "ecommerce", "lms"];
+pub use rustforge_core::module_catalog::MODULE_IDS as SUPPORTED_MODULES;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MenuItem {
@@ -28,6 +28,10 @@ pub struct MenuItem {
     pub features: Vec<String>,
     pub tasks: Vec<String>,
     pub source: String,
+    #[serde(default)]
+    pub planning: bool,
+    #[serde(default)]
+    pub separator_before: bool,
 }
 
 #[derive(Serialize)]
@@ -35,6 +39,8 @@ pub struct Navigation {
     pub schema_version: u8,
     pub items: Vec<MenuItem>,
     pub catalog: Vec<MenuItem>,
+    /// Admin-only complete outline; plan routes never enable business endpoints.
+    pub menu_items: Vec<MenuItem>,
     pub modules: BTreeMap<String, bool>,
     pub supported_modules: Vec<&'static str>,
 }
@@ -75,9 +81,30 @@ fn project(role: Role, modules: BTreeMap<String, bool>) -> Navigation {
             break;
         }
     }
+    let menu_items = if role.is_admin() {
+        catalog()
+            .iter()
+            .filter(|item| item.roles.iter().any(|r| r == role_name))
+            .cloned()
+            .map(|mut item| {
+                let inactive = item
+                    .module
+                    .as_ref()
+                    .is_some_and(|key| modules.get(key) != Some(&true));
+                if item.state == "planned" || inactive || item.route.is_none() {
+                    item.route = Some(format!("plan:{}", item.id));
+                    item.planning = true;
+                }
+                item
+            })
+            .collect()
+    } else {
+        items.clone()
+    };
     Navigation {
         schema_version: 1,
         items,
+        menu_items,
         modules,
         catalog: if role.is_admin() {
             catalog().clone()
@@ -128,6 +155,31 @@ pub async fn update_modules(
     navigation(State(state), auth).await
 }
 
+/// Préférences de colonnes partagées, sans exposer les autres réglages du site.
+pub async fn columns(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<BTreeMap<String, serde_json::Value>>> {
+    if !auth.user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let rows: Vec<(String, serde_json::Value)> =
+        sqlx::query_as("SELECT key,value FROM settings WHERE key LIKE 'admin.columns.%'")
+            .fetch_all(&state.db)
+            .await
+            .map_err(rustforge_core::CoreError::from)?;
+    Ok(Json(rows.into_iter().collect()))
+}
+
+pub async fn module_catalog(
+    auth: AuthUser,
+) -> ApiResult<Json<&'static [rustforge_core::module_catalog::Manifest]>> {
+    if !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(Json(rustforge_core::module_catalog::MANIFESTS))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,6 +207,55 @@ mod tests {
         let reader = project(Role::Subscriber, BTreeMap::new());
         assert!(reader.catalog.is_empty());
         assert!(!reader.items.iter().any(|n| n.id == "rf_posts"));
+    }
+    #[test]
+    fn outline_is_admin_only_and_does_not_activate_disabled_modules() {
+        let admin = project(Role::Admin, BTreeMap::new());
+        assert_eq!(admin.menu_items.len(), catalog().len());
+        let gallery = admin
+            .menu_items
+            .iter()
+            .find(|n| n.id == "rf_galleries")
+            .unwrap();
+        assert!(gallery.planning);
+        assert_eq!(gallery.route.as_deref(), Some("plan:rf_galleries"));
+        assert!(
+            !admin
+                .items
+                .iter()
+                .any(|n| n.module.as_deref() == Some("galleries"))
+        );
+        assert!(
+            admin
+                .menu_items
+                .iter()
+                .any(|n| n.id == "rf_media_drive" && n.planning)
+        );
+        for role in [Role::Editor, Role::Author, Role::Subscriber] {
+            let view = project(role, BTreeMap::new());
+            assert_eq!(view.menu_items.len(), view.items.len());
+            assert!(view.menu_items.iter().all(|n| !n.planning));
+            assert!(view.catalog.is_empty());
+        }
+        let roots: Vec<_> = admin
+            .menu_items
+            .iter()
+            .filter(|n| n.parent.is_none())
+            .map(|n| n.id.as_str())
+            .collect();
+        assert_eq!(
+            &roots[..8],
+            &[
+                "rf_dashboard",
+                "rf_posts",
+                "rf_pages",
+                "rf_forms",
+                "rf_events",
+                "rf_media",
+                "rf_galleries",
+                "rf_comments"
+            ]
+        );
     }
     #[test]
     fn catalog_is_a_three_level_tree_with_real_routes_only_when_available() {

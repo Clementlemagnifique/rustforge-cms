@@ -1,0 +1,6 @@
+Instance dédiée 127.0.0.1:55499, PostgreSQL jetable sur 55496.
+Serveur actuel compilé, installation HTTP réussie, aperçu /admin/rust/ HTTP 200.
+Trois comptes fictifs créés via API dans une base rf_wasm_browser_* distincte.
+Connexion API réussie : admin 55 entrées de menu, auteur 17, abonné 4. Les menus partagés de profil ne constituent pas des accès administrateur.
+Recette Edge interrompue par la protection Computer Use : URL courante indéterminable avec confiance suffisante. Aucune tentative de contournement ; pas de recette de connexion UI, sauvegarde UI ou session Leptos validée.
+Serveur Rust de recette et PostgreSQL jetable arrêtés. Base de recette conservée, aucune donnée du site personnel touchée.

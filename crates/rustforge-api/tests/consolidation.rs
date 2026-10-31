@@ -1,23 +1,15 @@
 //! Regression scenarios use ONLY an explicitly supplied, disposable PostgreSQL server.
 
 use axum::{
-
     Router,
-
     body::{Body, to_bytes},
-
     http::Request,
-
 };
 
 use rustforge_core::{
-
     self as core, NoopHooks, entries,
-
     models::{EntryInput, Role},
-
     users::{self, NewUser},
-
 };
 
 use serde_json::{Value, json};
@@ -25,24 +17,18 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 use std::{
-
     io::Cursor,
-
     path::{Path, PathBuf},
-
 };
 
 use tower::ServiceExt;
 
-use uuid::Uuid;
 use chrono::Datelike;
-
-
+use uuid::Uuid;
 
 const SECRET: &str = "regression-only-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
 
 async fn migration_request(
-
     app: &Router,
 
     url: &str,
@@ -52,59 +38,36 @@ async fn migration_request(
     xml: &str,
 
     fields: &[(&str, &str)],
-
 ) -> (u16, Value) {
-
     let boundary = "trustpress-regression-boundary";
 
     let mut body = format!(
-
         "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"export.xml\"\r\nContent-Type: text/xml\r\n\r\n{xml}\r\n"
-
     );
 
     for (key, value) in fields {
-
         body.push_str(&format!(
-
             "--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n"
-
         ));
-
     }
 
     body.push_str(&format!("--{boundary}--\r\n"));
 
     let response = app
-
         .clone()
-
         .oneshot(
-
             Request::builder()
-
                 .method("POST")
-
                 .uri(url)
-
                 .header("authorization", format!("Bearer {token}"))
-
                 .header(
-
                     "content-type",
-
                     format!("multipart/form-data; boundary={boundary}"),
-
                 )
-
                 .body(Body::from(body))
-
                 .unwrap(),
-
         )
-
         .await
-
         .unwrap();
 
     let code = response.status().as_u16();
@@ -112,11 +75,9 @@ async fn migration_request(
     let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
 
     (code, serde_json::from_slice(&bytes).unwrap())
-
 }
 
 async fn request(
-
     app: &Router,
 
     method: &str,
@@ -126,89 +87,59 @@ async fn request(
     token: Option<&str>,
 
     body: Value,
-
 ) -> (u16, Value) {
-
     let mut req = Request::builder()
-
         .method(method)
-
         .uri(url)
-
         .header("content-type", "application/json");
 
     if let Some(token) = token {
-
         req = req.header("authorization", format!("Bearer {token}"));
-
     }
 
     let response = app
-
         .clone()
-
         .oneshot(req.body(Body::from(body.to_string())).unwrap())
-
         .await
-
         .unwrap();
 
     let status = response.status().as_u16();
 
     let bytes = to_bytes(response.into_body(), 4 * 1024 * 1024)
-
         .await
-
         .unwrap();
 
     (
-
         status,
-
         serde_json::from_slice(&bytes).unwrap_or_else(|_| json!(String::from_utf8_lossy(&bytes))),
-
     )
-
 }
 
 async fn database(server: &PgPool, base: &str) -> (String, PgPool) {
-
     let name = format!("rf_regression_{}", Uuid::new_v4().simple());
 
     sqlx::query(&format!("CREATE DATABASE {name}"))
-
         .execute(server)
-
         .await
-
         .unwrap();
 
     let url = format!("{}/{name}", base.rsplit_once('/').unwrap().0);
 
     let db = PgPoolOptions::new()
-
         .max_connections(6)
-
         .connect(&url)
-
         .await
-
         .unwrap();
 
     core::migrate(&db).await.unwrap();
 
     (name, db)
-
 }
 
 async fn account(db: &PgPool, name: &str, role: Role) -> core::models::User {
-
     users::create(
-
         db,
-
         NewUser {
-
             email: format!("{name}@example.test"),
 
             username: name.into(),
@@ -218,49 +149,31 @@ async fn account(db: &PgPool, name: &str, role: Role) -> core::models::User {
             password: "test-password-long-123!".into(),
 
             role,
-
         },
-
     )
-
     .await
-
     .unwrap()
-
 }
 
 async fn app(db: PgPool, root: &Path) -> Router {
-
     for dir in ["uploads", "plugins", "themes", "protected"] {
-
         std::fs::create_dir_all(root.join(dir)).unwrap();
-
     }
 
     let plugins = rustforge_plugins::PluginManager::new(db.clone(), root.join("plugins"))
-
         .await
-
         .unwrap();
 
     let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 
     let mut state = rustforge_api::AppState::new(
-
         db,
-
         plugins,
-
         SECRET.into(),
-
         root.join("uploads"),
-
         Some(workspace.join("admin/dist")),
-
         workspace.join("themes"),
-
         "default".into(),
-
     );
 
     state.protected_downloads_dir = root.join("protected");
@@ -268,27 +181,19 @@ async fn app(db: PgPool, root: &Path) -> Router {
     state.setup_token = Some(SECRET.into());
 
     rustforge_api::build_router(state)
-
 }
 
 fn input(v: Value) -> EntryInput {
-
     serde_json::from_value(v).unwrap()
-
 }
-
-
 
 #[test]
 
 fn malformed_php_and_form_constraints_are_rejected() {
-
     use core::migration::php_serializer::PhpDeserializer;
 
     for value in ["é", "s:1:\"é\";", "a:999999999:{}", "b:7;", "N;junk"] {
-
         assert!(PhpDeserializer::deserialize(value).is_err(), "{value}");
-
     }
 
     let schema = json!({"type":"object","properties":{"email":{"type":"string","format":"email"}},"required":["email"]});
@@ -296,57 +201,38 @@ fn malformed_php_and_form_constraints_are_rejected() {
     assert!(core::form_validation::validate(&schema, &json!({"email":"ok@example.test"})).is_ok());
 
     for v in [
-
         json!({}),
-
         json!({"email":"wrong"}),
-
         json!({"email":4}),
-
         json!({"email":"ok@example.test","extra":true}),
-
     ] {
-
         assert!(core::form_validation::validate(&schema, &v).is_err());
-
     }
 
     assert!(core::form_validation::schema(&json!({"type":"string","pattern":".*"}), 0).is_err());
-
 }
-
-
 
 #[test]
 
 fn rf_xml_preserves_complete_envelope_and_cdata() {
-
     use core::migration::{
-
         exporter::DataMorphExporter, tmir::TMIRDocument, wxr_importer::WxrImporter,
-
     };
 
     let mut doc = TMIRDocument {
-
         source_site_url: Some("https://source.example.test".into()),
 
         ..Default::default()
-
     };
 
     doc.metadata.insert(
-
         "nested".into(),
-
         json!({"xml":"]]> & <tag>","bool":false,"array":[1,2]}),
-
     );
 
     let native = json!({"rf_schema":"rf.document/1","rf_blocks":[{"rf_id":"p","rf_type":"paragraph","rf_text":"Source ]]> & <tag>"}]});
 
     doc.metadata
-
         .insert("entry_blocks:native-test".into(), native.clone());
 
     let xml = DataMorphExporter::to_rf_xml(&doc).unwrap();
@@ -356,77 +242,45 @@ fn rf_xml_preserves_complete_envelope_and_cdata() {
     assert_eq!(restored.metadata["entry_blocks:native-test"], native);
 
     assert_eq!(
-
         serde_json::to_value(doc).unwrap(),
-
         serde_json::to_value(restored).unwrap()
-
     );
-
 }
-
-
 
 #[tokio::test]
 
 async fn upload_cannot_disguise_active_html() {
-
     for (name, mime) in [
-
         ("page.html", "text/plain"),
-
         ("photo.png", "image/png"),
-
         ("script.svg", "application/pdf"),
-
     ] {
-
         assert!(
-
             core::media_processor::process_upload(b"<script>alert(1)</script>", name, mime)
-
                 .await
-
                 .is_err()
-
         );
-
     }
-
 }
 
-
-
 #[tokio::test]
-
 #[ignore = "requires RUSTFORGE_TEST_DATABASE_URL pointing to a disposable PostgreSQL server"]
 
 async fn postgres_http_and_native_backup_regressions() {
-
     use core::migration::{
-
         capsule::{CapsuleManager, StoragePaths},
-
         exporter::DataMorphExporter,
-
         importer::DataMorphImporter,
-
         native_backup,
-
     };
 
     let base = std::env::var("RUSTFORGE_TEST_DATABASE_URL")
-
         .expect("disposable test server URL required; never use a production URL");
 
     let server = PgPoolOptions::new()
-
         .max_connections(2)
-
         .connect(&base)
-
         .await
-
         .unwrap();
 
     let (name, db) = database(&server, &base).await;
@@ -442,15 +296,10 @@ async fn postgres_http_and_native_backup_regressions() {
     let setup = json!({"setup_token":"wrong","site_title":"Regression","admin_email":"admin@example.test","admin_username":"admin","admin_password":"test-password-long-123!"});
 
     assert_eq!(
-
         request(&app, "POST", "/api/v1/setup/install", None, setup.clone())
-
             .await
-
             .0,
-
         403
-
     );
 
     let mut setup = setup;
@@ -462,15 +311,10 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(installed.0, 200, "{installed:?}");
 
     assert_eq!(
-
         request(&app, "POST", "/api/v1/setup/install", None, setup)
-
             .await
-
             .0,
-
         403
-
     );
 
     let admin_id = Uuid::parse_str(installed.1["user"]["id"].as_str().unwrap()).unwrap();
@@ -488,91 +332,111 @@ async fn postgres_http_and_native_backup_regressions() {
     let other_token = rustforge_api::auth::create_token(other.id, other.role, SECRET).unwrap();
 
     let reader_token =
-
         rustforge_api::auth::create_token(subscriber.id, subscriber.role, SECRET).unwrap();
 
     jobs_diagnostics(&app, &db, &admin, &token, admin_id).await;
+    let shared_columns = json!([{"id":"title","label":"Titre partagé","visible":true}]);
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"admin.columns.post":shared_columns})
+        )
+        .await
+        .0,
+        200
+    );
+    let columns = request(
+        &app,
+        "GET",
+        "/api/v1/admin/columns",
+        Some(&token),
+        json!(null),
+    )
+    .await;
+    assert_eq!(columns.0, 200);
+    assert_eq!(columns.1["admin.columns.post"], shared_columns);
+    assert!(
+        columns
+            .1
+            .as_object()
+            .unwrap()
+            .keys()
+            .all(|k| k.starts_with("admin.columns."))
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/api/v1/admin/columns",
+            Some(&reader_token),
+            json!(null)
+        )
+        .await
+        .0,
+        403
+    );
+    assert_eq!(
+        request(&app, "GET", "/api/v1/admin/columns", None, json!(null))
+            .await
+            .0,
+        401
+    );
+    sqlx::query("DELETE FROM settings WHERE key='admin.columns.post'")
+        .execute(&db)
+        .await
+        .unwrap();
 
     let preview = request(
-
         &app,
-
         "POST",
-
         "/api/v1/entries/preview",
-
         Some(&token),
-
         json!({"body":"# Titre\n<script>alert(1)</script>"}),
-
     )
-
     .await;
 
     assert_eq!(preview.0, 200);
 
     assert!(
-
         preview.1["body_html"]
-
             .as_str()
-
             .unwrap()
-
             .contains("<h1>Titre</h1>")
-
     );
 
     assert!(!preview.1["body_html"].as_str().unwrap().contains("<script"));
 
     assert_eq!(
-
         request(
-
             &app,
-
             "POST",
-
             "/api/v1/entries/preview",
-
             Some(&reader_token),
-
             json!({"body":"private"})
-
         )
-
         .await
-
         .0,
-
         403
-
     );
 
     let fixture = include_str!("../../../tests/fixtures/wordpress-editorial.xml");
 
     assert_eq!(
-
         migration_request(&app, "/api/v1/converter/inspect-wxr", &token, fixture, &[])
-
             .await
-
             .0,
-
         403
-
     );
 
     let before_inspection: i64 = sqlx::query_scalar("SELECT count(*) FROM entries")
-
         .fetch_one(&db)
-
         .await
-
         .unwrap();
 
     let inspection =
-
         migration_request(&app, "/api/v1/converter/inspect-wxr", &admin, fixture, &[]).await;
 
     assert_eq!(inspection.0, 200, "{inspection:?}");
@@ -580,11 +444,8 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(inspection.1["entries"], 2);
 
     let after_inspection: i64 = sqlx::query_scalar("SELECT count(*) FROM entries")
-
         .fetch_one(&db)
-
         .await
-
         .unwrap();
 
     assert_eq!(before_inspection, after_inspection);
@@ -592,157 +453,94 @@ async fn postgres_http_and_native_backup_regressions() {
     let seal = inspection.1["seal"].as_str().unwrap();
 
     assert_eq!(
-
         migration_request(
-
             &app,
-
             "/api/v1/converter/import-wxr",
-
             &admin,
-
             fixture,
-
             &[("seal", seal)]
-
         )
-
         .await
-
         .0,
-
         400
-
     );
 
     assert_eq!(
-
         migration_request(
-
             &app,
-
             "/api/v1/converter/import-wxr",
-
             &admin,
-
             &fixture.replace("Article de démonstration", "Fichier changé"),
-
             &[("seal", seal), ("acknowledge", "true")]
-
         )
-
         .await
-
         .0,
-
         400
-
     );
 
     for _ in 0..2 {
-
         let imported = migration_request(
-
             &app,
-
             "/api/v1/converter/import-wxr",
-
             &admin,
-
             fixture,
-
             &[("seal", seal), ("acknowledge", "true")],
-
         )
-
         .await;
 
         assert_eq!(imported.0, 200, "{imported:?}");
 
         assert_eq!(imported.1["report"]["entries_imported"], 2);
-
     }
 
     let page_status: String =
-
         sqlx::query_scalar("SELECT status::text FROM entries WHERE slug='presentation'")
-
             .fetch_one(&db)
-
             .await
-
             .unwrap();
 
     assert_eq!(page_status, "draft");
 
     for _ in 0..2 {
-
         core::scheduler::run_scheduler_tick(&db).await.unwrap();
-
     }
 
     let private_state: (String, Option<chrono::DateTime<chrono::Utc>>) =
-
         sqlx::query_as("SELECT status::text,published_at FROM entries WHERE slug='presentation'")
-
             .fetch_one(&db)
-
             .await
-
             .unwrap();
 
     assert_eq!(private_state, ("draft".into(), None));
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/api/v1/public/entries/page/presentation",
-
             None,
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         404
-
     );
 
     let media:Uuid=sqlx::query_scalar("INSERT INTO media(path,original_name,mime_type,size_bytes) VALUES('example.txt','example.txt','text/plain',14) RETURNING id").fetch_one(&db).await.unwrap();
 
     let term: Uuid = sqlx::query_scalar("SELECT id FROM terms LIMIT 1")
-
         .fetch_one(&db)
-
         .await
-
         .unwrap();
 
     let parent = entries::create(
-
         &db,
-
         &NoopHooks,
-
         "page",
-
         author.id,
-
         input(json!({"title":"Parent"})),
-
     )
-
     .await
-
     .unwrap();
 
     let entry=entries::create(&db,&NoopHooks,"page",author.id,input(json!({"title":"Original","body":"Bonjour","status":"published","fields":{"_rf_vault":{"private":"kept"}},"blocks":[{"type":"paragraph","content":"kept"}],"intent":{"goal":"kept"},"parent_id":parent.id,"featured_media_id":media,"term_ids":[term]}))).await.unwrap();
@@ -750,19 +548,12 @@ async fn postgres_http_and_native_backup_regressions() {
     let endpoint = format!("/api/v1/entries/{}", entry.id);
 
     let updated = request(
-
         &app,
-
         "PUT",
-
         &endpoint,
-
         Some(&token),
-
         json!({"title":"Modified"}),
-
     )
-
     .await;
 
     assert_eq!(updated.0, 200, "{updated:?}");
@@ -782,65 +573,38 @@ async fn postgres_http_and_native_backup_regressions() {
     let stale_input = EntryInput::from_patch(&entry, json!({"title":"Outdated client"})).unwrap();
 
     assert!(
-
         entries::update(&db, &NoopHooks, entry.id, author.id, stale_input)
-
             .await
-
             .is_err()
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &endpoint,
-
             Some(&other_token),
-
             json!({"title":"Forbidden"})
-
         )
-
         .await
-
         .0,
-
         403
-
     );
 
     assert_eq!(
-
         request(&app, "GET", &endpoint, Some(&reader_token), Value::Null)
-
             .await
-
             .0,
-
         403
-
     );
 
     let public = request(
-
         &app,
-
         "GET",
-
         &format!("/api/v1/public/entries/page/{}", entry.slug),
-
         None,
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(public.0, 200, "{public:?}");
@@ -850,53 +614,33 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(public.1.get("body").is_none());
 
     let revisions = request(
-
         &app,
-
         "GET",
-
         &format!("{endpoint}/revisions"),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(revisions.0, 200);
 
     let revision = revisions
-
         .1
-
         .as_array()
-
         .unwrap()
-
         .iter()
-
         .find(|r| r["title"] == "Original")
-
         .unwrap()["id"]
-
         .as_str()
-
         .unwrap();
 
     let restore = format!("{endpoint}/revisions/{revision}/restore");
 
     assert_eq!(
-
         request(&app, "POST", &restore, Some(&other_token), json!({}))
-
             .await
-
             .0,
-
         403
-
     );
 
     let restored = request(&app, "POST", &restore, Some(&token), json!({})).await;
@@ -912,27 +656,16 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(request(&app, "GET", &page, None, Value::Null).await.0, 200);
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &endpoint,
-
             Some(&token),
-
             json!({"status":"draft"})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     assert_eq!(request(&app, "GET", &page, None, Value::Null).await.0, 404);
@@ -966,19 +699,12 @@ async fn postgres_http_and_native_backup_regressions() {
     });
 
     let native_preview = request(
-
         &app,
-
         "POST",
-
         "/api/v1/entries/preview",
-
         Some(&token),
-
         json!({"body": "", "blocks": native_doc_v1}),
-
     )
-
     .await;
 
     assert_eq!(native_preview.0, 200, "{native_preview:?}");
@@ -998,18 +724,11 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(preview_html.contains("<strong>littéral</strong>"));
     assert!(preview_html.contains("&lt;script&gt;"));
 
-
-
     let created_native = request(
-
         &app,
-
         "POST",
-
         "/api/v1/entries?content_type=post",
-
         Some(&token),
-
         json!({
 
             "title": "Article Natif G2",
@@ -1031,9 +750,7 @@ async fn postgres_http_and_native_backup_regressions() {
             }
 
         }),
-
     )
-
     .await;
 
     assert_eq!(created_native.0, 200, "{created_native:?}");
@@ -1049,14 +766,9 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(created_native.1["body_html"], preview_html);
 
     assert_eq!(
-
         created_native.1["fields"]["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
-
-
 
     // Public SSR and headless API serve the exact projected HTML without exposing raw body or vault.
 
@@ -1065,35 +777,22 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(ssr_post.0, 200);
 
     assert!(
-
         ssr_post
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("<h2>Titre natif V1</h2>")
-
     );
 
     assert!(!ssr_post.1.as_str().unwrap().contains("<script>alert(1)"));
 
     let pub_json = request(
-
         &app,
-
         "GET",
-
         "/api/v1/public/entries/post/article-natif-g2",
-
         None,
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(pub_json.0, 200);
@@ -1104,7 +803,7 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(pub_json.1.get("fields").is_none());
 
-
+    ai_native_patch_recipe(&app, &token, &other_token, native_id, &native_doc_v1).await;
 
     // Reopening returns identical blocks, IDs, projected body and vault.
 
@@ -1120,46 +819,28 @@ async fn postgres_http_and_native_backup_regressions() {
 
     let v1_updated_at = reopened.1["updated_at"].as_str().unwrap().to_string();
 
-
-
     // Text-only patch attempting to change `body` without updating `blocks` or converting must be rejected (409).
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &native_endpoint,
-
             Some(&token),
-
             json!({"body": "Tentative d'écrasement texte seul"})
-
         )
-
         .await
-
         .0,
-
         409
-
     );
 
     // AI tool attempting to overwrite `body` only on a native document must also fail on approval.
 
     let bad_ai_plan = request(
-
         &app,
-
         "POST",
-
         "/api/v1/ai/execute",
-
         Some(&token),
-
         json!({
 
             "tool_name": "create_or_update_content",
@@ -1167,26 +848,19 @@ async fn postgres_http_and_native_backup_regressions() {
             "arguments": {"id": native_id, "body": "Texte IA sans blocs"}
 
         }),
-
     )
-
     .await;
 
     assert_eq!(bad_ai_plan.0, 200);
 
     let bad_ai_approve = format!(
-
         "/api/v1/ai/plans/{}/approve",
-
         bad_ai_plan.1["data"]["plan_id"].as_str().unwrap()
-
     );
 
     let bad_ai_res = request(&app, "POST", &bad_ai_approve, Some(&token), json!({})).await;
 
     assert_eq!(bad_ai_res.1["success"], false);
-
-
 
     // Update blocks to V2, then verify concurrent edit with stale expected_updated_at is rejected (409).
 
@@ -1205,15 +879,10 @@ async fn postgres_http_and_native_backup_regressions() {
     });
 
     let updated_native = request(
-
         &app,
-
         "PUT",
-
         &native_endpoint,
-
         Some(&token),
-
         json!({
 
             "title": "Article Natif G2 V2",
@@ -1223,9 +892,7 @@ async fn postgres_http_and_native_backup_regressions() {
             "expected_updated_at": v1_updated_at
 
         }),
-
     )
-
     .await;
 
     assert_eq!(updated_native.0, 200, "{updated_native:?}");
@@ -1233,39 +900,25 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(updated_native.1["blocks"], native_doc_v2);
 
     assert!(
-
         updated_native.1["body_html"]
-
             .as_str()
-
             .unwrap()
-
             .contains("<h2>Titre natif V2</h2>")
-
     );
 
     assert_eq!(
-
         updated_native.1["fields"]["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
 
     // Stale concurrent modification is rejected.
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &native_endpoint,
-
             Some(&token),
-
             json!({
 
                 "title": "Conflit concurrent",
@@ -1275,119 +928,70 @@ async fn postgres_http_and_native_backup_regressions() {
                 "expected_updated_at": v1_updated_at
 
             })
-
         )
-
         .await
-
         .0,
-
         409
-
     );
-
-
 
     // Legacy revision without snapshot cannot overwrite a native document (409).
 
     let legacy_rev_id: Uuid = sqlx::query_scalar(
-
         "INSERT INTO revisions(entry_id, author_id, title, excerpt, body, fields, snapshot)
 
          VALUES ($1, $2, 'Ancienne sans snapshot', '', 'Corps ancien', '{}'::jsonb, NULL)
 
          RETURNING id",
-
     )
-
     .bind(native_id)
-
     .bind(author.id)
-
     .fetch_one(&db)
-
     .await
-
     .unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "POST",
-
             &format!("{native_endpoint}/revisions/{legacy_rev_id}/restore"),
-
             Some(&token),
-
             json!({})
-
         )
-
         .await
-
         .0,
-
         409
-
     );
-
-
 
     // Modern revision with full snapshot restores V1 blocks, IDs, projected body/HTML and vault.
 
     let native_revs = request(
-
         &app,
-
         "GET",
-
         &format!("{native_endpoint}/revisions"),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(native_revs.0, 200);
 
     let rev_v1_id = native_revs
-
         .1
-
         .as_array()
-
         .unwrap()
-
         .iter()
-
         .find(|r| r["title"] == "Article Natif G2")
-
         .unwrap()["id"]
-
         .as_str()
-
         .unwrap();
 
     let restored_native = request(
-
         &app,
-
         "POST",
-
         &format!("{native_endpoint}/revisions/{rev_v1_id}/restore"),
-
         Some(&token),
-
         json!({}),
-
     )
-
     .await;
 
     assert_eq!(restored_native.0, 200, "{restored_native:?}");
@@ -1399,14 +1003,9 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(restored_native.1["body_html"], preview_html);
 
     assert_eq!(
-
         restored_native.1["fields"]["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
-
-
 
     // 9b. Conversion explicite Markdown -> rf.document/1, blocs image/button sûrs et hiérarchie de pages sans cycle
 
@@ -1435,29 +1034,18 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(converted_md.1["blocks"]["rf_schema"], "rf.document/1");
 
     assert_eq!(
-
         converted_md.1["blocks"]["rf_blocks"]
-
             .as_array()
-
             .unwrap()
-
             .len(),
-
         4
-
     );
 
     assert!(
-
         converted_md.1["body_html"]
-
             .as_str()
-
             .unwrap()
-
             .contains("<img src=\"/uploads/2026/10/visuel.webp\" alt=\"Visuel\"")
-
     );
 
     assert_eq!(
@@ -1497,19 +1085,12 @@ async fn postgres_http_and_native_backup_regressions() {
     );
 
     let page_parent = request(
-
         &app,
-
         "POST",
-
         "/api/v1/entries?content_type=page",
-
         Some(&token),
-
         json!({"title": "Page Parente", "slug": "page-parente", "status": "published"}),
-
     )
-
     .await;
 
     assert_eq!(page_parent.0, 200);
@@ -1539,197 +1120,117 @@ async fn postgres_http_and_native_backup_regressions() {
     // Refuser un cycle A -> B -> A
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/entries/{page_parent_id}"),
-
             Some(&token),
-
             json!({"parent_id": page_child_id}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Refuser un parent d'un autre type de contenu (post au lieu de page)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/entries/{page_child_id}"),
-
             Some(&token),
-
             json!({"parent_id": native_id}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // 9b. Permaliens & redirection canonique sans chaîne (WP-21) + garde expected_updated_at sur restauration de révision (WP-28).
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/entries/{page_child_id}"),
-
             Some(&token),
-
             json!({"slug": "page-enfant-v2"}),
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     let renamed_v3 = request(
-
         &app,
-
         "PUT",
-
         &format!("/api/v1/entries/{page_child_id}"),
-
         Some(&token),
-
         json!({"slug": "page-enfant-v3"}),
-
     )
-
     .await;
 
     assert_eq!(renamed_v3.0, 200);
 
     assert_eq!(
-
         renamed_v3.1["fields"]["_rf_vault"]["rf_old_slugs"],
-
         json!(["page-enfant", "page-enfant-v2"])
-
     );
 
     // L'ancien slug initial et le slug intermédiaire redirigent tous deux en 308 Permanent directement vers la cible finale.
 
     assert_eq!(
-
         request(&app, "GET", "/fr/page/page-enfant", None, Value::Null)
-
             .await
-
             .0,
-
         308
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/fr/page/page-enfant-v2", None, Value::Null)
-
             .await
-
             .0,
-
         308
-
     );
 
     let child_revs = request(
-
         &app,
-
         "GET",
-
         &format!("/api/v1/entries/{page_child_id}/revisions"),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(child_revs.0, 200);
 
     let oldest_child_rev = child_revs.1.as_array().unwrap().last().unwrap()["id"]
-
         .as_str()
-
         .unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "POST",
-
             &format!("/api/v1/entries/{page_child_id}/revisions/{oldest_child_rev}/restore"),
-
             Some(&token),
-
             json!({"expected_updated_at": "2020-01-01T00:00:00Z"}),
-
         )
-
         .await
-
         .0,
-
         409
-
     );
 
     // 10. Quick Edit (WP-18) & filtres combinés (WP-16/WP-17) : associer une catégorie et modifier le titre sans renvoyer blocks ni body conserve l'enveloppe native et le coffre _rf_vault.
 
     let created_term = request(
-
         &app,
-
         "POST",
-
         "/api/v1/terms",
-
         Some(&token),
-
         json!({"taxonomy": "category", "name": "Guide technique"}),
-
     )
-
     .await;
 
     assert_eq!(created_term.0, 200, "{created_term:?}");
@@ -1737,15 +1238,10 @@ async fn postgres_http_and_native_backup_regressions() {
     let term_id = Uuid::parse_str(created_term.1["id"].as_str().unwrap()).unwrap();
 
     let quick_edited = request(
-
         &app,
-
         "PUT",
-
         &native_endpoint,
-
         Some(&token),
-
         json!({
 
             "title": "Article natif G2",
@@ -1757,9 +1253,7 @@ async fn postgres_http_and_native_backup_regressions() {
             "term_ids": [term_id]
 
         }),
-
     )
-
     .await;
 
     assert_eq!(quick_edited.0, 200, "{quick_edited:?}");
@@ -1767,29 +1261,19 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(quick_edited.1["blocks"], native_doc_v1);
 
     assert_eq!(
-
         quick_edited.1["fields"]["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
 
     assert_eq!(quick_edited.1["terms"][0]["slug"], "guide-technique");
 
     let filtered_list = request(
-
         &app,
-
         "GET",
-
         "/api/v1/entries?content_type=post&taxonomy=category&term=guide-technique&order=title",
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(filtered_list.0, 200, "{filtered_list:?}");
@@ -1798,24 +1282,15 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert_eq!(filtered_list.1["items"][0]["id"], native_id.to_string());
 
-
-
     // 11. Catégories hiérarchiques & étiquettes (WP-19) : hiérarchie, anti-cycle, fusion et suppression avec réaffectation.
 
     let child_term = request(
-
         &app,
-
         "POST",
-
         "/api/v1/terms",
-
         Some(&token),
-
         json!({"taxonomy": "category", "name": "Sous-guide Rust", "parent_id": term_id}),
-
     )
-
     .await;
 
     assert_eq!(child_term.0, 200, "{child_term:?}");
@@ -1825,45 +1300,27 @@ async fn postgres_http_and_native_backup_regressions() {
     // Refuser un cycle de catégories parent -> enfant -> parent (422)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/terms/{term_id}"),
-
             Some(&token),
-
             json!({"parent_id": child_term_id}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Créer une étiquette (tag) et refuser de l'utiliser comme parent d'une catégorie (422)
 
     let created_tag = request(
-
         &app,
-
         "POST",
-
         "/api/v1/terms",
-
         Some(&token),
-
         json!({"taxonomy": "tag", "name": "rust-cms"}),
-
     )
-
     .await;
 
     assert_eq!(created_tag.0, 200, "{created_tag:?}");
@@ -1871,53 +1328,31 @@ async fn postgres_http_and_native_backup_regressions() {
     let tag_id = Uuid::parse_str(created_tag.1["id"].as_str().unwrap()).unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/terms/{child_term_id}"),
-
             Some(&token),
-
             json!({"parent_id": tag_id}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Refuser la fusion d'une catégorie parente vers son propre sous-terme (422 anti-cycle)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "POST",
-
             &format!("/api/v1/terms/{term_id}/merge"),
-
             Some(&token),
-
             json!({"target_id": child_term_id}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Créer une catégorie cible `final_cat` et fusionner `term_id` vers `final_cat` :
@@ -1925,19 +1360,12 @@ async fn postgres_http_and_native_backup_regressions() {
     // l'entrée `native_id` et le sous-terme `child_term_id` sont rattachés à `final_cat`.
 
     let final_cat = request(
-
         &app,
-
         "POST",
-
         "/api/v1/terms",
-
         Some(&token),
-
         json!({"taxonomy": "category", "name": "Documentation officielle"}),
-
     )
-
     .await;
 
     assert_eq!(final_cat.0, 200, "{final_cat:?}");
@@ -1945,19 +1373,12 @@ async fn postgres_http_and_native_backup_regressions() {
     let final_cat_id = Uuid::parse_str(final_cat.1["id"].as_str().unwrap()).unwrap();
 
     let merged_term = request(
-
         &app,
-
         "POST",
-
         &format!("/api/v1/terms/{term_id}/merge"),
-
         Some(&token),
-
         json!({"target_id": final_cat_id}),
-
     )
-
     .await;
 
     assert_eq!(merged_term.0, 200, "{merged_term:?}");
@@ -1967,135 +1388,80 @@ async fn postgres_http_and_native_backup_regressions() {
     // Supprimer `child_term_id` avec réaffectation vers `final_cat_id`.
 
     let deleted_with_reassign = request(
-
         &app,
-
         "DELETE",
-
         &format!("/api/v1/terms/{child_term_id}?reassign_to={final_cat_id}"),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(deleted_with_reassign.0, 200, "{deleted_with_reassign:?}");
 
     let after_reassign = request(
-
         &app,
-
         "GET",
-
         "/api/v1/entries?content_type=post&taxonomy=category&term=documentation-officielle",
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(after_reassign.0, 200, "{after_reassign:?}");
 
     assert_eq!(after_reassign.1["total"], 1);
 
-
-
     // 12. G3 Lot 1 : Protection de suppression des médias utilisés (WP-40), Menus publics (WP-46) & CSS personnalisé borné (WP-48/WP-50).
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/entries/{page_child_id}"),
-
             Some(&token),
-
             json!({"featured_media_id": media}),
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     // Refuser la suppression non forcée d'un média utilisé dans un contenu actif (409 Conflict)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "DELETE",
-
             &format!("/api/v1/media/{media}"),
-
             Some(&token),
-
             Value::Null,
-
         )
-
         .await
-
         .0,
-
         409
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             &format!("/api/v1/entries/{page_child_id}"),
-
             Some(&token),
-
             json!({"featured_media_id": null}),
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     // Refuser une URL javascript: dans site.menus (422) et du HTML/@import dans site.design_tokens.custom_css (422)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({
 
                 "site.menus": {
@@ -2105,29 +1471,18 @@ async fn postgres_http_and_native_backup_regressions() {
                 }
 
             }),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({
 
                 "site.design_tokens": {
@@ -2139,15 +1494,10 @@ async fn postgres_http_and_native_backup_regressions() {
                 }
 
             }),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Enregistrer un menu public et un CSS personnalisé valides et vérifier leur rendu SSR immédiat
@@ -2313,24 +1663,15 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(nav_html.contains("Confidentialité"));
     assert!(nav_html.contains("RGPD"));
 
-
-
     // 13. G3 Lot 2 : Utilisateurs, rôles, réattribution et sessions (WP-52 à WP-55) + Réglages Lecture/Général (WP-69 à WP-81).
 
     let filtered_authors = request(
-
         &app,
-
         "GET",
-
         "/api/v1/users?role=author",
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(filtered_authors.0, 200, "{filtered_authors:?}");
@@ -2340,19 +1681,12 @@ async fn postgres_http_and_native_backup_regressions() {
     // Un auteur non-admin ne peut pas s'octroyer le rôle admin (WP-52/WP-53)
 
     let self_updated = request(
-
         &app,
-
         "PUT",
-
         &format!("/api/v1/users/{}", author.id),
-
         Some(&token),
-
         json!({"display_name": "Auteur Vérifié", "bio": "Bio test", "role": "admin"}),
-
     )
-
     .await;
 
     assert_eq!(self_updated.0, 200, "{self_updated:?}");
@@ -2364,25 +1698,16 @@ async fn postgres_http_and_native_backup_regressions() {
     // Sessions actives (WP-55) : issue_refresh_token -> list_sessions -> revoke_sessions
 
     let _ = users::issue_refresh_token(&db, author.id, chrono::Duration::days(1))
-
         .await
-
         .unwrap();
 
     let sessions_before = request(
-
         &app,
-
         "GET",
-
         &format!("/api/v1/users/{}/sessions", author.id),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(sessions_before.0, 200, "{sessions_before:?}");
@@ -2390,19 +1715,12 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(sessions_before.1.as_array().unwrap().len(), 1);
 
     let revoked_sessions = request(
-
         &app,
-
         "DELETE",
-
         &format!("/api/v1/users/{}/sessions", author.id),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(revoked_sessions.0, 200, "{revoked_sessions:?}");
@@ -2414,23 +1732,15 @@ async fn postgres_http_and_native_backup_regressions() {
     let temp_author = account(&db, "temp_writer", Role::Author).await;
 
     let temp_token =
-
         rustforge_api::auth::create_token(temp_author.id, temp_author.role, SECRET).unwrap();
 
     let temp_entry = request(
-
         &app,
-
         "POST",
-
         "/api/v1/entries?content_type=post",
-
         Some(&temp_token),
-
         json!({"title": "Article à réattribuer", "body": "Texte", "status": "published"}),
-
     )
-
     .await;
 
     assert_eq!(temp_entry.0, 200, "{temp_entry:?}");
@@ -2438,113 +1748,68 @@ async fn postgres_http_and_native_backup_regressions() {
     let temp_entry_id = Uuid::parse_str(temp_entry.1["id"].as_str().unwrap()).unwrap();
 
     let deleted_user = request(
-
         &app,
-
         "DELETE",
-
         &format!("/api/v1/users/{}?reassign_to={}", temp_author.id, author.id),
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(deleted_user.0, 200, "{deleted_user:?}");
 
     let reassigned_entry = request(
-
         &app,
-
         "GET",
-
         &format!("/api/v1/entries/{temp_entry_id}"),
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(reassigned_entry.0, 200, "{reassigned_entry:?}");
 
     assert_eq!(
-
         reassigned_entry.1["author_id"].as_str().unwrap(),
-
         author.id.to_string()
-
     );
 
     // Réglages Lecture & Général (WP-72, WP-78, WP-79, WP-81) : refuser users.default_role = admin (422) et reading.per_page = 0 (422)
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"users.default_role": "admin"}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.per_page": 0}),
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     // Configurer une page d'accueil statique + blog_public = false (noindex) et vérifier le SSR de `/fr`
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({
 
                 "reading.show_on_front": "page",
@@ -2554,15 +1819,10 @@ async fn postgres_http_and_native_backup_regressions() {
                 "reading.blog_public": false
 
             }),
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     let static_home = request(&app, "GET", "/fr", None, Value::Null).await;
@@ -2575,48 +1835,31 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(static_home_html.contains("noindex, nofollow"));
 
-
-
     // G3.3-A : la page d'accueil suit les règles publiques, même sans scheduler.
 
     let home_page_id = Uuid::parse_str(page_parent_id).unwrap();
 
     for mutation in [
-
         "status = 'draft'",
-
         "status = 'published', published_at = now() + interval '1 day'",
-
         "status = 'published', published_at = now() - interval '1 day', scheduled_unpublish_at = now() - interval '1 second'",
-
     ] {
-
         sqlx::query(&format!("UPDATE entries SET {mutation} WHERE id = $1"))
-
             .bind(home_page_id)
-
             .execute(&db)
-
             .await
-
             .unwrap();
 
         assert!(matches!(
-
             entries::get_published_page(&db, home_page_id).await,
-
             Err(core::CoreError::NotFound)
-
         ));
 
         let page_slug = entries::get(&db, home_page_id).await.unwrap().slug;
 
         assert!(matches!(
-
             entries::get_published(&db, "page", &page_slug).await,
-
             Err(core::CoreError::NotFound)
-
         ));
 
         let home = request(&app, "GET", "/fr", None, Value::Null).await;
@@ -2626,25 +1869,17 @@ async fn postgres_http_and_native_backup_regressions() {
         assert!(!home.1.as_str().unwrap().contains("Page Parente"));
 
         let public = entries::list(
-
             &db,
-
             &core::entries::EntryQuery {
-
                 public_only: true,
 
                 ..Default::default()
-
             },
-
         )
-
         .await
-
         .unwrap();
 
         assert!(!public.items.iter().any(|e| e.id == home_page_id));
-
     }
 
     sqlx::query("UPDATE entries SET status='published', published_at=now() - interval '1 day', scheduled_unpublish_at=now() + interval '2 seconds' WHERE id=$1")
@@ -2652,19 +1887,12 @@ async fn postgres_http_and_native_backup_regressions() {
         .bind(home_page_id).execute(&db).await.unwrap();
 
     assert!(
-
         request(&app, "GET", "/fr", None, Value::Null)
-
             .await
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("Page Parente")
-
     );
 
     tokio::time::sleep(std::time::Duration::from_millis(2200)).await;
@@ -2672,32 +1900,19 @@ async fn postgres_http_and_native_backup_regressions() {
     // Pas d'écriture ni de tick entre les deux requêtes : le cache chaud doit expirer.
 
     assert!(
-
         !request(&app, "GET", "/fr", None, Value::Null)
-
             .await
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("Page Parente")
-
     );
 
     sqlx::query("UPDATE entries SET scheduled_unpublish_at=NULL WHERE id=$1")
-
         .bind(home_page_id)
-
         .execute(&db)
-
         .await
-
         .unwrap();
-
-
 
     // G3.3-B : parcours publics, pagination, cache et frontières JSON/HTML.
 
@@ -2708,117 +1923,68 @@ async fn postgres_http_and_native_backup_regressions() {
         .fetch_one(&db).await.unwrap();
 
     for n in 1..=3 {
-
         entries::create(&db, &NoopHooks, "post", author.id,
 
             input(json!({"title":format!("G33Needle article {n}"),"status":"published","body":"Texte public", "term_ids":[archive_term]}))).await.unwrap();
-
     }
 
     entries::create(
-
         &db,
-
         &NoopHooks,
-
         "post",
-
         author.id,
-
         input(json!({"title":"G33Needle SECRET","status":"draft","term_ids":[archive_term]})),
-
     )
-
     .await
-
     .unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.show_on_front":"posts","reading.per_page":1})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     for (name, timing) in [
-
         ("FUTURE", "published_at=now()+interval '1 day'"),
-
         (
-
             "EXPIRED",
-
             "scheduled_unpublish_at=now()-interval '1 second'",
-
         ),
-
     ] {
-
         let hidden = entries::create(&db,&NoopHooks,"post",author.id,input(json!({"title":format!("G33Needle {name}"),"status":"published","term_ids":[archive_term]}))).await.unwrap();
 
         sqlx::query(&format!("UPDATE entries SET {timing} WHERE id=$1"))
-
             .bind(hidden.id)
-
             .execute(&db)
-
             .await
-
             .unwrap();
-
     }
 
     assert_eq!(
-
         request(&app, "GET", "/fr/archive/tag/g33-empty", None, Value::Null)
-
             .await
-
             .0,
-
         200
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/fr/archive/tag/g33-empty?page=2",
-
             None,
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         404
-
     );
 
     let results = request(&app, "GET", "/fr/search?q=G33Needle", None, Value::Null).await;
@@ -2834,19 +2000,12 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(html.contains("q=G33Needle&amp;page=2"));
 
     let second = request(
-
         &app,
-
         "GET",
-
         "/fr/search?q=G33Needle&page=2",
-
         None,
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(second.0, 200);
@@ -2854,283 +2013,162 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_ne!(results.1, second.1);
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/fr/search?q=G33Needle&page=4",
-
             None,
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         404
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/fr/search?q=inexistantG33", None, Value::Null)
-
             .await
-
             .0,
-
         200
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/fr/search", None, Value::Null)
-
             .await
-
             .0,
-
         200
-
     );
 
     for url in ["/fr/search?page=0", "/fr/search?page=abc", "/fr?page=-1"] {
-
         assert_eq!(request(&app, "GET", url, None, Value::Null).await.0, 400);
-
     }
 
     let escaped = request(
-
         &app,
-
         "GET",
-
         "/fr/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E",
-
         None,
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(escaped.0, 200);
 
     assert!(
-
         !escaped
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("<script>alert(1)</script>")
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/fr/archive/category/g33-public",
-
             None,
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/fr/archive/category/g33-public?page=2",
-
             None,
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     for url in [
-
         "/fr/archive/category/missing-g33",
-
         "/fr/archive/unknown/g33-public",
-
         "/fr/post/missing-g33",
-
         "/fr/unknown/extra/path/404",
-
     ] {
-
         let missing = request(&app, "GET", url, None, Value::Null).await;
 
         assert_eq!(missing.0, 404);
 
         assert!(missing.1.as_str().unwrap().contains("Page introuvable"));
-
     }
 
     assert!(
-
         request(&app, "GET", "/api/v1/missing-g33", None, Value::Null)
-
             .await
-
             .1
-
             .is_object()
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/fr?page=2", None, Value::Null)
-
             .await
-
             .0,
-
         200
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.show_on_front":"page","reading.per_page":10})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
-
-
 
     // G3.3-C : choix distincts et index public effectif.
 
     let blog_page=entries::create(&db,&NoopHooks,"page",author.id,input(json!({"title":"Index du journal","slug":"g33-blog","body":"Ce texte ne doit pas devenir la liste","status":"published"}))).await.unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.page_for_posts":home_page_id.to_string()})
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.page_for_posts":"not-a-uuid"})
-
         )
-
         .await
-
         .0,
-
         422
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.page_for_posts":blog_page.id.to_string(),"reading.per_page":1})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     let index = request(&app, "GET", "/fr/page/g33-blog", None, Value::Null).await;
@@ -3140,70 +2178,41 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(index.1.as_str().unwrap().contains("G33Needle article"));
 
     assert!(
-
         !index
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("Ce texte ne doit pas devenir la liste")
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/fr/page/g33-blog?page=2", None, Value::Null)
-
             .await
-
             .0,
-
         200
-
     );
 
     assert!(
-
         request(&app, "GET", "/fr", None, Value::Null)
-
             .await
-
             .1
-
             .as_str()
-
             .unwrap()
-
             .contains("Page Parente")
-
     );
 
     sqlx::query("UPDATE entries SET status='draft' WHERE id=$1")
-
         .bind(blog_page.id)
-
         .execute(&db)
-
         .await
-
         .unwrap();
 
     assert_eq!(
-
         request(&app, "GET", "/fr/page/g33-blog", None, Value::Null)
-
             .await
-
             .0,
-
         404
-
     );
-
-
 
     // G3.3-D : Flux RSS 2.0 et Atom 1.0 effectifs avec limitation et extrait/complet
 
@@ -3221,8 +2230,6 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(!rss_body.contains("G33Needle SECRET"));
 
-
-
     let feed_atom = request(&app, "GET", "/fr/feed/atom", None, Value::Null).await;
 
     assert_eq!(feed_atom.0, 200);
@@ -3237,30 +2244,17 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert!(!atom_body.contains("G33Needle SECRET"));
 
-
-
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.posts_per_rss": 2, "reading.rss_use_excerpt": true})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
 
     let feed_rss_excerpt = request(&app, "GET", "/feed", None, Value::Null).await;
@@ -3277,14 +2271,23 @@ async fn postgres_http_and_native_backup_regressions() {
     // 1. ?tat blog_public == false (configur? ? l'?tape ant?rieure)
     let robots_private = request(&app, "GET", "/robots.txt", None, Value::Null).await;
     assert_eq!(robots_private.0, 200);
-    assert_eq!(robots_private.1.as_str().unwrap(), "User-agent: *\nDisallow: /\n");
+    assert_eq!(
+        robots_private.1.as_str().unwrap(),
+        "User-agent: *\nDisallow: /\n"
+    );
 
     let sitemap_private = request(&app, "GET", "/sitemap.xml", None, Value::Null).await;
     assert_eq!(sitemap_private.0, 404);
 
     let home_private = request(&app, "GET", "/fr", None, Value::Null).await;
     assert_eq!(home_private.0, 200);
-    assert!(home_private.1.as_str().unwrap().contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+    assert!(
+        home_private
+            .1
+            .as_str()
+            .unwrap()
+            .contains("<meta name=\"robots\" content=\"noindex, nofollow\">")
+    );
 
     // 2. Passage ? blog_public == true : robots.txt permissif avec sitemap et disallow admin/api
     assert_eq!(
@@ -3318,8 +2321,20 @@ async fn postgres_http_and_native_backup_regressions() {
 
     let home_html = request(&app, "GET", "/fr", None, Value::Null).await;
     assert_eq!(home_html.0, 200);
-    assert!(home_html.1.as_str().unwrap().contains("<link rel=\"canonical\" href=\"http://localhost:8080/fr\" />"));
-    assert!(!home_html.1.as_str().unwrap().contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+    assert!(
+        home_html
+            .1
+            .as_str()
+            .unwrap()
+            .contains("<link rel=\"canonical\" href=\"http://localhost:8080/fr\" />")
+    );
+    assert!(
+        !home_html
+            .1
+            .as_str()
+            .unwrap()
+            .contains("<meta name=\"robots\" content=\"noindex, nofollow\">")
+    );
 
     // G3.3-F : Structure des permaliens (WP-90) et bases de taxonomies (WP-91)
     let permalink_post = entries::create(
@@ -3398,12 +2413,32 @@ async fn postgres_http_and_native_backup_regressions() {
         200
     );
 
-    let old_cat_archive = request(&app, "GET", "/fr/archive/category/g33-public", None, Value::Null).await;
+    let old_cat_archive = request(
+        &app,
+        "GET",
+        "/fr/archive/category/g33-public",
+        None,
+        Value::Null,
+    )
+    .await;
     assert_eq!(old_cat_archive.0, 308);
 
-    let new_cat_archive = request(&app, "GET", "/fr/archive/rubrique/g33-public", None, Value::Null).await;
+    let new_cat_archive = request(
+        &app,
+        "GET",
+        "/fr/archive/rubrique/g33-public",
+        None,
+        Value::Null,
+    )
+    .await;
     assert_eq!(new_cat_archive.0, 200);
-    assert!(new_cat_archive.1.as_str().unwrap().contains("Article Permalien G33F"));
+    assert!(
+        new_cat_archive
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Article Permalien G33F")
+    );
 
     // 3. Permalien par défaut plain (/fr/post/{slug})
     let plain_resp = request(
@@ -3440,7 +2475,9 @@ async fn postgres_http_and_native_backup_regressions() {
     .await;
     assert_eq!(old_url_resp.0, 308);
 
-    let pub_date = permalink_post.published_at.unwrap_or(permalink_post.created_at);
+    let pub_date = permalink_post
+        .published_at
+        .unwrap_or(permalink_post.created_at);
     let expected_day_path = format!(
         "/fr/{:04}/{:02}/{:02}/article-permalien-g33f",
         pub_date.year(),
@@ -3450,8 +2487,20 @@ async fn postgres_http_and_native_backup_regressions() {
 
     let day_name_resp = request(&app, "GET", &expected_day_path, None, Value::Null).await;
     assert_eq!(day_name_resp.0, 200);
-    assert!(day_name_resp.1.as_str().unwrap().contains("Article Permalien G33F"));
-    assert!(day_name_resp.1.as_str().unwrap().contains(&expected_day_path));
+    assert!(
+        day_name_resp
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Article Permalien G33F")
+    );
+    assert!(
+        day_name_resp
+            .1
+            .as_str()
+            .unwrap()
+            .contains(&expected_day_path)
+    );
 
     // 5. Permalien numérique : archives/{id}
     assert_eq!(
@@ -3470,7 +2519,13 @@ async fn postgres_http_and_native_backup_regressions() {
     let numeric_path = format!("/fr/archives/{}", permalink_post.id);
     let numeric_resp = request(&app, "GET", &numeric_path, None, Value::Null).await;
     assert_eq!(numeric_resp.0, 200);
-    assert!(numeric_resp.1.as_str().unwrap().contains("Article Permalien G33F"));
+    assert!(
+        numeric_resp
+            .1
+            .as_str()
+            .unwrap()
+            .contains("Article Permalien G33F")
+    );
 
     let redirect_to_numeric = request(&app, "GET", &expected_day_path, None, Value::Null).await;
     assert_eq!(redirect_to_numeric.0, 308);
@@ -3494,30 +2549,17 @@ async fn postgres_http_and_native_backup_regressions() {
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/settings",
-
             Some(&admin),
-
             json!({"reading.page_for_posts":null,"reading.per_page":10})
-
         )
-
         .await
-
         .0,
-
         200
-
     );
-
-
 
     let proposal=request(&app,"POST","/api/v1/ai/execute",Some(&token),json!({"tool_name":"create_or_update_content","arguments":{"id":entry.id,"title":"AI approved"}})).await;
 
@@ -3526,23 +2568,15 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(entries::get(&db, entry.id).await.unwrap().title, "Original");
 
     let approve = format!(
-
         "/api/v1/ai/plans/{}/approve",
-
         proposal.1["data"]["plan_id"].as_str().unwrap()
-
     );
 
     assert_eq!(
-
         request(&app, "POST", &approve, Some(&other_token), json!({}))
-
             .await
-
             .0,
-
         403
-
     );
 
     let approved = request(&app, "POST", &approve, Some(&token), json!({})).await;
@@ -3550,155 +2584,93 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(approved.1["success"], true, "{approved:?}");
 
     assert_eq!(
-
         request(&app, "POST", &approve, Some(&token), json!({}))
-
             .await
-
             .1,
-
         approved.1
-
     );
 
     let proposal = request(
-
         &app,
-
         "POST",
-
         "/api/v1/ai/execute",
-
         Some(&token),
-
         json!({"tool_name":"create_or_update_content","arguments":{"id":entry.id,"title":"Stale"}}),
-
     )
-
     .await;
 
     request(
-
         &app,
-
         "PUT",
-
         &endpoint,
-
         Some(&token),
-
         json!({"title":"Human edit"}),
-
     )
-
     .await;
 
     let stale = format!(
-
         "/api/v1/ai/plans/{}/approve",
-
         proposal.1["data"]["plan_id"].as_str().unwrap()
-
     );
 
     assert_eq!(
-
         request(&app, "POST", &stale, Some(&token), json!({}))
-
             .await
-
             .1["success"],
-
         false
-
     );
 
     assert_eq!(
-
         entries::get(&db, entry.id).await.unwrap().title,
-
         "Human edit"
-
     );
 
     // Checkout never accepts a test payment; manual completion is privileged and idempotent.
 
     let expensive = core::ecommerce::create_product(
-
         &db,
-
         serde_json::from_value(
-
             json!({"title":"Limit","price_cents":2147483647,"status":"published"}),
-
         )
-
         .unwrap(),
-
     )
-
     .await
-
     .unwrap();
 
     assert!(core::ecommerce::checkout(&db,serde_json::from_value(json!({"customer_email":"buyer@example.test","items":[{"product_id":expensive.id},{"product_id":expensive.id}]})).unwrap()).await.is_err());
 
     assert!(
-
         core::ecommerce::create_discount(
-
             &db,
-
             serde_json::from_value(
-
                 json!({"code":"INVALID","amount":101,"discount_type":"percentage"})
-
             )
-
             .unwrap()
-
         )
-
         .await
-
         .is_err()
-
     );
 
     let product=core::ecommerce::create_product(&db,serde_json::from_value(json!({"title":"File","price_cents":500,"file_path":"file.pdf","download_limit":1,"status":"published"})).unwrap()).await.unwrap();
 
     assert!(
-
         core::ecommerce::create_product(
-
             &db,
-
             serde_json::from_value(
-
                 json!({"title":"Bad","price_cents":500,"file_path":"../secret"})
-
             )
-
             .unwrap()
-
         )
-
         .await
-
         .is_err()
-
     );
 
     let checkout = json!({"customer_email":"buyer@example.test","items":[{"product_id":product.id}],"gateway":"test"});
 
     assert!(
-
         core::ecommerce::checkout(&db, serde_json::from_value(checkout.clone()).unwrap())
-
             .await
-
             .is_err()
-
     );
 
     let mut checkout = checkout;
@@ -3706,65 +2678,41 @@ async fn postgres_http_and_native_backup_regressions() {
     checkout["gateway"] = json!("manual");
 
     let order = core::ecommerce::checkout(&db, serde_json::from_value(checkout).unwrap())
-
         .await
-
         .unwrap();
 
     assert_eq!(
-
         serde_json::to_value(&order.order).unwrap()["status"],
-
         "pending"
-
     );
 
     let complete = format!("/api/v1/ecommerce/orders/{}/complete", order.order.id);
 
     assert_eq!(
-
         request(&app, "POST", &complete, Some(&token), json!({}))
-
             .await
-
             .0,
-
         403
-
     );
 
     assert_eq!(
-
         request(&app, "POST", &complete, Some(&admin), json!({}))
-
             .await
-
             .0,
-
         200
-
     );
 
     assert_eq!(
-
         request(&app, "POST", &complete, Some(&admin), json!({}))
-
             .await
-
             .0,
-
         200
-
     );
 
     let sales: i32 = sqlx::query_scalar("SELECT sales_count FROM ecommerce_products WHERE id=$1")
-
         .bind(product.id)
-
         .fetch_one(&db)
-
         .await
-
         .unwrap();
 
     assert_eq!(sales, 1);
@@ -3772,47 +2720,29 @@ async fn postgres_http_and_native_backup_regressions() {
     let download = core::ecommerce::generate_download_token(order.items[0].id, SECRET, 1);
 
     let (a, b) = tokio::join!(
-
         core::ecommerce::verify_and_consume_download(&db, &download, SECRET),
-
         core::ecommerce::verify_and_consume_download(&db, &download, SECRET)
-
     );
 
     assert_ne!(a.is_ok(), b.is_ok());
 
     assert!(
-
         core::ecommerce::verify_and_consume_download(&db, &download, "wrong")
-
             .await
-
             .is_err()
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "POST",
-
             &format!("/api/v1/ecommerce/orders/items/{}/token", order.items[0].id),
-
             Some(&other_token),
-
             json!({})
-
         )
-
         .await
-
         .0,
-
         403
-
     );
 
     // Import source mapping detects a changed target instead of overwriting human work.
@@ -3832,31 +2762,21 @@ async fn postgres_http_and_native_backup_regressions() {
     parsed_json.source_site_url = Some("https://wp.example.test".into());
 
     for e in &mut parsed_json.entries {
-
         e.slug = format!("import-{}", e.slug);
-
     }
 
     DataMorphImporter::apply(&db, &parsed_json, admin_id)
-
         .await
-
         .unwrap();
 
     DataMorphImporter::apply(&db, &parsed_json, admin_id)
-
         .await
-
         .unwrap();
 
     let imported_native_id: Uuid =
-
         sqlx::query_scalar("SELECT id FROM entries WHERE slug='import-article-natif-g2'")
-
             .fetch_one(&db)
-
             .await
-
             .unwrap();
 
     let imported_native = entries::get(&db, imported_native_id).await.unwrap();
@@ -3868,14 +2788,9 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(imported_native.body_html, preview_html);
 
     assert_eq!(
-
         imported_native.fields["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
-
-
 
     // Also verify RF-XML export -> WxrImporter::parse -> DataMorphImporter::apply SQL roundtrip.
 
@@ -3884,9 +2799,7 @@ async fn postgres_http_and_native_backup_regressions() {
     xml_source_doc.source_site_url = Some("https://rfxml.example.test".into());
 
     xml_source_doc
-
         .entries
-
         .retain(|e| e.source_id == native_id.to_string());
 
     xml_source_doc.entries[0].slug = "rfxml-article-natif-g2".into();
@@ -3894,23 +2807,16 @@ async fn postgres_http_and_native_backup_regressions() {
     let rf_xml_str = DataMorphExporter::to_rf_xml(&xml_source_doc).unwrap();
 
     let parsed_xml_doc =
-
         core::migration::wxr_importer::WxrImporter::parse(Cursor::new(rf_xml_str)).unwrap();
 
     DataMorphImporter::apply(&db, &parsed_xml_doc, admin_id)
-
         .await
-
         .unwrap();
 
     let xml_imported_id: Uuid =
-
         sqlx::query_scalar("SELECT id FROM entries WHERE slug='rfxml-article-natif-g2'")
-
             .fetch_one(&db)
-
             .await
-
             .unwrap();
 
     let xml_imported = entries::get(&db, xml_imported_id).await.unwrap();
@@ -3922,53 +2828,32 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(xml_imported.body_html, preview_html);
 
     assert_eq!(
-
         xml_imported.fields["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
 
-
-
     let imported: Uuid = sqlx::query_scalar(
-
         "SELECT entry_id FROM import_origins WHERE source='https://wp.example.test' LIMIT 1",
-
     )
-
     .fetch_one(&db)
-
     .await
-
     .unwrap();
 
     sqlx::query("UPDATE entries SET updated_at=now(),title='Keep human edit' WHERE id=$1")
-
         .bind(imported)
-
         .execute(&db)
-
         .await
-
         .unwrap();
 
     assert!(
-
         DataMorphImporter::apply(&db, &parsed_json, admin_id)
-
             .await
-
             .is_err()
-
     );
 
     assert_eq!(
-
         entries::get(&db, imported).await.unwrap().title,
-
         "Keep human edit"
-
     );
 
     // Native capsule includes module data and physical roots, and rejects overwrite.
@@ -3976,201 +2861,115 @@ async fn postgres_http_and_native_backup_regressions() {
     let form:Uuid=sqlx::query_scalar("INSERT INTO forms(name,slug,fields,created_by) VALUES('Contact','contact',$1,$2) RETURNING id").bind(json!({"type":"object","properties":{}})).bind(admin_id).fetch_one(&db).await.unwrap();
 
     core::forms::submit(
-
         &db,
-
         form,
-
         serde_json::from_value(json!({"data":{}})).unwrap(),
-
     )
-
     .await
-
     .unwrap();
 
     let gallery: Uuid = sqlx::query_scalar(
-
         "INSERT INTO galleries(name,slug) VALUES('Gallery','gallery') RETURNING id",
-
     )
-
     .fetch_one(&db)
-
     .await
-
     .unwrap();
 
     sqlx::query("INSERT INTO gallery_items(gallery_id,media_id) VALUES($1,$2)")
-
         .bind(gallery)
-
         .bind(media)
-
         .execute(&db)
-
         .await
-
         .unwrap();
 
     let course: Uuid = sqlx::query_scalar(
-
         "INSERT INTO lms_courses(title,slug,product_id) VALUES('Course','course',$1) RETURNING id",
-
     )
-
     .bind(product.id)
-
     .fetch_one(&db)
-
     .await
-
     .unwrap();
 
     sqlx::query("UPDATE ecommerce_products SET course_id=$1 WHERE id=$2")
-
         .bind(course)
-
         .bind(product.id)
-
         .execute(&db)
-
         .await
-
         .unwrap();
 
     let module: Uuid = sqlx::query_scalar(
-
         "INSERT INTO lms_modules(course_id,title) VALUES($1,'Module') RETURNING id",
-
     )
-
     .bind(course)
-
     .fetch_one(&db)
-
     .await
-
     .unwrap();
 
     sqlx::query("INSERT INTO lms_lessons(course_id,module_id,title,slug,content) VALUES($1,$2,'Lesson','lesson','Private lesson')").bind(course).bind(module).execute(&db).await.unwrap();
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             &format!("/api/v1/lms/courses/{course}/lessons"),
-
             Some(&reader_token),
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         403
-
     );
-
-
 
     // G1 Modules & Navigation HTTP regressions:
 
     // 1. Author and Subscriber cannot PUT /api/v1/admin/modules (403) and do not receive full admin catalog.
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/admin/modules",
-
             Some(&token),
-
             json!({"lms": false})
-
         )
-
         .await
-
         .0,
-
         403
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/admin/modules",
-
             Some(&reader_token),
-
             json!({"lms": false})
-
         )
-
         .await
-
         .0,
-
         403
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/admin/modules",
-
             Some(&admin),
-
             json!({"unknown_module": true})
-
         )
-
         .await
-
         .0,
-
         400
-
     );
 
     let author_nav = request(
-
         &app,
-
         "GET",
-
         "/api/v1/admin/navigation",
-
         Some(&token),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(author_nav.0, 200);
@@ -4178,20 +2977,12 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(author_nav.1["catalog"].as_array().unwrap().is_empty());
 
     assert!(
-
         !author_nav.1["items"]
-
             .as_array()
-
             .unwrap()
-
             .iter()
-
             .any(|n| n["id"] == "rf_lms" || n["id"] == "rf_settings")
-
     );
-
-
 
     // 2. Zen mode cache invalidation & module guard: warm SSR cache while zen_mode is active, then disable zen_mode.
 
@@ -4204,19 +2995,12 @@ async fn postgres_http_and_native_backup_regressions() {
     assert!(zen_active.1.as_str().unwrap().contains("Titre natif V1"));
 
     let disable_zen = request(
-
         &app,
-
         "PUT",
-
         "/api/v1/admin/modules",
-
         Some(&admin),
-
         json!({"zen_mode": false}),
-
     )
-
     .await;
 
     assert_eq!(disable_zen.0, 200);
@@ -4224,33 +3008,21 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(disable_zen.1["modules"]["zen_mode"], false);
 
     assert_eq!(
-
         request(&app, "GET", zen_url, None, Value::Null).await.0,
-
         404
-
     );
-
-
 
     // 3. Disabling LMS removes it from navigation and closes both admin and public LMS APIs (404),
 
     // while preserving underlying course/module/lesson data upon reactivation.
 
     let disable_lms = request(
-
         &app,
-
         "PUT",
-
         "/api/v1/admin/modules",
-
         Some(&admin),
-
         json!({"lms": false}),
-
     )
-
     .await;
 
     assert_eq!(disable_lms.0, 200);
@@ -4258,67 +3030,39 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(disable_lms.1["modules"]["lms"], false);
 
     assert!(
-
         !disable_lms.1["items"]
-
             .as_array()
-
             .unwrap()
-
             .iter()
-
             .any(|n| n["module"] == "lms")
-
     );
 
     assert!(
-
         disable_lms.1["catalog"]
-
             .as_array()
-
             .unwrap()
-
             .iter()
-
             .any(|n| n["id"] == "rf_lms")
-
     );
 
     assert_eq!(
-
         request(
-
             &app,
-
             "GET",
-
             "/api/v1/lms/courses",
-
             Some(&admin),
-
             Value::Null
-
         )
-
         .await
-
         .0,
-
         404
-
     );
 
     assert_eq!(
-
         request(&app, "GET", "/api/v1/public/lms/courses", None, Value::Null)
-
             .await
-
             .0,
-
         404
-
     );
 
     // Persisted in DB across new router/state instantiation ("restart").
@@ -4326,19 +3070,12 @@ async fn postgres_http_and_native_backup_regressions() {
     let restarted_app = crate::app(db.clone(), &root).await;
 
     let nav_after_restart = request(
-
         &restarted_app,
-
         "GET",
-
         "/api/v1/admin/navigation",
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(nav_after_restart.0, 200);
@@ -4347,40 +3084,23 @@ async fn postgres_http_and_native_backup_regressions() {
 
     assert_eq!(nav_after_restart.1["modules"]["zen_mode"], false);
 
-
-
     // 4. Atomic concurrent updates to distinct module flags merge both changes without clobbering.
 
     let (mod_a, mod_b) = tokio::join!(
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/admin/modules",
-
             Some(&admin),
-
             json!({"forms": false})
-
         ),
-
         request(
-
             &app,
-
             "PUT",
-
             "/api/v1/admin/modules",
-
             Some(&admin),
-
             json!({"lms": true, "zen_mode": true})
-
         )
-
     );
 
     assert_eq!(mod_a.0, 200);
@@ -4388,19 +3108,12 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(mod_b.0, 200);
 
     let merged_nav = request(
-
         &app,
-
         "GET",
-
         "/api/v1/admin/navigation",
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(merged_nav.0, 200);
@@ -4418,19 +3131,12 @@ async fn postgres_http_and_native_backup_regressions() {
     // Reactivated LMS still has its course and lessons intact.
 
     let courses_after = request(
-
         &app,
-
         "GET",
-
         "/api/v1/lms/courses",
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(courses_after.0, 200);
@@ -4438,41 +3144,27 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(courses_after.1.as_array().unwrap().len(), 1);
 
     let lessons_after = request(
-
         &app,
-
         "GET",
-
         &format!("/api/v1/lms/courses/{course}/lessons"),
-
         Some(&admin),
-
         Value::Null,
-
     )
-
     .await;
 
     assert_eq!(lessons_after.0, 200);
 
     assert_eq!(lessons_after.1.as_array().unwrap().len(), 1);
 
-
-
     std::fs::write(root.join("uploads/example.txt"), b"physical-media").unwrap();
 
     std::fs::write(root.join("protected/file.pdf"), b"private-product").unwrap();
 
     assert_eq!(
-
         request(&app, "GET", "/api/v1/forms", Some(&admin), Value::Null)
-
             .await
-
             .0,
-
         404
-
     );
 
     // ========================================================================
@@ -4584,18 +3276,31 @@ async fn postgres_http_and_native_backup_regressions() {
     // 7. Compteurs, action groupée et vidage de corbeille (WP-45)
     // STAB: public comment links and entry visibility share the public contract.
     let comments_url = format!("/api/v1/public/entries/{}/comments", permalink_post.id);
-    let invalid_link = request(&app, "POST", &comments_url, None, json!({
-        "author_name":"Test", "author_email":"test@example.test",
-        "author_url":"javascript:alert(1)", "content":"Un lien invalide"
-    })).await;
+    let invalid_link = request(
+        &app,
+        "POST",
+        &comments_url,
+        None,
+        json!({
+            "author_name":"Test", "author_email":"test@example.test",
+            "author_url":"javascript:alert(1)", "content":"Un lien invalide"
+        }),
+    )
+    .await;
     assert_eq!(invalid_link.0, 422, "{invalid_link:?}");
     sqlx::query("UPDATE comments SET author_url='javascript:alert(1)' WHERE id=$1")
-        .bind(Uuid::parse_str(comment_id).unwrap()).execute(&db).await.unwrap();
+        .bind(Uuid::parse_str(comment_id).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
     let sanitized = request(&app, "GET", &comments_url, None, Value::Null).await;
     assert_eq!(sanitized.0, 200);
     assert!(!sanitized.1.to_string().contains("javascript:"));
     sqlx::query("UPDATE comments SET author_url=NULL WHERE id=$1")
-        .bind(Uuid::parse_str(comment_id).unwrap()).execute(&db).await.unwrap();
+        .bind(Uuid::parse_str(comment_id).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
     let previous = entries::get(&db, permalink_post.id).await.unwrap();
     for condition in [
         "status='draft'",
@@ -4603,8 +3308,16 @@ async fn postgres_http_and_native_backup_regressions() {
         "status='published', published_at=now()-interval '1 day', scheduled_unpublish_at=now()-interval '1 hour'",
     ] {
         sqlx::query(&format!("UPDATE entries SET {condition} WHERE id=$1"))
-            .bind(permalink_post.id).execute(&db).await.unwrap();
-        assert_eq!(request(&app, "GET", &comments_url, None, Value::Null).await.0, 404);
+            .bind(permalink_post.id)
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(
+            request(&app, "GET", &comments_url, None, Value::Null)
+                .await
+                .0,
+            404
+        );
         let denied = request(&app, "POST", &comments_url, None, json!({
             "author_name":"Test", "author_email":"test@example.test", "content":"Publication inaccessible"
         })).await;
@@ -4615,45 +3328,144 @@ async fn postgres_http_and_native_backup_regressions() {
         .execute(&db).await.unwrap();
 
     // Discussion rules must affect HTTP, not just saved settings.
-    let before_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
+    let before_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments")
+        .fetch_one(&db)
+        .await
+        .unwrap();
     let update_setting = |key: &str, value: Value| {
-        let mut map = serde_json::Map::new(); map.insert(key.to_string(), value); Value::Object(map)
+        let mut map = serde_json::Map::new();
+        map.insert(key.to_string(), value);
+        Value::Object(map)
     };
-    let closed = request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        update_setting("discussion.default_comment_status", json!(false))).await;
+    let closed = request(
+        &app,
+        "PUT",
+        "/api/v1/settings",
+        Some(&admin),
+        update_setting("discussion.default_comment_status", json!(false)),
+    )
+    .await;
     assert_eq!(closed.0, 200);
     let submit = json!({"author_name":"Invité", "author_email":"invite@example.test", "content":"Commentaire de recette"});
-    assert_eq!(request(&app, "POST", &comments_url, None, submit.clone()).await.0, 422);
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.default_comment_status":true,"discussion.comment_registration":true})).await.0, 200);
-    assert_eq!(request(&app, "POST", &comments_url, None, submit.clone()).await.0, 401);
+    assert_eq!(
+        request(&app, "POST", &comments_url, None, submit.clone())
+            .await
+            .0,
+        422
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.default_comment_status":true,"discussion.comment_registration":true})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(&app, "POST", &comments_url, None, submit.clone())
+            .await
+            .0,
+        401
+    );
     let authenticated = request(&app, "POST", &comments_url, Some(&admin),
         json!({"author_name":"Usurpation", "author_email":"fake@example.test", "content":"Compte authentifié"})).await;
     assert_eq!(authenticated.0, 200, "{authenticated:?}");
     assert_ne!(authenticated.1["author_name"], "Usurpation");
-    let authenticated_id=Uuid::parse_str(authenticated.1["id"].as_str().unwrap()).unwrap();
-    sqlx::query("DELETE FROM comments WHERE id=$1").bind(authenticated_id).execute(&db).await.unwrap();
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.comment_registration":false,"discussion.require_name_email":false})).await.0, 200);
-    let anonymous = request(&app, "POST", &comments_url, None, json!({"content":"Sans identité obligatoire"})).await;
+    let authenticated_id = Uuid::parse_str(authenticated.1["id"].as_str().unwrap()).unwrap();
+    sqlx::query("DELETE FROM comments WHERE id=$1")
+        .bind(authenticated_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.comment_registration":false,"discussion.require_name_email":false})
+        )
+        .await
+        .0,
+        200
+    );
+    let anonymous = request(
+        &app,
+        "POST",
+        &comments_url,
+        None,
+        json!({"content":"Sans identité obligatoire"}),
+    )
+    .await;
     assert_eq!(anonymous.0, 200, "{anonymous:?}");
     assert_eq!(anonymous.1["author_name"], "Visiteur");
     sqlx::query("DELETE FROM comments WHERE id=$1")
-        .bind(Uuid::parse_str(anonymous.1["id"].as_str().unwrap()).unwrap()).execute(&db).await.unwrap();
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.require_name_email":true,"discussion.thread_comments":false})).await.0, 200);
+        .bind(Uuid::parse_str(anonymous.1["id"].as_str().unwrap()).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.require_name_email":true,"discussion.thread_comments":false})
+        )
+        .await
+        .0,
+        200
+    );
     let no_thread = request(&app, "POST", &comments_url, None,
         json!({"author_name":"Invité", "author_email":"invite@example.test", "content":"Réponse", "parent_id":comment_id})).await;
     assert_eq!(no_thread.0, 422, "{no_thread:?}");
-    let flattened=request(&app, "GET", &comments_url, None, Value::Null).await;
-    assert!(flattened.1.as_array().unwrap().iter().all(|n| n["children"].as_array().unwrap().is_empty()));
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.thread_comments":true})).await.0, 200);
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.show_avatars":false,"discussion.default_comment_status":false})).await.0, 200);
-    let closed_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert_eq!(closed_html.0,200);
-    let closed_html=closed_html.1.as_str().unwrap();
+    let flattened = request(&app, "GET", &comments_url, None, Value::Null).await;
+    assert!(
+        flattened
+            .1
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n["children"].as_array().unwrap().is_empty())
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.thread_comments":true})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.show_avatars":false,"discussion.default_comment_status":false})
+        )
+        .await
+        .0,
+        200
+    );
+    let closed_html = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(closed_html.0, 200);
+    let closed_html = closed_html.1.as_str().unwrap();
     assert!(!closed_html.contains("id=\"comment-form\""));
     assert!(!closed_html.contains("rf-comment-avatar"));
     assert!(closed_html.contains("commentaires sont fermés"));
@@ -4661,115 +3473,434 @@ async fn postgres_http_and_native_backup_regressions() {
         json!({"discussion.show_avatars":true,"discussion.default_comment_status":true,"discussion.thread_comments_depth":1})).await.0, 200);
     let depth_one=request(&app,"POST",&comments_url,None,
         json!({"author_name":"Invité","author_email":"invite@example.test","content":"Trop profond","parent_id":comment_id})).await;
-    assert_eq!(depth_one.0,422);
-    let flattened_depth=request(&app,"GET",&comments_url,None,Value::Null).await;
-    assert_eq!(flattened_depth.1.as_array().unwrap().len(),2);
-    assert_eq!(request(&app, "PUT", "/api/v1/settings", Some(&admin),
-        json!({"discussion.thread_comments_depth":3})).await.0, 200);
+    assert_eq!(depth_one.0, 422);
+    let flattened_depth = request(&app, "GET", &comments_url, None, Value::Null).await;
+    assert_eq!(flattened_depth.1.as_array().unwrap().len(), 2);
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.thread_comments_depth":3})
+        )
+        .await
+        .0,
+        200
+    );
 
     // Une page contient un fil complet ; le compteur inclut ses réponses.
-    let second_thread = rustforge_core::comments::create_comment(&db, serde_json::from_value(json!({
-        "entry_id":permalink_post.id,"author_name":"Deuxième lecteur",
-        "author_email":"second@example.test","content":"Second fil de pagination"
-    })).unwrap()).await.unwrap();
+    let second_thread = rustforge_core::comments::create_comment(
+        &db,
+        serde_json::from_value(json!({
+            "entry_id":permalink_post.id,"author_name":"Deuxième lecteur",
+            "author_email":"second@example.test","content":"Second fil de pagination"
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
     sqlx::query("UPDATE comments SET status='approved' WHERE id=$1")
-        .bind(second_thread.id).execute(&db).await.unwrap();
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
-        "discussion.page_comments":true,"discussion.comments_per_page":1,
-        "discussion.default_comments_page":"oldest","discussion.comment_order":"asc"
-    })).await.0,200);
-    let first=rustforge_core::comments::get_entry_comment_page(&db,permalink_post.id,Some(1)).await.unwrap();
-    assert_eq!((first.root_total,first.total,first.total_pages),(2,3,2));
-    assert_eq!(first.items.len(),1);
-    assert_eq!(first.items[0].children.len(),1);
-    let second=request(&app,"GET",&format!("{comments_url}?comment_page=2"),None,Value::Null).await;
-    assert_eq!(second.0,200);
-    assert_eq!(second.1[0]["id"],second_thread.id.to_string());
-    assert_eq!(request(&app,"GET",&format!("{comments_url}?comment_page=3"),None,Value::Null).await.0,404);
-    assert_eq!(request(&app,"GET",&format!("{comments_url}?comment_page=0"),None,Value::Null).await.0,400);
-    let second_html=request(&app,"GET","/fr/post/article-permalien-g33f?comment_page=2",None,Value::Null).await;
-    assert_eq!(second_html.0,200);
-    let second_html=second_html.1.as_str().unwrap();
+        .bind(second_thread.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "discussion.page_comments":true,"discussion.comments_per_page":1,
+                "discussion.default_comments_page":"oldest","discussion.comment_order":"asc"
+            })
+        )
+        .await
+        .0,
+        200
+    );
+    let first = rustforge_core::comments::get_entry_comment_page(&db, permalink_post.id, Some(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        (first.root_total, first.total, first.total_pages),
+        (2, 3, 2)
+    );
+    assert_eq!(first.items.len(), 1);
+    assert_eq!(first.items[0].children.len(), 1);
+    let second = request(
+        &app,
+        "GET",
+        &format!("{comments_url}?comment_page=2"),
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(second.0, 200);
+    assert_eq!(second.1[0]["id"], second_thread.id.to_string());
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            &format!("{comments_url}?comment_page=3"),
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            &format!("{comments_url}?comment_page=0"),
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        400
+    );
+    let second_html = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f?comment_page=2",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(second_html.0, 200);
+    let second_html = second_html.1.as_str().unwrap();
     assert!(second_html.contains("Second fil de pagination"));
     assert!(!second_html.contains("Superbe article sur Rust"));
     assert!(second_html.contains("Pagination des commentaires"));
     assert!(second_html.contains("(3)"));
-    assert_eq!(request(&app,"GET","/fr/post/article-permalien-g33f?comment_page=3",None,Value::Null).await.0,404);
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.default_comments_page":"newest"})).await.0,200);
-    assert_eq!(request(&app,"GET",&comments_url,None,Value::Null).await.1[0]["id"],second_thread.id.to_string());
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
-        "discussion.default_comments_page":"oldest","discussion.comment_order":"desc"
-    })).await.0,200);
-    assert_eq!(request(&app,"GET",&comments_url,None,Value::Null).await.1[0]["id"],second_thread.id.to_string());
-    sqlx::query("DELETE FROM comments WHERE id=$1").bind(second_thread.id).execute(&db).await.unwrap();
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
-        "discussion.page_comments":false,"discussion.comment_order":"asc",
-        "discussion.close_comments_for_old_posts":true,"discussion.close_comments_days":1
-    })).await.0,200);
-    sqlx::query("UPDATE entries SET published_at=now()-interval '1 day'+interval '5 seconds' WHERE id=$1")
-        .bind(permalink_post.id).execute(&db).await.unwrap();
-    let warm=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert_eq!(warm.0,200);
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/fr/post/article-permalien-g33f?comment_page=3",
+            None,
+            Value::Null
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.default_comments_page":"newest"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(&app, "GET", &comments_url, None, Value::Null)
+            .await
+            .1[0]["id"],
+        second_thread.id.to_string()
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "discussion.default_comments_page":"oldest","discussion.comment_order":"desc"
+            })
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(&app, "GET", &comments_url, None, Value::Null)
+            .await
+            .1[0]["id"],
+        second_thread.id.to_string()
+    );
+    sqlx::query("DELETE FROM comments WHERE id=$1")
+        .bind(second_thread.id)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({
+                "discussion.page_comments":false,"discussion.comment_order":"asc",
+                "discussion.close_comments_for_old_posts":true,"discussion.close_comments_days":1
+            })
+        )
+        .await
+        .0,
+        200
+    );
+    sqlx::query(
+        "UPDATE entries SET published_at=now()-interval '1 day'+interval '5 seconds' WHERE id=$1",
+    )
+    .bind(permalink_post.id)
+    .execute(&db)
+    .await
+    .unwrap();
+    let warm = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(warm.0, 200);
     assert!(warm.1.as_str().unwrap().contains("id=\"comment-form\""));
     tokio::time::sleep(std::time::Duration::from_millis(5500)).await;
-    let expired_form=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert_eq!(expired_form.0,200);
-    assert!(!expired_form.1.as_str().unwrap().contains("id=\"comment-form\""));
-    assert_eq!(request(&app,"POST",&comments_url,None,submit.clone()).await.0,422);
+    let expired_form = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(expired_form.0, 200);
+    assert!(
+        !expired_form
+            .1
+            .as_str()
+            .unwrap()
+            .contains("id=\"comment-form\"")
+    );
+    assert_eq!(
+        request(&app, "POST", &comments_url, None, submit.clone())
+            .await
+            .0,
+        422
+    );
     sqlx::query("UPDATE entries SET published_at=$2 WHERE id=$1")
-        .bind(permalink_post.id).bind(previous.published_at).execute(&db).await.unwrap();
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.close_comments_for_old_posts":false})).await.0,200);
+        .bind(permalink_post.id)
+        .bind(previous.published_at)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.close_comments_for_old_posts":false})
+        )
+        .await
+        .0,
+        200
+    );
 
     // Session créée depuis l'article : portée commentaires, jamais Studio.
     let public_login = "/api/v1/public/session/login";
     let registered_account = users::get(&db, admin_id).await.unwrap();
-    assert_eq!(request(&app,"POST",public_login,None,json!({"login":registered_account.username,"password":"incorrect"})).await.0,401);
-    let session=request(&app,"POST",public_login,None,json!({
-        "login":registered_account.username,"password":"test-password-long-123!"
-    })).await;
-    assert_eq!(session.0,200,"{session:?}");
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            public_login,
+            None,
+            json!({"login":registered_account.username,"password":"incorrect"})
+        )
+        .await
+        .0,
+        401
+    );
+    let session = request(
+        &app,
+        "POST",
+        public_login,
+        None,
+        json!({
+            "login":registered_account.username,"password":"test-password-long-123!"
+        }),
+    )
+    .await;
+    assert_eq!(session.0, 200, "{session:?}");
     assert!(session.1.get("user").is_none());
     assert!(session.1.get("email").is_none());
     assert!(session.1.get("role").is_none());
-    assert_eq!(session.1["expires_in"],1800);
-    let comment_token=session.1["token"].as_str().unwrap();
-    assert_eq!(request(&app,"GET","/api/v1/auth/me",Some(comment_token),Value::Null).await.0,401);
-    assert_eq!(request(&app,"GET","/api/v1/comments",Some(comment_token),Value::Null).await.0,401);
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.comment_registration":true})).await.0,200);
-    let account_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert_eq!(account_html.0,200);
-    let account_html=account_html.1.as_str().unwrap();
+    assert_eq!(session.1["expires_in"], 1800);
+    let comment_token = session.1["token"].as_str().unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/api/v1/auth/me",
+            Some(comment_token),
+            Value::Null
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/api/v1/comments",
+            Some(comment_token),
+            Value::Null
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.comment_registration":true})
+        )
+        .await
+        .0,
+        200
+    );
+    let account_html = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(account_html.0, 200);
+    let account_html = account_html.1.as_str().unwrap();
     assert!(account_html.contains("id=\"comment-login\""));
     assert!(account_html.contains("id=\"comment-fields\" disabled"));
     assert!(!account_html.contains(comment_token));
-    let scoped=request(&app,"POST",&comments_url,Some(comment_token),json!({"content":"Session limitée", "author_name":"Faux nom"})).await;
-    assert_eq!(scoped.0,200,"{scoped:?}");
-    assert_eq!(scoped.1["author_name"],registered_account.display_name);
-    sqlx::query("DELETE FROM comments WHERE id=$1").bind(Uuid::parse_str(scoped.1["id"].as_str().unwrap()).unwrap()).execute(&db).await.unwrap();
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.comment_registration":false})).await.0,200);
+    let scoped = request(
+        &app,
+        "POST",
+        &comments_url,
+        Some(comment_token),
+        json!({"content":"Session limitée", "author_name":"Faux nom"}),
+    )
+    .await;
+    assert_eq!(scoped.0, 200, "{scoped:?}");
+    assert_eq!(scoped.1["author_name"], registered_account.display_name);
+    sqlx::query("DELETE FROM comments WHERE id=$1")
+        .bind(Uuid::parse_str(scoped.1["id"].as_str().unwrap()).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.comment_registration":false})
+        )
+        .await
+        .0,
+        200
+    );
 
     // Préférences visiteur effectives : opt-in local et avatars sans requête externe.
     assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({
         "discussion.show_comments_cookies_opt_in":true,"discussion.avatar_default":"identicon"
     })).await.0,200);
-    let visitor_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert_eq!(visitor_html.0,200);
-    let visitor_html=visitor_html.1.as_str().unwrap();
+    let visitor_html = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(visitor_html.0, 200);
+    let visitor_html = visitor_html.1.as_str().unwrap();
     assert!(visitor_html.contains("id=\"comment-remember\""));
     assert!(visitor_html.contains("viewBox=\"0 0 16 16\""));
     assert!(!visitor_html.contains("gravatar.com"));
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"blank"})).await.0,200);
-    let blank_html=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert!(!blank_html.1.as_str().unwrap().contains("class=\"rf-comment-avatar\""));
-    assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"unsupported"})).await.0,422);
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.avatar_default":"blank"})
+        )
+        .await
+        .0,
+        200
+    );
+    let blank_html = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert!(
+        !blank_html
+            .1
+            .as_str()
+            .unwrap()
+            .contains("class=\"rf-comment-avatar\"")
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/api/v1/settings",
+            Some(&admin),
+            json!({"discussion.avatar_default":"unsupported"})
+        )
+        .await
+        .0,
+        422
+    );
     assert_eq!(request(&app,"PUT","/api/v1/settings",Some(&admin),json!({"discussion.avatar_default":"mystery","discussion.show_comments_cookies_opt_in":false})).await.0,200);
-    let no_remember=request(&app,"GET","/fr/post/article-permalien-g33f",None,Value::Null).await;
-    assert!(!no_remember.1.as_str().unwrap().contains("id=\"comment-remember\""));
+    let no_remember = request(
+        &app,
+        "GET",
+        "/fr/post/article-permalien-g33f",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert!(
+        !no_remember
+            .1
+            .as_str()
+            .unwrap()
+            .contains("id=\"comment-remember\"")
+    );
 
-    let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments").fetch_one(&db).await.unwrap();
-    assert_eq!(before_count,after_count);
+    let after_count: i64 = sqlx::query_scalar("SELECT count(*) FROM comments")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(before_count, after_count);
 
-    let counts_res = request(&app, "GET", "/api/v1/comments/counts", Some(&admin), Value::Null).await;
+    let counts_res = request(
+        &app,
+        "GET",
+        "/api/v1/comments/counts",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
     assert_eq!(counts_res.0, 200);
     assert_eq!(counts_res.1["approved"], 2);
 
@@ -4785,12 +3916,18 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(batch_res.0, 200);
     assert_eq!(batch_res.1["updated"], 2);
 
-    let empty_trash_res = request(&app, "DELETE", "/api/v1/comments/empty-trash", Some(&admin), Value::Null).await;
+    let empty_trash_res = request(
+        &app,
+        "DELETE",
+        "/api/v1/comments/empty-trash",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
     assert_eq!(empty_trash_res.0, 200);
     assert_eq!(empty_trash_res.1["deleted"], 2);
 
     let paths = StoragePaths {
-
         uploads: root.join("uploads"),
 
         themes: root.join("themes"),
@@ -4798,7 +3935,6 @@ async fn postgres_http_and_native_backup_regressions() {
         plugins: root.join("plugins"),
 
         protected: root.join("protected"),
-
     };
 
     let archive = root.join("test.rfcapsule");
@@ -4808,23 +3944,57 @@ async fn postgres_http_and_native_backup_regressions() {
     std::fs::rename(root.join("uploads/example.txt"), root.join("example.saved")).unwrap();
 
     assert!(
-
         CapsuleManager::pack(&db, &paths, &archive, None)
-
             .await
-
             .is_err()
-
     );
 
     assert!(!archive.exists());
 
     std::fs::rename(root.join("example.saved"), root.join("uploads/example.txt")).unwrap();
 
-    CapsuleManager::pack(&db, &paths, &archive, Some("https://source.test".into()))
-
+    // New workflow rows and their deferred job foreign key survive a native capsule.
+    let workflow_actor: Uuid =
+        sqlx::query_scalar("SELECT id FROM users ORDER BY created_at LIMIT 1")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let recipe = core::workflows::save_recipe(
+        &db,
+        None,
+        workflow_actor,
+        core::workflows::RecipeInput {
+            name: "Capsule recipe".into(),
+            subject: "Local capture".into(),
+            body: "Fixture only".into(),
+            recipient_id: workflow_actor,
+            delay_seconds: 0,
+            active: true,
+            expected_version: None,
+        },
+    )
+    .await
+    .unwrap();
+    let workflow_run = core::workflows::run_recipe(&db, recipe.id, Uuid::new_v4(), recipe.version)
         .await
+        .unwrap();
+    core::workflows::save_campaign(
+        &db,
+        None,
+        workflow_actor,
+        core::workflows::CampaignInput {
+            name: "Capsule campaign".into(),
+            subject: "Local capture".into(),
+            body: "Fixture only".into(),
+            recipient_ids: vec![workflow_actor],
+            expected_version: None,
+        },
+    )
+    .await
+    .unwrap();
 
+    CapsuleManager::pack(&db, &paths, &archive, Some("https://source.test".into()))
+        .await
         .unwrap();
 
     let bytes = std::fs::read(&archive).unwrap();
@@ -4838,11 +4008,9 @@ async fn postgres_http_and_native_backup_regressions() {
     let mut corrupt = Cursor::new(Vec::new());
 
     {
-
         let mut writer = zip::ZipWriter::new(&mut corrupt);
 
         for i in 0..source_zip.len() {
-
             let mut file = source_zip.by_index(i).unwrap();
 
             let name = file.name().to_string();
@@ -4852,43 +4020,31 @@ async fn postgres_http_and_native_backup_regressions() {
             std::io::Read::read_to_end(&mut file, &mut data).unwrap();
 
             if name == "uploads/example.txt" {
-
                 data = b"tampered".to_vec();
-
             }
 
             writer
-
                 .start_file(name, zip::write::SimpleFileOptions::default())
-
                 .unwrap();
 
             std::io::Write::write_all(&mut writer, &data).unwrap();
-
         }
 
         writer.finish().unwrap();
-
     }
 
     assert!(CapsuleManager::inspect(Cursor::new(corrupt.into_inner())).is_err());
 
     assert_eq!(
-
         CapsuleManager::inspect(Cursor::new(&bytes))
-
             .unwrap()
-
             .version,
-
         "2.0"
-
     );
 
     let dest = root.join("restored");
 
     let dest_paths = StoragePaths {
-
         uploads: dest.join("uploads"),
 
         themes: dest.join("themes"),
@@ -4896,39 +4052,44 @@ async fn postgres_http_and_native_backup_regressions() {
         plugins: dest.join("plugins"),
 
         protected: dest.join("protected"),
-
     };
 
     CapsuleManager::unpack(&target, &dest_paths, Cursor::new(&bytes), None, Uuid::nil())
-
         .await
-
         .unwrap();
+
+    let restored_job: Uuid = sqlx::query_scalar("SELECT job_id FROM automation_logs WHERE id=$1")
+        .bind(workflow_run.id)
+        .fetch_one(&target)
+        .await
+        .unwrap();
+    assert_eq!(restored_job, workflow_run.job_id);
+    assert_eq!(
+        core::workflows::recipes(&target)
+            .await
+            .unwrap()
+            .iter()
+            .find(|row| row.id == recipe.id)
+            .unwrap()
+            .version,
+        recipe.version
+    );
 
     let before = native_backup::dump(&db).await.unwrap();
 
     let after = native_backup::dump(&target).await.unwrap();
 
     for table in native_backup::TABLES {
-
         assert_eq!(
-
             before.tables[*table].len(),
-
             after.tables[*table].len(),
-
             "{table}"
-
         );
-
     }
 
     assert_eq!(
-
         entries::get(&target, entry.id).await.unwrap().fields,
-
         entry.fields
-
     );
 
     let restored_native_target = entries::get(&target, native_id).await.unwrap();
@@ -4940,51 +4101,33 @@ async fn postgres_http_and_native_backup_regressions() {
     assert_eq!(restored_native_target.body_html, preview_html);
 
     assert_eq!(
-
         restored_native_target.fields["_rf_vault"]["origin_key"],
-
         "preserve_me"
-
     );
 
     assert!(users::verify_password(
-
         "test-password-long-123!",
-
         &users::get(&target, admin_id).await.unwrap().password_hash
-
     ));
 
     assert_eq!(
-
         std::fs::read(dest.join("protected/file.pdf")).unwrap(),
-
         b"private-product"
-
     );
 
     let restored_course: Option<Uuid> =
-
         sqlx::query_scalar("SELECT course_id FROM ecommerce_products WHERE id=$1")
-
             .bind(product.id)
-
             .fetch_one(&target)
-
             .await
-
             .unwrap();
 
     assert_eq!(restored_course, Some(course));
 
     assert!(
-
         CapsuleManager::unpack(&target, &dest_paths, Cursor::new(&bytes), None, Uuid::nil())
-
             .await
-
             .is_err()
-
     );
 
     // Release HTML must reference an asset actually served under /admin/.
@@ -4996,17 +4139,11 @@ async fn postgres_http_and_native_backup_regressions() {
     let html = index.1.as_str().unwrap();
 
     let asset = html
-
         .split("src=\"")
-
         .nth(1)
-
         .unwrap()
-
         .split('"')
-
         .next()
-
         .unwrap();
 
     assert!(asset.starts_with("/admin/assets/"), "{asset}");
@@ -5022,85 +4159,451 @@ async fn postgres_http_and_native_backup_regressions() {
     target.close().await;
 
     for db_name in [name, target_name] {
-
         assert!(db_name.starts_with("rf_regression_"));
 
         sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)"))
-
             .execute(&server)
-
             .await
-
             .unwrap();
-
     }
 
     server.close().await;
 
     // Leave temporary test artifacts available for diagnosis; no recursive deletion.
-
 }
-
 
 /// API réelle : droits, projection privée, version attendue et capture sans réseau.
 async fn jobs_diagnostics(app: &Router, db: &PgPool, admin: &str, author: &str, admin_id: Uuid) {
     use core::jobs::{self, NewJob};
     let spec = NewJob {
-        kind: core::mail::KIND.into(), payload_version: 1,
+        kind: core::mail::KIND.into(),
+        payload_version: 1,
         payload: json!({"recipient_id":admin_id,"subject":"Capture privée","text":"private-job-marker"}),
-        dedup_key: "diagnostic:private-marker".into(), max_attempts: 3, priority: 0,
+        dedup_key: "diagnostic:private-marker".into(),
+        max_attempts: 3,
+        priority: 0,
         available_at: chrono::Utc::now(),
     };
     let job = jobs::enqueue(db, &spec).await.unwrap();
     let scoped = rustforge_api::auth::create_comment_token(admin_id, Role::Admin, SECRET).unwrap();
     let editor = account(db, "jobs_editor", Role::Editor).await;
     let editor_token = rustforge_api::auth::create_token(editor.id, editor.role, SECRET).unwrap();
-    for (credential, expected) in [(None,401),(Some(author),403),(Some(editor_token.as_str()),403),(Some(scoped.as_str()),401)] {
+    for (credential, expected) in [
+        (None, 401),
+        (Some(author), 403),
+        (Some(editor_token.as_str()), 403),
+        (Some(scoped.as_str()), 401),
+    ] {
         for (method, url, body) in [
             ("GET", "/api/v1/jobs".to_string(), json!(null)),
-            ("GET", format!("/api/v1/jobs/{}/capture", job.id), json!(null)),
-            ("POST", format!("/api/v1/jobs/{}/cancel", job.id), json!({"expected_updated_at":job.updated_at})),
-            ("POST", "/api/v1/jobs/capture".to_string(), json!({"limit":1})),
+            (
+                "GET",
+                format!("/api/v1/jobs/{}/capture", job.id),
+                json!(null),
+            ),
+            (
+                "POST",
+                format!("/api/v1/jobs/{}/cancel", job.id),
+                json!({"expected_updated_at":job.updated_at}),
+            ),
+            (
+                "POST",
+                "/api/v1/jobs/capture".to_string(),
+                json!({"limit":1}),
+            ),
         ] {
-            assert_eq!(request(app,method,&url,credential,body).await.0,expected);
+            assert_eq!(
+                request(app, method, &url, credential, body).await.0,
+                expected
+            );
         }
     }
-    let res = app.clone().oneshot(Request::builder().uri("/api/v1/jobs")
-        .header("authorization",format!("Bearer {admin}")).body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(res.status(),200);
-    assert_eq!(res.headers()["cache-control"],"no-store");
-    let bytes=to_bytes(res.into_body(),1024*1024).await.unwrap();
-    let body: Value=serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(body["mail_mode"],"capture_only");
-    let text=String::from_utf8(bytes.to_vec()).unwrap();
-    for private in ["private-job-marker","diagnostic:private-marker","lease_token","payload\"","output\""] { assert!(!text.contains(private)); }
-    assert_eq!(request(app,"GET","/api/v1/jobs?state=unknown",Some(admin),json!(null)).await.0,400);
-    assert_eq!(request(app,"GET","/api/v1/jobs?per_page=101",Some(admin),json!(null)).await.0,400);
-    assert_eq!(request(app,"GET","/api/v1/jobs?page=1000",Some(admin),json!(null)).await.0,404);
-    assert_eq!(request(app,"POST","/api/v1/jobs/capture",Some(admin),json!({"limit":11})).await.0,400);
-    let cancel=format!("/api/v1/jobs/{}/cancel",job.id);
-    let stale=job.updated_at-chrono::Duration::seconds(1);
-    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":stale})).await.0,409);
-    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,200);
-    assert_eq!(request(app,"POST",&cancel,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
-    sqlx::query("UPDATE rf_jobs SET state='paused_restore',updated_at=clock_timestamp() WHERE id=$1").bind(job.id).execute(db).await.unwrap();
-    let current: chrono::DateTime<chrono::Utc>=sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1").bind(job.id).fetch_one(db).await.unwrap();
-    let resume=format!("/api/v1/jobs/{}/resume-restored",job.id);
-    assert_eq!(request(app,"POST",&resume,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
-    assert_eq!(request(app,"POST",&resume,Some(admin),json!({"expected_updated_at":current})).await.0,200);
-    sqlx::query("UPDATE rf_jobs SET state='failed',updated_at=clock_timestamp() WHERE id=$1").bind(job.id).execute(db).await.unwrap();
-    let current: chrono::DateTime<chrono::Utc>=sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1").bind(job.id).fetch_one(db).await.unwrap();
-    let retry=format!("/api/v1/jobs/{}/retry",job.id);
-    assert_eq!(request(app,"POST",&retry,Some(admin),json!({"expected_updated_at":job.updated_at})).await.0,409);
-    assert_eq!(request(app,"POST",&retry,Some(admin),json!({"expected_updated_at":current})).await.0,200);
-    let captured=request(app,"POST","/api/v1/jobs/capture",Some(admin),json!({"limit":1})).await;
-    assert_eq!(captured.0,200); assert_eq!(captured.1["handled"],1);
-    let preview=request(app,"GET",&format!("/api/v1/jobs/{}/capture",job.id),Some(admin),json!(null)).await;
-    assert_eq!(preview.0,200); assert_eq!(preview.1["text"],"private-job-marker");
-    assert_eq!(preview.1.as_object().unwrap().len(),3);
-    let page=request(app,"GET","/api/v1/jobs?state=succeeded&per_page=1",Some(admin),json!(null)).await;
-    assert_eq!(page.0,200); assert_eq!(page.1["items"][0]["capture_available"],true);
-    let nav=request(app,"GET","/api/v1/admin/navigation",Some(admin),json!(null)).await;
-    assert!(nav.1["items"].as_array().unwrap().iter().any(|n|n["id"]=="rf_health" && n["route"]=="jobs"));
-    sqlx::query("DELETE FROM rf_jobs WHERE id=$1").bind(job.id).execute(db).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/jobs")
+                .header("authorization", format!("Bearer {admin}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.headers()["cache-control"], "no-store");
+    let bytes = to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["mail_mode"], "capture");
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    for private in [
+        "private-job-marker",
+        "diagnostic:private-marker",
+        "lease_token",
+        "payload\"",
+        "output\"",
+    ] {
+        assert!(!text.contains(private));
+    }
+    assert_eq!(
+        request(
+            app,
+            "GET",
+            "/api/v1/jobs?state=unknown",
+            Some(admin),
+            json!(null)
+        )
+        .await
+        .0,
+        400
+    );
+    assert_eq!(
+        request(
+            app,
+            "GET",
+            "/api/v1/jobs?per_page=101",
+            Some(admin),
+            json!(null)
+        )
+        .await
+        .0,
+        400
+    );
+    assert_eq!(
+        request(
+            app,
+            "GET",
+            "/api/v1/jobs?page=1000",
+            Some(admin),
+            json!(null)
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            "/api/v1/jobs/capture",
+            Some(admin),
+            json!({"limit":11})
+        )
+        .await
+        .0,
+        400
+    );
+    let cancel = format!("/api/v1/jobs/{}/cancel", job.id);
+    let stale = job.updated_at - chrono::Duration::seconds(1);
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &cancel,
+            Some(admin),
+            json!({"expected_updated_at":stale})
+        )
+        .await
+        .0,
+        409
+    );
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &cancel,
+            Some(admin),
+            json!({"expected_updated_at":job.updated_at})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &cancel,
+            Some(admin),
+            json!({"expected_updated_at":job.updated_at})
+        )
+        .await
+        .0,
+        409
+    );
+    sqlx::query(
+        "UPDATE rf_jobs SET state='paused_restore',updated_at=clock_timestamp() WHERE id=$1",
+    )
+    .bind(job.id)
+    .execute(db)
+    .await
+    .unwrap();
+    let current: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1")
+            .bind(job.id)
+            .fetch_one(db)
+            .await
+            .unwrap();
+    let resume = format!("/api/v1/jobs/{}/resume-restored", job.id);
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &resume,
+            Some(admin),
+            json!({"expected_updated_at":job.updated_at})
+        )
+        .await
+        .0,
+        409
+    );
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &resume,
+            Some(admin),
+            json!({"expected_updated_at":current})
+        )
+        .await
+        .0,
+        200
+    );
+    sqlx::query("UPDATE rf_jobs SET state='failed',updated_at=clock_timestamp() WHERE id=$1")
+        .bind(job.id)
+        .execute(db)
+        .await
+        .unwrap();
+    let current: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT updated_at FROM rf_jobs WHERE id=$1")
+            .bind(job.id)
+            .fetch_one(db)
+            .await
+            .unwrap();
+    let retry = format!("/api/v1/jobs/{}/retry", job.id);
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &retry,
+            Some(admin),
+            json!({"expected_updated_at":job.updated_at})
+        )
+        .await
+        .0,
+        409
+    );
+    assert_eq!(
+        request(
+            app,
+            "POST",
+            &retry,
+            Some(admin),
+            json!({"expected_updated_at":current})
+        )
+        .await
+        .0,
+        200
+    );
+    sqlx::query("INSERT INTO settings(key,value) VALUES('mail.mode','\"simulated\"'::jsonb) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value").execute(db).await.unwrap();
+    let captured = request(
+        app,
+        "POST",
+        "/api/v1/jobs/capture",
+        Some(admin),
+        json!({"limit":1}),
+    )
+    .await;
+    assert_eq!(captured.1["mail_mode"], "capture");
+    sqlx::query("DELETE FROM settings WHERE key='mail.mode'")
+        .execute(db)
+        .await
+        .unwrap();
+    assert_eq!(captured.0, 200);
+    assert_eq!(captured.1["handled"], 1);
+    let preview = request(
+        app,
+        "GET",
+        &format!("/api/v1/jobs/{}/capture", job.id),
+        Some(admin),
+        json!(null),
+    )
+    .await;
+    assert_eq!(preview.0, 200);
+    assert_eq!(preview.1["text"], "private-job-marker");
+    assert_eq!(preview.1.as_object().unwrap().len(), 3);
+    let page = request(
+        app,
+        "GET",
+        "/api/v1/jobs?state=succeeded&per_page=1",
+        Some(admin),
+        json!(null),
+    )
+    .await;
+    assert_eq!(page.0, 200);
+    assert_eq!(page.1["items"][0]["capture_available"], true);
+    let nav = request(
+        app,
+        "GET",
+        "/api/v1/admin/navigation",
+        Some(admin),
+        json!(null),
+    )
+    .await;
+    assert!(
+        nav.1["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["id"] == "rf_health" && n["route"] == "jobs")
+    );
+    sqlx::query("DELETE FROM rf_jobs WHERE id=$1")
+        .bind(job.id)
+        .execute(db)
+        .await
+        .unwrap();
+}
+
+async fn ai_native_patch_recipe(
+    app: &Router,
+    token: &str,
+    other: &str,
+    id: Uuid,
+    original: &Value,
+) {
+    let endpoint = format!("/api/v1/entries/{id}");
+    let revisions = request(
+        app,
+        "GET",
+        &format!("{endpoint}/revisions"),
+        Some(token),
+        json!(null),
+    )
+    .await;
+    let revision = revisions
+        .1
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["snapshot"]["blocks"] == *original)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let generated=request(app,"POST","/api/v1/ai/execute",Some(token),json!({"tool_name":"generate_block","arguments":{"kind":"paragraph","text":"Texte IA validé"}})).await;
+    assert_eq!(generated.0, 200, "{generated:?}");
+    let block = generated.1["data"].clone();
+    let args = json!({"entry_id":id,"operation":"replace_selection","target_id":"p_body","blocks":[block.clone()]});
+    let proposal = request(
+        app,
+        "POST",
+        "/api/v1/ai/execute",
+        Some(token),
+        json!({"tool_name":"diff_and_patch_blocks","arguments":args}),
+    )
+    .await;
+    assert_eq!(proposal.0, 200, "{proposal:?}");
+    let before = request(app, "GET", &endpoint, Some(token), json!(null)).await;
+    assert_eq!(before.1["blocks"], *original);
+    let approve = format!(
+        "/api/v1/ai/plans/{}/approve",
+        proposal.1["data"]["plan_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        request(app, "POST", &approve, Some(other), json!({}))
+            .await
+            .0,
+        403
+    );
+    let applied = request(app, "POST", &approve, Some(token), json!({})).await;
+    assert_eq!(applied.1["success"], true, "{applied:?}");
+    let after = request(app, "GET", &endpoint, Some(token), json!(null)).await;
+    let mut wanted = original.clone();
+    wanted["rf_blocks"][1] = block;
+    assert_eq!(after.1["blocks"], wanted);
+    assert!(
+        after.1["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("Texte IA validé")
+    );
+    let count = request(
+        app,
+        "GET",
+        &format!("{endpoint}/revisions"),
+        Some(token),
+        json!(null),
+    )
+    .await
+    .1
+    .as_array()
+    .unwrap()
+    .len();
+    assert_eq!(
+        request(app, "POST", &approve, Some(token), json!({}))
+            .await
+            .1,
+        applied.1
+    );
+    assert_eq!(
+        request(
+            app,
+            "GET",
+            &format!("{endpoint}/revisions"),
+            Some(token),
+            json!(null)
+        )
+        .await
+        .1
+        .as_array()
+        .unwrap()
+        .len(),
+        count
+    );
+    let stale=request(app,"POST","/api/v1/ai/execute",Some(token),json!({"tool_name":"diff_and_patch_blocks","arguments":{"entry_id":id,"operation":"append","blocks":[{"rf_id":"stale_block","rf_type":"paragraph","rf_text":"Must not appear"}]}})).await;
+    assert_eq!(stale.0, 200, "{stale:?}");
+    let restore = format!("{endpoint}/revisions/{revision}/restore");
+    assert_eq!(
+        request(app, "POST", &restore, Some(token), json!({}))
+            .await
+            .0,
+        200
+    );
+    let stale_url = format!(
+        "/api/v1/ai/plans/{}/approve",
+        stale.1["data"]["plan_id"].as_str().unwrap()
+    );
+    let refused = request(app, "POST", &stale_url, Some(token), json!({})).await;
+    assert_eq!(refused.1["success"], false, "{refused:?}");
+    let restored = request(app, "GET", &endpoint, Some(token), json!(null)).await;
+    assert_eq!(restored.1["blocks"], *original);
+    let revisions_before = request(
+        app,
+        "GET",
+        &format!("{endpoint}/revisions"),
+        Some(token),
+        json!(null),
+    )
+    .await
+    .1;
+    assert_eq!(
+        request(app, "POST", &stale_url, Some(token), json!({}))
+            .await
+            .0,
+        400
+    );
+    assert_eq!(
+        request(
+            app,
+            "GET",
+            &format!("{endpoint}/revisions"),
+            Some(token),
+            json!(null)
+        )
+        .await
+        .1,
+        revisions_before
+    );
+    let invalid=request(app,"POST","/api/v1/ai/execute",Some(token),json!({"tool_name":"diff_and_patch_blocks","arguments":{"entry_id":id,"operation":"replace_selection","target_index":999,"blocks":[{"rf_id":"x","rf_type":"paragraph","rf_text":"Invalid target"}]}})).await;
+    assert_eq!(invalid.0, 422, "{invalid:?}");
+    assert_eq!(request(app,"POST","/api/v1/ai/execute",Some(token),json!({"tool_name":"generate_block","arguments":{"kind":"button","text":"Bad","url":"javascript:alert(1)"}})).await.0,422);
 }

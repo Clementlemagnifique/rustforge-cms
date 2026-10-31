@@ -1,0 +1,75 @@
+[
+  {
+    "body": "# Bonjour **monde**",
+    "blocks": null
+  },
+  {
+    "body": "",
+    "blocks": {
+      "rf_schema": "rf.document/1",
+      "rf_blocks": [
+        {
+          "rf_id": "p",
+          "rf_type": "paragraph",
+          "rf_text": "été 🌍"
+        }
+      ]
+    }
+  },
+  {
+    "body": "",
+    "blocks": {
+      "rf_schema": "rf.document/1",
+      "rf_blocks": [
+        {
+          "rf_id": "a",
+          "rf_type": "button",
+          "rf_text": "Bad",
+          "rf_url": "javascript:alert(1)"
+        }
+      ]
+    }
+  },
+  {
+    "body": "",
+    "blocks": {
+      "rf_schema": "rf.document/2",
+      "rf_blocks": []
+    }
+  },
+  {
+    "body": "<script>alert(1)</script>\n\nTexte",
+    "blocks": null
+  },
+  {
+    "body": "",
+    "blocks": {
+      "rf_schema": "rf.document/1",
+      "rf_blocks": [
+        {
+          "rf_id": "a",
+          "rf_type": "paragraph",
+          "rf_text": "A"
+        },
+        {
+          "rf_id": "a",
+          "rf_type": "paragraph",
+          "rf_text": "B"
+        }
+      ]
+    }
+  },
+  {
+    "body": "",
+    "blocks": {
+      "rf_schema": "rf.document/1",
+      "rf_blocks": [
+        {
+          "rf_id": "form-native",
+          "rf_type": "form_embed",
+          "rf_ref": "00000000-0000-0000-0000-000000000001"
+        }
+      ]
+    }
+  }
+]

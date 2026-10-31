@@ -99,19 +99,40 @@ enum Commands {
 #[derive(Subcommand)]
 enum JobCommand {
     /// Exécute un lot de mails en utilisant le transport configuré (capture, simulé ou SMTP).
-    ProcessMail { #[arg(long, default_value_t=10)] limit: usize },
+    ProcessMail {
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
     /// Exécute un lot de mails en capture locale uniquement, sans livraison externe.
-    CaptureMail { #[arg(long, default_value_t=10)] limit: usize },
+    CaptureMail {
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
     /// Liste bornée sans payload ni bail, afin de ne pas afficher de données privées.
-    List { #[arg(long, default_value_t=20)] limit: i64 },
-    Cancel { id: uuid::Uuid },
-    Retry { id: uuid::Uuid },
+    List {
+        #[arg(long, default_value_t = 20)]
+        limit: i64,
+    },
+    Cancel {
+        id: uuid::Uuid,
+    },
+    Retry {
+        id: uuid::Uuid,
+    },
     /// Réautorise explicitement un job mis en pause par restauration.
-    ResumeRestored { id: uuid::Uuid },
+    ResumeRestored {
+        id: uuid::Uuid,
+    },
     /// Supprime au plus 100 jobs terminés plus anciens que cette rétention.
-    Prune { #[arg(long, default_value_t=30)] days: i32 },
+    Prune {
+        #[arg(long, default_value_t = 30)]
+        days: i32,
+    },
     /// Efface le corps sensible des captures locales de mails terminés sans supprimer l'historique du job.
-    PruneCaptures { #[arg(long, default_value_t=30)] days: i32 },
+    PruneCaptures {
+        #[arg(long, default_value_t = 30)]
+        days: i32,
+    },
 }
 
 fn load_config_file() -> anyhow::Result<toml::Value> {
@@ -179,25 +200,44 @@ async fn main() -> anyhow::Result<()> {
             match action {
                 JobCommand::ProcessMail { limit } => {
                     let (transport, mode) = rustforge_core::mail::load_transport(&pool).await;
-                    let count = rustforge_core::mail::run_batch(&pool, transport.as_ref(), limit).await?;
+                    let count =
+                        rustforge_core::mail::run_batch(&pool, transport.as_ref(), limit).await?;
                     println!("{count} jobs mail traités (mode: {mode})");
                 }
                 JobCommand::CaptureMail { limit } => {
-                    let count=rustforge_core::mail::run_batch(&pool,&rustforge_core::mail::CaptureTransport,limit).await?;
+                    let count = rustforge_core::mail::run_batch(
+                        &pool,
+                        &rustforge_core::mail::CaptureTransport,
+                        limit,
+                    )
+                    .await?;
                     println!("{count} jobs mail traités en capture locale (aucun envoi externe)");
                 }
                 JobCommand::List { limit } => {
                     for job in jobs::list(&pool, limit).await? {
-                        println!("{} {} v{} {} tentative {}/{} {}", job.id, job.kind,
-                            job.payload_version, job.state, job.attempts, job.max_attempts,
-                            job.error_code.as_deref().unwrap_or("-"));
+                        println!(
+                            "{} {} v{} {} tentative {}/{} {}",
+                            job.id,
+                            job.kind,
+                            job.payload_version,
+                            job.state,
+                            job.attempts,
+                            job.max_attempts,
+                            job.error_code.as_deref().unwrap_or("-")
+                        );
                     }
                 }
                 JobCommand::Cancel { id } => jobs::cancel(&pool, id).await?,
                 JobCommand::Retry { id } => jobs::retry(&pool, id).await?,
                 JobCommand::ResumeRestored { id } => jobs::resume_restored(&pool, id).await?,
-                JobCommand::Prune { days } => println!("{} jobs terminés supprimés", jobs::prune(&pool, days).await?),
-                JobCommand::PruneCaptures { days } => println!("{} captures de mails privées purgées", rustforge_core::mail::prune_captures(&pool, days).await?),
+                JobCommand::Prune { days } => println!(
+                    "{} jobs terminés supprimés",
+                    jobs::prune(&pool, days).await?
+                ),
+                JobCommand::PruneCaptures { days } => println!(
+                    "{} captures de mails privées purgées",
+                    rustforge_core::mail::prune_captures(&pool, days).await?
+                ),
             }
         }
         Commands::GenerateSecret => {

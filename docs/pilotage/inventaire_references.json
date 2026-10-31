@@ -228,6 +228,54 @@
         "License": "GPLv3 or later"
       },
       "coverage": "Lecture ciblée partielle des cinq fichiers listés dans incremental_reviews; candidats lexicaux non rescannés."
+    },
+    {
+      "kind": "plugin",
+      "slug": "gt3-photo-video-gallery",
+      "path": "wordpress-plugins-ref/plugins-ref/gt3-photo-video-gallery/readme.txt",
+      "headers": {
+        "Plugin Name": "Photo Gallery - GT3 Image Gallery & Gutenberg Block Gallery",
+        "Requires at least": "6.3",
+        "Tested up to": "7.1",
+        "Stable tag": "2.7.7.32",
+        "License": "GPLv3"
+      }
+    },
+    {
+      "kind": "plugin",
+      "slug": "wpdiscuz",
+      "path": "wordpress-plugins-ref/plugins-ref/wpdiscuz/readme.txt",
+      "headers": {
+        "Plugin Name": "Comments - wpDiscuz",
+        "Requires at least": "6.0",
+        "Tested up to": "7.1",
+        "Stable tag": "7.6.74",
+        "License": "GPLv3"
+      }
+    },
+    {
+      "kind": "plugin",
+      "slug": "admin-menu-editor",
+      "path": "wordpress-plugins-ref/plugins-ref/admin-menu-editor/readme.txt",
+      "headers": {
+        "Plugin Name": "Admin Menu Editor",
+        "License": "GPLv3",
+        "Requires at least": "5.9",
+        "Tested up to": "7.1",
+        "Stable tag": "1.15.2"
+      }
+    },
+    {
+      "kind": "plugin",
+      "slug": "megamenu",
+      "path": "wordpress-plugins-ref/plugins-ref/megamenu/readme.txt",
+      "headers": {
+        "Plugin Name": "Max Mega Menu",
+        "Requires at least": "6.2",
+        "Tested up to": "7.1",
+        "Stable tag": "3.10.8",
+        "License": "GPLv2 or later"
+      }
     }
   ],
   "scan": "Statique ciblé; menus/options/blocs et PHP propriétaire des thèmes/extensions, sans exécution.",

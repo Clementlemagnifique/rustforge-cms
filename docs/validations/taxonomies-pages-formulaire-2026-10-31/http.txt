@@ -1,0 +1,1 @@
+PASS 37 contrôles : termes, cycles, hiérarchie, réaffectation, conservation/effacement explicite, bloc formulaire, soumission publique, disponibilité après cache et droits par rôle.

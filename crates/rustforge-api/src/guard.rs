@@ -15,7 +15,16 @@ use std::{
 
 pub async fn boundaries(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
-    if matches!(path, "/api/v1/auth/login" | "/api/v1/public/session/login" | "/api/v1/setup/install") {
+    let private = path.starts_with("/api/v1/")
+        && request
+            .headers()
+            .contains_key(axum::http::header::AUTHORIZATION);
+    if matches!(
+        path,
+        "/api/v1/auth/login" | "/api/v1/public/session/login" | "/api/v1/setup/install"
+    ) || (request.method() == axum::http::Method::POST
+        && (path.starts_with("/forms/") || path.starts_with("/api/v1/public/forms/")))
+    {
         static ATTEMPTS: OnceLock<Mutex<HashMap<String, (Instant, u32)>>> = OnceLock::new();
         let ip = request
             .extensions()
@@ -44,13 +53,30 @@ pub async fn boundaries(State(state): State<AppState>, request: Request, next: N
         }
     }
     let module = path.strip_prefix("/api/v1/").and_then(|path| {
-        path.split('/')
-            .find(|segment| matches!(*segment, "ecommerce" | "lms" | "forms" | "galleries"))
+        path.split('/').find(|segment| {
+            matches!(
+                *segment,
+                "ecommerce"
+                    | "lms"
+                    | "forms"
+                    | "galleries"
+                    | "analytics"
+                    | "mailing"
+                    | "automations"
+            )
+        })
     });
     if let Some(module) = module
         && !rustforge_core::settings::is_module_active(&state.db, module).await
     {
         return StatusCode::NOT_FOUND.into_response();
     }
-    next.run(request).await
+    let mut response = next.run(request).await;
+    if private {
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
+    }
+    response
 }

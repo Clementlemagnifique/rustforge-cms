@@ -38,9 +38,31 @@ Tester le même document dans l’éditeur, l’aperçu authentifié, l’export
 
 Manifeste cible : identifiant `rf_<module>`, version du schéma, capacités fournies/requises, migrations, droits, événements, réglages, écrans, blocs, routes publiques, jobs et politique de conservation. Les réglages et données déjà présents doivent être migrés; ce format n’est pas annoncé comme disponible aujourd’hui.
 
-Le socle contenu/utilisateurs/médias/rendu est toujours disponible. Commerce, LMS, événements, campagnes, tableaux d’équipe, analytics visiteurs et IA restent inactifs sans choix explicite. Les formulaires sont activables; les services communs restent utilisables par les modules autorisés.
+Cible de configuration : le socle contenu/utilisateurs/médias/rendu est toujours disponible. Commerce, LMS, événements, campagnes, tableaux d’équipe, analytics visiteurs et IA doivent rester inactifs sans choix explicite. Les formulaires sont activables; les services communs restent utilisables par les modules autorisés.
 
 Activation : dépendances contrôlées, schéma prêt, configuration requise et droits vérifiés. Désactivation : routes/UI/outils IA fermés, travaux suspendus, tokens inutilisables, données conservées. Désinstallation : procédure distincte avec choix d’export et suppression explicite. Aucune fonction optionnelle ne doit ajouter une charge importante au site inactif.
+
+### Encapsulation des domaines — confirmation utilisateur du 30 octobre
+
+Formulaires, LMS, automatisations et autres domaines optionnels doivent être
+organisés comme des extensions métier Rust activables, avec le manifeste et le
+cycle de vie décrits ci-dessus. Le socle partagé reste contenu, identité, médias,
+rendu, permissions, événements et jobs ; les extensions n'en créent pas de copie.
+Conserver les identifiants et données existants, avec alias/migration explicites
+si la présentation du manifeste utilise un identifiant rf_ différent.
+
+Deux mécanismes actuels à distinguer : les modules métier natifs et leurs flags,
+et le runtime Wasmtime/WIT pour composants WASM. Le WIT actuel expose manifeste,
+hooks de filtre/action et stockage clé/valeur ; HTTP sortant, routes publiques et
+champs d'éditeur sont réservés. Il n'est donc pas encore un contrat complet pour
+une extension LMS/Formulaires installable indépendamment. Étendre ce contrat par
+capacités vérifiées ; ne pas réécrire le domaine en WASM par simple changement de nom.
+
+La règle d'activation volontaire est une **cible** à appliquer aux installations
+neuves et migrations explicites. Le fallback actuel de modules.active active six
+modules natifs, et l'API n'en accepte que ces six clés : forms, galleries, zen_mode,
+ecommerce, lms, analytics. Ne pas prétendre que tous les domaines du menu sont
+installables ni modifier silencieusement les choix des sites existants.
 
 ## Nommage et conservation
 
@@ -72,6 +94,18 @@ Déclarer entrées/sorties, effets, permissions, préconditions, coût, idempote
 
 Une action de masse affiche un diff et les éléments ignorés. Une action irréversible appelle une validation proportionnée. La génération de Rust/WASM reste une phase séparée : revue, compilation, tests, quotas et permissions avant installation; ni REA, ni un AST hypothétique, ni un prompt ne prouvent la fidélité d’une conversion.
 
+## Cible du Studio — clarification Rust du 30 octobre
+
+Les nouveaux écrans sont réalisés dans `rustforge-studio` avec Leptos et WASM.
+Signaux et état réactif Rust, client HTTP typé et composants partagés remplacent
+progressivement les vues de transition. Le modèle de document est fourni par
+`rustforge-document`, sans importer les dépendances de base de données/serveur
+côté navigateur. Préserver les contrats de données, rôles et erreurs.
+
+La section Zustand/React ci-dessous décrit la maintenance de l'interface existante,
+pas une prescription pour les nouveaux développements. Les règles de séparation
+état serveur/état d'interaction restent applicables à la cible Rust.
+
 ## Architecture front-end du Studio : Zustand, découpage par domaine et légèreté
 
 Plusieurs assistants se sont succédé sur `admin/src/`, laissant des composants monolithiques (500+ lignes) qui accumulent les `useState`, `useEffect` et le *prop drilling*. Pour garder l’outil fluide, lisible et léger :
@@ -102,9 +136,43 @@ Le [plan global](../PLAN_ACTION_GLOBAL.md) détaille M1-A à F et les critères 
 
 M1-E : `/api/v1/jobs` fournit aux seuls administrateurs une projection explicite sans payload, résultat brut, clé de déduplication ni token de bail. Filtres d'état validés, pagination 1–100, compteurs globaux et page dans un snapshot read-only repeatable-read. Toutes les réponses de ces routes, y compris les erreurs, portent Cache-Control: no-store. Les routes POST cancel/retry/resume-restored exigent expected_updated_at et appliquent la comparaison dans la même UPDATE que le changement d'état ; conflit 409 si la version ou l'état a changé. La CLI garde son contrat opérateur sans version attendue. La capture privée explicite ne renvoie que destinataire/sujet/texte et se rend comme texte. Le bouton de traitement prend au plus 10 jobs e-mail, sans réseau ; handled inclut aussi annulations et échecs et ne signifie jamais des e-mails envoyés. Pas de worker implicite, purge UI ou transport de production ajouté. L'écran rf_health reste partial ; les diagnostics DB/stockage/cache et la configuration de transport ne sont pas livrés.
 
-Le snapshot natif passe à rustforge-native-3 ; l'enveloppe capsule reste v2. `rf_jobs` est inclus. Une restauration ne réactive pas les travaux importés : queued/retry/running passent paused_restore avec token/échéance vidés ; résultats terminaux conservés. Une compatibilité native-2 n'existe que pour le schéma de tables attendu et l'ajout connu de migration 007. Tous les autres changements de migrations restent refusés explicitement. La clé d'idempotence n'est garantie que pendant la rétention du job. Les captures contiennent des données de messagerie privées ; elles suivent la même protection que la sauvegarde complète.
+Le snapshot natif passe à rustforge-native-3 ; l'enveloppe capsule reste v2. `rf_jobs` est inclus. Une restauration ne réactive pas les travaux importés : queued/retry/running passent paused_restore avec token/échéance vidés ; résultats terminaux conservés. Une compatibilité native-2 n'existe que pour le schéma de tables attendu et l'ajout connu de migration 007. Depuis l'ajout des migrations 008 (`comment_invalidation`) et 009 (`mail_settings`), aucun upgrade automatique depuis un snapshot native-2 vers le schéma actuel n'est supporté : la restauration est strictement refusée par le contrôle d'égalité des migrations pour garantir l'intégrité du schéma. Tous les autres changements de migrations restent refusés explicitement. La clé d'idempotence n'est garantie que pendant la rétention du job. Les captures contiennent des données de messagerie privées ; elles suivent la même protection que la sauvegarde complète.
 
 
 ### Notifications de commentaires — M1-D effectif
 
 Préférences globales Off par défaut ; pending vers modérateurs autorisés, approved vers auteur courant autorisé. Commentaire et outbox partagent la transaction. La file conserve uniquement des références et la version du commentaire ; relecture au dispatch, annulation explicite des événements obsolètes. Exclusion des auto-actions. Fanout 100, lot de modération 100 et 1 000 notifications maximum, échec sans troncature. Les changements réellement effectués sont comptés ; réappliquer le même statut produit zéro modification. Captures privées et non effacées automatiquement lors d'une suppression du commentaire ; politique de rétention et effacement à qualifier avant production. Voir le dernier journal pour preuves et limites temporelles/multi-instance.
+
+## Orientation conservée — installation légère et IA facultative (31 octobre 2026)
+
+Demande utilisateur à reprendre au lot distribution/IA : conserver un ZIP d’installation
+léger. Prévoir l’initialisation et le choix explicite des modules à installer/charger,
+sans inclure par défaut des poids de modèles IA dans l’archive ni dans le Studio WASM.
+Candle reste une piste à évaluer pour la compréhension et le pilotage de l’environnement
+CMS par les services/capacités autorisés existants. Pas de choix de modèle, téléchargement,
+nouveau moteur ni changement d’installation livré par cette orientation ; critères de taille
+et stratégie de dépendances à mesurer et préciser lors de ces lots.
+
+## Rustemberg — référence Gutenberg et priorité des blocs (31 octobre 2026)
+
+Décision utilisateur : nommer le constructeur commun **Rustemberg**. Pour le socle V1,
+reproduire intelligemment en Rust les comportements et conventions du design system
+WordPress/Gutenberg, plutôt qu’inventer une expérience concurrente. Articles, pages et
+landing pages partagent document, bibliothèque, historique, inspecteur et publication.
+La démonstration officielle https://wordpress.org/gutenberg/, les sources WordPress locales,
+les thèmes et plugins sélectionnés servent de références fonctionnelles. Une apparence
+avancée ne prouve pas qu’une option est branchée : les écarts restent explicites.
+
+Les capacités éditoriales des modules sont représentées en priorité par leurs blocs
+Rustemberg : formulaire, formation, produit, galerie, inscription, événement, etc.
+Le bloc référence les données/services du module et ses permissions, pas une seconde
+copie du métier. Les capacités inactives ne deviennent pas utilisables via l’inséreur.
+Les besoins complémentaires découverts pendant le développement sont consignés au fil
+de l’eau dans les tâches/matrices existantes, avec module, bloc associé, référence et
+preuve ou écart. Les écrans de gestion nécessaires et contrats restent dans leur lot.
+Les évolutions propres aux modules viendront après le socle V1 en conservant ces repères.
+
+Premier relevé comparatif local :
+[blocs et compositions Gutenberg](../validations/constructeur-landings-rust-2026-10-31/comparaison-gutenberg.json).
+Les colonnes Rust actuelles éditent du texte multiligne ; l’imbrication complète de blocs,
+les réglages de styles/espacements/alignement et le verrouillage restent à porter.

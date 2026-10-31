@@ -1,0 +1,1 @@
+CSV téléchargé depuis Leptos : 101 UUID distincts, index 1–101, Unicode, point-virgule, guillemets et retours à la ligne conservés ; formule neutralisée. Aucune métadonnée réseau.

@@ -19,8 +19,9 @@ const SELECT: &str =
         u.display_name AS author_name, e.title, e.slug, e.excerpt, e.body, e.body_html,
         e.blocks, e.intent, e.design_tokens,
         e.status, e.fields,
-        e.featured_media_id, ('/uploads/' || m.path) AS featured_media_url,
-        e.published_at, e.scheduled_unpublish_at, e.created_at, e.updated_at
+        e.featured_media_id, CASE WHEN m.mime_type IN ('image/jpeg','image/png','image/gif','image/webp','image/avif','image/svg+xml') THEN ('/uploads/' || m.path) END AS featured_media_url,
+        m.alt AS featured_media_alt, m.caption AS featured_media_caption,
+        e.published_at, e.scheduled_unpublish_at, e.locale, e.translation_group_id, e.created_at, e.updated_at
     FROM entries e
     JOIN content_types ct ON ct.id = e.content_type_id
     LEFT JOIN users u ON u.id = e.author_id
@@ -48,6 +49,8 @@ pub struct EntryQuery {
     pub order: Option<String>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    pub locale: Option<String>,
+    pub translation_group_id: Option<Uuid>,
     /// Restreint aux entrées publiées et visibles (API publique).
     #[serde(skip)]
     pub public_only: bool,
@@ -69,6 +72,12 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &EntryQuery) {
                 qb.push(" AND e.status <> 'trash'");
             }
         }
+    }
+    if let Some(locale) = q.locale.as_ref().filter(|s| !s.is_empty()) {
+        qb.push(" AND e.locale = ").push_bind(locale.to_lowercase());
+    }
+    if let Some(tg) = q.translation_group_id {
+        qb.push(" AND e.translation_group_id = ").push_bind(tg);
     }
     if let Some(author) = q.author_id {
         qb.push(" AND e.author_id = ").push_bind(author);
@@ -163,12 +172,11 @@ pub async fn get_published(db: &PgPool, content_type: &str, slug: &str) -> CoreR
 
 /// Entrée publiée et visible, par identifiant UUID direct (permaliens numériques `archives/{id}`).
 pub async fn get_published_by_id(db: &PgPool, id: Uuid) -> CoreResult<Entry> {
-    let mut entry = sqlx::query_as::<_, Entry>(&format!(
-        "{SELECT} WHERE e.id = $1 AND {PUBLIC_VISIBILITY}"
-    ))
-    .bind(id)
-    .fetch_one(db)
-    .await?;
+    let mut entry =
+        sqlx::query_as::<_, Entry>(&format!("{SELECT} WHERE e.id = $1 AND {PUBLIC_VISIBILITY}"))
+            .bind(id)
+            .fetch_one(db)
+            .await?;
     attach_terms(db, std::slice::from_mut(&mut entry)).await?;
     Ok(entry)
 }
@@ -270,7 +278,7 @@ async fn attach_terms(db: &PgPool, entries: &mut [Entry]) -> CoreResult<()> {
     }
     for entry in entries.iter_mut() {
         // Also neutralize unsafe HTML imported before the consolidation. Raw source stays in body/vault.
-        entry.body_html = ammonia::clean(&entry.body_html);
+        entry.body_html = rustforge_document::markdown::sanitize_html(&entry.body_html);
         entry.terms = by_entry.remove(&entry.id).unwrap_or_default();
     }
     Ok(())
@@ -294,6 +302,8 @@ struct Prepared {
     parent_id: Option<Uuid>,
     published_at: Option<chrono::DateTime<Utc>>,
     scheduled_unpublish_at: Option<chrono::DateTime<Utc>>,
+    locale: String,
+    translation_group_id: Option<Uuid>,
     term_ids: Option<Vec<Uuid>>,
 }
 
@@ -335,6 +345,25 @@ async fn apply_before_save(hooks: &dyn HookRunner, input: EntryInput) -> EntryIn
     }
 }
 
+/// Reserved document settings remain small and validated even through older clients/imports.
+fn validate_document_settings(fields: &serde_json::Value) -> CoreResult<()> {
+    if let Some(value) = fields.get("_rf_comment_status")
+        && !value.is_null()
+        && !matches!(value.as_str(), Some("open" | "closed"))
+    {
+        return Err(CoreError::validation(
+            "Discussion : choisissez héritage, ouverte ou fermée",
+        ));
+    }
+    if let Some(value) = fields.get("_rf_template")
+        && !value.is_null()
+        && !matches!(value.as_str(), Some("default" | "wide" | "landing"))
+    {
+        return Err(CoreError::validation("Modèle de contenu invalide"));
+    }
+    Ok(())
+}
+
 fn prepare(
     ct: &ContentType,
     input: EntryInput,
@@ -363,6 +392,7 @@ fn prepare(
         Some(base) => merge_fields(base, &input.fields),
         None => input.fields,
     };
+    validate_document_settings(&combined_fields)?;
     let fields = fields::validate_values(&ct.fields, &combined_fields)?;
 
     // Gestion rigoureuse de published_at :
@@ -387,6 +417,13 @@ fn prepare(
         ids
     });
 
+    let locale = if input.locale.trim().is_empty() {
+        "fr".to_string()
+    } else {
+        input.locale.trim().to_lowercase()
+    };
+    let translation_group_id = input.translation_group_id;
+
     let (body, body_html) = crate::document::project(&input.body, &input.blocks)?;
     Ok(Prepared {
         title,
@@ -407,6 +444,8 @@ fn prepare(
         },
         published_at,
         scheduled_unpublish_at: input.scheduled_unpublish_at,
+        locale,
+        translation_group_id,
         term_ids,
     })
 }
@@ -545,6 +584,29 @@ async fn validate_parent_hierarchy(
     ))
 }
 
+/// Validate new featured references while keeping unchanged legacy references editable.
+async fn validate_featured_image(db: &PgPool, id: Option<Uuid>) -> CoreResult<()> {
+    let Some(id) = id else { return Ok(()) };
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT mime_type,path FROM media WHERE id=$1")
+            .bind(id)
+            .fetch_optional(db)
+            .await?;
+    let Some((mime, path)) = row else {
+        return Err(CoreError::validation("Image mise en avant introuvable"));
+    };
+    if !matches!(
+        mime.as_str(),
+        "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/avif" | "image/svg+xml"
+    ) {
+        return Err(CoreError::validation(
+            "Sélectionnez une image dans la médiathèque",
+        ));
+    }
+    crate::security::relative_path(&path)?;
+    Ok(())
+}
+
 pub async fn create(
     db: &PgPool,
     hooks: &dyn HookRunner,
@@ -555,6 +617,7 @@ pub async fn create(
     let ct = content_types::get_by_slug(db, content_type).await?;
     let input = apply_before_save(hooks, input).await;
     let mut p = prepare(&ct, input, None, None)?;
+    validate_featured_image(db, p.featured_media_id).await?;
     validate_parent_hierarchy(db, ct.id, None, p.parent_id).await?;
     let slug = unique_slug(db, ct.id, &p.slug_base, None).await?;
 
@@ -595,8 +658,9 @@ pub async fn create(
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO entries (content_type_id, parent_id, author_id, title, slug, excerpt, body, body_html,
             blocks, intent, design_tokens,
-            status, fields, featured_media_id, published_at, scheduled_unpublish_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id",
+            status, fields, featured_media_id, published_at, scheduled_unpublish_at,
+            locale, translation_group_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id",
     )
     .bind(ct.id)
     .bind(p.parent_id)
@@ -614,6 +678,8 @@ pub async fn create(
     .bind(p.featured_media_id)
     .bind(p.published_at)
     .bind(p.scheduled_unpublish_at)
+    .bind(&p.locale)
+    .bind(p.translation_group_id)
     .fetch_one(&mut *tx)
     .await?;
     if let Some(terms) = &p.term_ids {
@@ -672,6 +738,9 @@ async fn update_internal(
             Some(&current.fields)
         },
     )?;
+    if p.featured_media_id != current.featured_media_id {
+        validate_featured_image(db, p.featured_media_id).await?;
+    }
     if p.term_ids.is_none() {
         p.term_ids = Some(current.terms.iter().map(|t| t.id).collect());
     }
@@ -686,8 +755,9 @@ async fn update_internal(
     let changed = sqlx::query(
         "UPDATE entries SET parent_id = $2, title = $3, slug = $4, excerpt = $5, body = $6, body_html = $7,
             blocks = $8, intent = $9, design_tokens = $10,
-            status = $11, fields = $12, featured_media_id = $13, published_at = $14, scheduled_unpublish_at = $15, updated_at = now()
-         WHERE id = $1 AND updated_at = $16",
+            status = $11, fields = $12, featured_media_id = $13, published_at = $14, scheduled_unpublish_at = $15,
+            locale = $16, translation_group_id = $17, updated_at = now()
+         WHERE id = $1 AND updated_at = $18",
     )
     .bind(id)
     .bind(p.parent_id)
@@ -704,6 +774,8 @@ async fn update_internal(
     .bind(p.featured_media_id)
     .bind(p.published_at)
     .bind(p.scheduled_unpublish_at)
+    .bind(&p.locale)
+    .bind(p.translation_group_id)
     .bind(current.updated_at)
     .execute(&mut *tx)
     .await?;
@@ -819,15 +891,223 @@ pub async fn restore_revision_checked(
         parent_id: current.parent_id,
         published_at: current.published_at,
         scheduled_unpublish_at: current.scheduled_unpublish_at,
+        locale: current.locale,
+        translation_group_id: current.translation_group_id,
         term_ids: Some(current.terms.iter().map(|t| t.id).collect()),
     };
     update(db, hooks, entry_id, editor_id, input).await
+}
+
+// ---------------------------------------------------------------------------
+// Grappes de traduction (MOD-I18N-07)
+// ---------------------------------------------------------------------------
+
+/// Retourne toutes les entrées sœurs appartenant à la même grappe de traduction.
+pub async fn get_translations(
+    db: &PgPool,
+    entry_id: Uuid,
+) -> CoreResult<Vec<crate::models::TranslationSibling>> {
+    let entry = get(db, entry_id).await?;
+    let Some(group_id) = entry.translation_group_id else {
+        return Ok(vec![crate::models::TranslationSibling {
+            id: entry.id,
+            locale: entry.locale,
+            title: entry.title,
+            slug: entry.slug,
+            status: entry.status,
+        }]);
+    };
+
+    let siblings = sqlx::query_as::<_, crate::models::TranslationSibling>(
+        "SELECT id, locale, title, slug, status
+         FROM entries
+         WHERE translation_group_id = $1 AND status <> 'trash'
+         ORDER BY locale ASC",
+    )
+    .bind(group_id)
+    .fetch_all(db)
+    .await?;
+
+    Ok(siblings)
+}
+
+/// Crée une nouvelle traduction pour une entrée dans la langue cible, en clonant
+/// l'arbre de blocs natifs et en liant les deux entrées dans la même grappe.
+pub async fn create_translation(
+    db: &PgPool,
+    hooks: &dyn HookRunner,
+    source_id: Uuid,
+    target_locale: &str,
+    author_id: Uuid,
+) -> CoreResult<Entry> {
+    let target_locale = target_locale.trim().to_lowercase();
+    if target_locale.is_empty() {
+        return Err(CoreError::validation("La langue cible est requise"));
+    }
+
+    let source = get(db, source_id).await?;
+    if source.locale == target_locale {
+        return Err(CoreError::validation(format!(
+            "L'entrée source est déjà en langue '{}'",
+            source.locale
+        )));
+    }
+
+    // Détermine ou crée le translation_group_id
+    let group_id = match source.translation_group_id {
+        Some(gid) => {
+            // Vérifie si une traduction existe déjà dans cette langue
+            let existing: Option<Uuid> = sqlx::query_scalar(
+                "SELECT id FROM entries WHERE translation_group_id = $1 AND locale = $2 AND status <> 'trash' LIMIT 1"
+            )
+            .bind(gid)
+            .bind(&target_locale)
+            .fetch_optional(db)
+            .await?;
+
+            if existing.is_some() {
+                return Err(CoreError::Conflict(format!(
+                    "Une traduction en '{target_locale}' existe déjà pour ce groupe"
+                )));
+            }
+            gid
+        }
+        None => {
+            let new_gid = Uuid::new_v4();
+            sqlx::query("UPDATE entries SET translation_group_id = $1 WHERE id = $2")
+                .bind(new_gid)
+                .bind(source_id)
+                .execute(db)
+                .await?;
+            new_gid
+        }
+    };
+
+    let input = EntryInput {
+        expected_updated_at: None,
+        title: format!("{} ({})", source.title, target_locale.to_uppercase()),
+        slug: Some(format!("{}-{}", source.slug, target_locale)),
+        excerpt: source.excerpt.clone(),
+        body: source.body.clone(),
+        blocks: source.blocks.clone(),
+        intent: source.intent.clone(),
+        design_tokens: source.design_tokens.clone(),
+        status: EntryStatus::Draft,
+        fields: source.fields.clone(),
+        featured_media_id: source.featured_media_id,
+        parent_id: None,
+        published_at: None,
+        scheduled_unpublish_at: None,
+        locale: target_locale,
+        translation_group_id: Some(group_id),
+        term_ids: None,
+    };
+
+    create(db, hooks, &source.content_type, author_id, input).await
+}
+
+/// Lie deux entrées existantes au sein de la même grappe de traduction.
+pub async fn link_translations(db: &PgPool, source_id: Uuid, target_id: Uuid) -> CoreResult<()> {
+    if source_id == target_id {
+        return Err(CoreError::validation(
+            "Impossible de lier une entrée à elle-même",
+        ));
+    }
+
+    let source = get(db, source_id).await?;
+    let target = get(db, target_id).await?;
+
+    if source.locale == target.locale {
+        return Err(CoreError::validation(format!(
+            "Impossible de lier deux entrées ayant la même langue ('{}')",
+            source.locale
+        )));
+    }
+
+    let group_id = match (source.translation_group_id, target.translation_group_id) {
+        (Some(sg), Some(tg)) => {
+            if sg == tg {
+                return Ok(()); // Déjà liées
+            }
+            // Fusionne le groupe cible dans le groupe source
+            sqlx::query(
+                "UPDATE entries SET translation_group_id = $1 WHERE translation_group_id = $2",
+            )
+            .bind(sg)
+            .bind(tg)
+            .execute(db)
+            .await?;
+            sg
+        }
+        (Some(sg), None) => {
+            sqlx::query("UPDATE entries SET translation_group_id = $1 WHERE id = $2")
+                .bind(sg)
+                .bind(target_id)
+                .execute(db)
+                .await?;
+            sg
+        }
+        (None, Some(tg)) => {
+            sqlx::query("UPDATE entries SET translation_group_id = $1 WHERE id = $2")
+                .bind(tg)
+                .bind(source_id)
+                .execute(db)
+                .await?;
+            tg
+        }
+        (None, None) => {
+            let new_gid = Uuid::new_v4();
+            sqlx::query("UPDATE entries SET translation_group_id = $1 WHERE id = $2 OR id = $3")
+                .bind(new_gid)
+                .bind(source_id)
+                .bind(target_id)
+                .execute(db)
+                .await?;
+            new_gid
+        }
+    };
+
+    let _ = group_id;
+    Ok(())
+}
+
+/// Retire une entrée de sa grappe de traduction.
+pub async fn unlink_translation(db: &PgPool, entry_id: Uuid) -> CoreResult<()> {
+    sqlx::query("UPDATE entries SET translation_group_id = NULL WHERE id = $1")
+        .bind(entry_id)
+        .execute(db)
+        .await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn document_settings_reject_invalid_discussion_values() {
+        for value in [
+            serde_json::json!(null),
+            serde_json::json!("open"),
+            serde_json::json!("closed"),
+        ] {
+            assert!(
+                super::validate_document_settings(&serde_json::json!({"_rf_comment_status":value}))
+                    .is_ok()
+            );
+        }
+        for value in [
+            serde_json::json!(true),
+            serde_json::json!("inherit"),
+            serde_json::json!({"open":true}),
+        ] {
+            assert!(
+                super::validate_document_settings(&serde_json::json!({"_rf_comment_status":value}))
+                    .is_err()
+            );
+        }
+    }
 
     #[test]
     fn test_merge_fields_preserves_legacy_vault() {
@@ -915,6 +1195,8 @@ mod tests {
             parent_id: None,
             published_at: None, // non spécifié ou hérité
             scheduled_unpublish_at: None,
+            locale: "fr".to_string(),
+            translation_group_id: None,
             term_ids: None,
         };
 

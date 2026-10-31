@@ -90,6 +90,44 @@ pub async fn list(
     Ok(Json(page))
 }
 
+async fn validate_new_forms(
+    state: &AppState,
+    auth: &AuthUser,
+    blocks: &serde_json::Value,
+    previous: &serde_json::Value,
+) -> ApiResult<()> {
+    let refs = |blocks: &serde_json::Value| {
+        blocks["rf_blocks"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|block| block["rf_type"] == "form_embed")
+            .filter_map(|block| block["rf_ref"].as_str().map(str::to_owned))
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let old = refs(previous);
+    for reference in refs(blocks).difference(&old) {
+        if !rustforge_core::settings::is_module_active(&state.db, "forms").await {
+            return Err(ApiError::BadRequest(
+                "Activez le module Formulaires avant d’insérer un formulaire".into(),
+            ));
+        }
+        let id = Uuid::parse_str(reference)
+            .map_err(|_| ApiError::BadRequest("Sélectionnez un formulaire enregistré".into()))?;
+        let form = rustforge_core::forms::get_form(&state.db, id).await?;
+        if !auth.user.role.can_edit_others() && form.created_by != Some(auth.user.id) {
+            return Err(ApiError::Forbidden);
+        }
+        super::public_forms::fields(&form)?;
+        if !form.is_active {
+            return Err(ApiError::BadRequest(
+                "Le formulaire sélectionné est désactivé".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub async fn create(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -99,6 +137,7 @@ pub async fn create(
     if !auth.user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
+    validate_new_forms(&state, &auth, &input.blocks, &serde_json::Value::Null).await?;
     let entry = entries::create(
         &state.db,
         state.plugins.as_ref(),
@@ -132,6 +171,7 @@ pub async fn update(
     let current = entries::get(&state.db, id).await?;
     rustforge_core::security::require_entry_access(auth.user.role, auth.user.id, &current)?;
     let input = EntryInput::from_patch(&current, patch)?;
+    validate_new_forms(&state, &auth, &input.blocks, &current.blocks).await?;
     if !auth.user.role.can_edit_others() && current.author_id != Some(auth.user.id) {
         return Err(ApiError::Forbidden);
     }

@@ -1,0 +1,32 @@
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.13s
+     Running unittests src/lib.rs (target/debug/deps/rustforge_studio-cf9fb69343aceba4)
+
+running 18 tests
+test dashboard::tests::activity_links_cannot_escape_the_local_editor ... ok
+test editor::tests::dynamic_routes_stay_in_the_supported_content_types ... ok
+test editor::tests::history_restores_document_and_redo_is_invalidated_by_a_new_edit ... ok
+test editor::tests::restoration_is_bound_to_entry_and_loaded_version ... ok
+test navigation::tests::keeps_groups_and_three_levels_in_server_order ... ok
+test navigation::tests::parses_history_hashes_without_accepting_script_or_query ... ok
+test navigation::tests::preserves_separators_and_planning_details ... ok
+test navigation::tests::refuses_cycles_orphans_and_external_routes ... ok
+test editor::tests::recovery_and_patch_keep_only_the_editable_contract ... ok
+test screens::tests::query_cannot_override_scope ... ok
+test dashboard::tests::quick_draft_preserves_unicode_and_uses_the_shared_document ... ok
+test session::tests::logout_and_new_login_reject_both_older_responses ... ok
+test tests::shares_native_validation ... ok
+test screens::tests::unexpected_entry_type_never_produces_editor_link ... ok
+test screens::tests::scheduled_and_undated_are_not_reported_as_published ... ok
+test messages::blueprint_tests::descriptors_have_translated_labels ... ok
+test messages::tests::shell_message_keys_are_complete ... ok
+test navigation::registry_contract_tests::accepts_the_real_server_registry_without_dropping_groups ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests rustforge_studio
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -51,10 +51,13 @@ pub async fn list_taxonomies(db: &PgPool) -> CoreResult<Vec<Taxonomy>> {
 }
 
 pub async fn create_taxonomy(db: &PgPool, input: TaxonomyInput) -> CoreResult<Taxonomy> {
-    if input.name.trim().is_empty() {
-        return Err(CoreError::validation("le nom est obligatoire"));
+    if input.name.trim().is_empty() || input.name.chars().count() > 200 {
+        return Err(CoreError::validation(
+            "Nom de taxonomie attendu : 1 à 200 caractères",
+        ));
     }
     let slug = crate::slugify(input.slug.as_deref().unwrap_or(&input.name));
+    crate::security::safe_slug(&slug)?;
     sqlx::query("INSERT INTO taxonomies (slug, name, hierarchical) VALUES ($1, $2, $3)")
         .bind(&slug)
         .bind(input.name.trim())
@@ -68,20 +71,60 @@ pub async fn create_taxonomy(db: &PgPool, input: TaxonomyInput) -> CoreResult<Ta
         .ok_or(CoreError::NotFound)
 }
 
-pub async fn delete_taxonomy(db: &PgPool, id: Uuid) -> CoreResult<()> {
-    let is_system: bool = sqlx::query_scalar("SELECT is_system FROM taxonomies WHERE id = $1")
-        .bind(id)
-        .fetch_one(db)
-        .await?;
-    if is_system {
-        return Err(CoreError::Conflict(
-            "les taxonomies système ne peuvent pas être supprimées".into(),
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaxonomyRename {
+    pub name: String,
+    pub expected_name: String,
+}
+pub async fn rename_taxonomy(db: &PgPool, id: Uuid, input: TaxonomyRename) -> CoreResult<Taxonomy> {
+    if input.name.trim().is_empty() || input.name.chars().count() > 200 {
+        return Err(CoreError::validation(
+            "Nom de taxonomie attendu : 1 à 200 caractères",
         ));
     }
-    sqlx::query("DELETE FROM taxonomies WHERE id = $1")
+    let row =
+        sqlx::query("UPDATE taxonomies SET name=$2 WHERE id=$1 AND NOT is_system AND name=$3")
+            .bind(id)
+            .bind(input.name.trim())
+            .bind(input.expected_name)
+            .execute(db)
+            .await?;
+    if row.rows_affected() != 1 {
+        return Err(CoreError::Conflict(
+            "Taxonomie système, supprimée ou modifiée ; rechargez avant de renommer".into(),
+        ));
+    }
+    list_taxonomies(db)
+        .await?
+        .into_iter()
+        .find(|t| t.id == id)
+        .ok_or(CoreError::NotFound)
+}
+pub async fn delete_taxonomy(db: &PgPool, id: Uuid) -> CoreResult<()> {
+    let mut tx = db.begin().await?;
+    let is_system: bool =
+        sqlx::query_scalar("SELECT is_system FROM taxonomies WHERE id=$1 FOR UPDATE")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if is_system {
+        return Err(CoreError::Conflict(
+            "Les taxonomies système ne peuvent pas être supprimées".into(),
+        ));
+    }
+    let used: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM terms WHERE taxonomy_id=$1)")
         .bind(id)
-        .execute(db)
+        .fetch_one(&mut *tx)
         .await?;
+    if used {
+        return Err(CoreError::Conflict("Cette taxonomie contient des termes. Réaffectez ou supprimez ses termes explicitement avant de la supprimer".into()));
+    }
+    sqlx::query("DELETE FROM taxonomies WHERE id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
 }
 

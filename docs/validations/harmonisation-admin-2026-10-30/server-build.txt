@@ -1,0 +1,4 @@
+    Blocking waiting for file lock on build directory
+   Compiling rustforge-api v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-api)
+   Compiling rustforge v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.40s

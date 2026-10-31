@@ -14,14 +14,11 @@ import { create } from 'zustand';
 import { api } from '../api';
 import type { Entry } from '../types';
 
-export interface ColumnDefinition {
-  id: string;
-  label: string;
-  visible: boolean;
-  width?: string;
-  sortable?: boolean;
-  isCustomField?: boolean;
-}
+import { useEffect } from 'react';
+import { useStudioStore } from './useStudioStore';
+import { csvCell, validColumns } from './columnPreferences';
+import type { ColumnDefinition } from './columnPreferences';
+export type { ColumnDefinition } from './columnPreferences';
 
 export type ColumnPreset = 'standard' | 'editorial' | 'seo' | 'compact';
 
@@ -47,18 +44,17 @@ export const DEFAULT_COLUMNS_BY_TYPE: Record<string, ColumnDefinition[]> = {
 };
 
 function getStorageKey(type: string): string {
-  return `rf_columns_pref_${type}`;
+  return `rf_columns_pref_${useStudioStore.getState().user?.id || "anonymous"}_${type}`;
 }
 
 export interface ColumnSettingsState {
   columnsByType: Record<string, ColumnDefinition[]>;
   activePresetByType: Record<string, ColumnPreset>;
   saving: boolean;
-  density: 'comfortable' | 'compact';
+  globalByType: Record<string, ColumnDefinition[]>;
 
-  setDensity: (density: 'comfortable' | 'compact') => void;
   getColumns: (type: string) => ColumnDefinition[];
-  loadColumns: (type: string) => void;
+  loadColumns: (type: string) => Promise<void>;
   toggleColumn: (type: string, columnId: string) => void;
   moveColumn: (type: string, fromIndex: number, toIndex: number) => void;
   updateColumnLabel: (type: string, columnId: string, label: string) => void;
@@ -72,39 +68,38 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
   columnsByType: {},
   activePresetByType: {},
   saving: false,
-  density: 'comfortable',
-
-  setDensity: (density) => set({ density }),
+  globalByType: {},
 
   getColumns: (type: string) => {
-    const current = get().columnsByType[type];
+    const current = get().columnsByType[getStorageKey(type)];
     if (current && current.length > 0) return current;
 
     // Charger depuis le localStorage ou les colonnes par défaut
     try {
       const stored = localStorage.getItem(getStorageKey(type));
       if (stored) {
-        const parsed = JSON.parse(stored) as ColumnDefinition[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          set((state) => ({
-            columnsByType: { ...state.columnsByType, [type]: parsed },
-          }));
-          return parsed;
-        }
+        const parsed = validColumns(JSON.parse(stored));
+        if (parsed) return parsed;
       }
     } catch {
       // Ignorer erreur localStorage
     }
 
-    const fallback = DEFAULT_COLUMNS_BY_TYPE[type] || DEFAULT_COLUMNS_BY_TYPE.post;
+    const fallback = get().globalByType[getStorageKey(type)] || DEFAULT_COLUMNS_BY_TYPE[type] || DEFAULT_COLUMNS_BY_TYPE.post;
     return fallback;
   },
 
-  loadColumns: (type: string) => {
-    const cols = get().getColumns(type);
-    set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: cols },
-    }));
+  loadColumns: async (type: string) => {
+    const key = getStorageKey(type);
+    try {
+      const shared = await api.admin.columns();
+      if (key !== getStorageKey(type)) return;
+      const columns = validColumns(shared[`admin.columns.${type}`]);
+      if (columns) set(state => ({globalByType: {...state.globalByType, [key]: columns}}));
+      let local: ColumnDefinition[] | null = null;
+      try { local = validColumns(JSON.parse(localStorage.getItem(key) || 'null')); } catch { /* facultatif */ }
+      set(state => ({columnsByType: {...state.columnsByType, [key]: local || columns || DEFAULT_COLUMNS_BY_TYPE[type] || DEFAULT_COLUMNS_BY_TYPE.post}}));
+    } catch { /* Les préférences locales restent disponibles en cas d'échec réseau. */ }
   },
 
   toggleColumn: (type: string, columnId: string) => {
@@ -116,7 +111,7 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
       // Ignorer
     }
     set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: updated },
+      columnsByType: { ...state.columnsByType, [getStorageKey(type)]: updated },
     }));
   },
 
@@ -131,7 +126,7 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
       // Ignorer
     }
     set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: list },
+      columnsByType: { ...state.columnsByType, [getStorageKey(type)]: list },
     }));
   },
 
@@ -144,7 +139,7 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
       // Ignorer
     }
     set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: updated },
+      columnsByType: { ...state.columnsByType, [getStorageKey(type)]: updated },
     }));
   },
 
@@ -179,31 +174,33 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
     }
 
     set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: updated },
-      activePresetByType: { ...state.activePresetByType, [type]: preset },
+      columnsByType: { ...state.columnsByType, [getStorageKey(type)]: updated },
+      activePresetByType: { ...state.activePresetByType, [getStorageKey(type)]: preset },
     }));
   },
 
   resetToDefault: (type: string) => {
-    const def = DEFAULT_COLUMNS_BY_TYPE[type] || DEFAULT_COLUMNS_BY_TYPE.post;
+    const def = get().globalByType[getStorageKey(type)] || DEFAULT_COLUMNS_BY_TYPE[type] || DEFAULT_COLUMNS_BY_TYPE.post;
     try {
       localStorage.removeItem(getStorageKey(type));
     } catch {
       // Ignorer
     }
     set((state) => ({
-      columnsByType: { ...state.columnsByType, [type]: def },
-      activePresetByType: { ...state.activePresetByType, [type]: 'standard' },
+      columnsByType: { ...state.columnsByType, [getStorageKey(type)]: def },
+      activePresetByType: { ...state.activePresetByType, [getStorageKey(type)]: 'standard' },
     }));
   },
 
   saveGlobalPreferences: async (type: string) => {
     const cols = get().getColumns(type);
+    const key = getStorageKey(type);
     set({ saving: true });
     try {
       await api.settings.update({
         [`admin.columns.${type}`]: cols,
       });
+      if (key === getStorageKey(type)) set(state => ({globalByType: {...state.globalByType, [key]: cols}}));
       set({ saving: false });
       return true;
     } catch (e) {
@@ -218,7 +215,7 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
     if (cols.length === 0 || entries.length === 0) return;
 
     // Ligne d'en-tête
-    const header = cols.map((c) => `"${c.label.replace(/"/g, '""')}"`).join(';');
+    const header = cols.map((c) => csvCell(c.label)).join(';');
 
     // Lignes de données
     const rows = entries.map((entry) => {
@@ -263,10 +260,10 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
               val = entry.id;
               break;
             default:
-              val = String(entry.fields?.[col.id] ?? '');
+              val = String(entry.fields?.[col.id.replace(/^field:/, '')] ?? '');
               break;
           }
-          return `"${String(val).replace(/"/g, '""')}"`;
+          return csvCell(val);
         })
         .join(';');
     });
@@ -286,3 +283,13 @@ export const useColumnSettingsStore = create<ColumnSettingsState>((set, get) => 
     URL.revokeObjectURL(url);
   },
 }));
+
+/** Abonnement aux colonnes effectives ; aucun setState pendant le rendu. */
+export function useColumns(type: string) {
+  const userId = useStudioStore(s => s.user?.id);
+  const current = useColumnSettingsStore(s => s.columnsByType);
+  const shared = useColumnSettingsStore(s => s.globalByType);
+  useEffect(() => { if (userId) void useColumnSettingsStore.getState().loadColumns(type); }, [type, userId]);
+  void current; void shared;
+  return useColumnSettingsStore.getState().getColumns(type);
+}

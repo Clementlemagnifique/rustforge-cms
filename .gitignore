@@ -25,7 +25,9 @@ uploads/*
 protected_downloads/*
 !protected_downloads/.gitkeep
 
-# Archives générées, Releases & Scratch
+# Archives générées, Releases, Logs & Archives locales exclues
+archives/
+/archives/
 scratch/
 releases/
 *.rfcapsule
@@ -49,3 +51,10 @@ releases/
 *.swp
 *.DS_Store
 Thumbs.db
+
+# Outils Rust locaux et artefacts WASM générés
+/.tools/
+/admin/public/wasm/
+/crates/rustforge-studio/dist/
+
+/admin/public/rust/

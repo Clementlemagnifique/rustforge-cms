@@ -9,7 +9,7 @@
 </form>
 {% if not is_search or search_query %}<p>{{ total }} résultat(s)</p>{% endif %}
 {% for entry in entries %}
-<article><h2><a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}">{{ entry.title }}</a></h2><p>{{ entry.excerpt }}</p>
+<article class="rf-entry-card">{% include "featured-image.html" %}<h2><a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}">{{ entry.title }}</a></h2><p>{{ entry.excerpt }}</p>
 {% for term in entry.terms %}{% if term.taxonomy == 'category' or term.taxonomy == 'tag' %}<a href="/{{ locale }}/archive/{{ term.taxonomy }}/{{ term.slug }}">{{ term.name }}</a> {% endif %}{% endfor %}</article>
 {% else %}<p>{% if is_search and not search_query %}Saisissez votre recherche.{% else %}Aucun résultat pour le moment.{% endif %}</p>{% endfor %}
 {% include "pagination.html" %}

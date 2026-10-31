@@ -1,0 +1,5 @@
+30/10/2026 — Edge, recette isolée http://127.0.0.1:55498/
+État accessible observé : SUCCÈS : 6 fixtures natives/WASM identiques dans le navigateur.
+Coquille http://127.0.0.1:55498/shell/ : barre RustForge, reprise de session, Options de l’écran, Aide, laboratoire, résultat Rust 3 mots/24 caractères observés.
+Aucune session authentifiée ni écriture de contenu du CMS recettée ; aucune base touchée. Une tentative ultérieure de contrôler le champ a été interrompue car le navigateur avait changé d’onglet : ne pas compter la saisie et les tiroirs comme recettes réussies.
+Le contrôle HTTP de 127.0.0.1:8080 a retourné une connexion refusée.

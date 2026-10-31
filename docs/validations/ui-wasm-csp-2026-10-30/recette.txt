@@ -1,0 +1,24 @@
+Recette navigateur intégré — 30 octobre 2026
+Projet : C:/Users/cleme/Desktop/CMS Rust. Sans commit ni push.
+Instance dédiée : 127.0.0.1:55499 ; PostgreSQL de recette 55496 ; aucun compte personnel.
+
+Défaut détecté : /admin/rust/ était une page blanche sur le serveur réel, malgré la recette statique antérieure. Le bootstrap inline Trunk et la compilation WASM étaient incompatibles avec la CSP.
+Correction : le build extrait exactement un bootstrap Trunk en module externe avec empreinte ; publication refusée si format inattendu. ServeDir admin reçoit une CSP autorisant wasm-unsafe-eval, sans unsafe-eval ni script inline. Pages publiques/API gardent la CSP précédente. Référence normative : https://www.w3.org/TR/CSP3/ (wasm-unsafe-eval autorise uniquement WebAssembly).
+
+Observations UI réelles :
+- médiathèque initialement connectée avec wasm-admin ; chargement aperçu Rust après correction réussi ;
+- session ancienne refusée après redémarrage à secret éphémère, menus vides ; connexion UI du compte fictif réussie ;
+- Reprendre ma session : menus hiérarchiques chargés depuis API ;
+- groupe Articles ouvert, liens enfants visibles ; lien Tous les articles -> hash entries:post ; retour -> dashboard ; avance -> entries:post ;
+- boutons Options/Aide passent à expanded et dévoilent les textes de périmètre ; options métier toujours absentes ;
+- bouton réduire le menu répond (branche active conservée) ; flyouts, focus clavier complet et mobile NON qualifiés ;
+- laboratoire : Bonjour RustForge été -> HTML paragraph, 3 mots, 21 caractères ;
+- retour vers le Studio actuel fonctionne ; brouillon 8cbc0daa-998d-4106-8f19-467028898679: titre modifié via UI, Enregistrer le brouillon, retour liste, réouverture et rechargement ;
+- titre Recette UI WASM — titre conservant les blocs persistant, paragraphe Recette **Rust** 🌍 et titre Voisin conservé présents ;
+- popover métriques après rechargement : 5 mots, 31 caractères, 2 blocs, environ 1 min.
+
+Contrôles exécutés : cargo check rustforge-api ; cargo build --bin rustforge ; Clippy rustforge-api --all-targets -D warnings ; build Trunk puis Vite ; tests/wasm-security-recipe.mjs (lecture seule) ; tests/wasm-http-recipe.mjs rejoué avec succès. Aucun nouveau décompte de tests unitaires annoncé : suite 125 du lot précédent non rejouée intégralement. Avertissements Vite bundle >500 Ko et dépendance proc-macro-error2 inchangés.
+Helper runtime Stop puis Start exécutés avec succès cette fois. Instance laissée active pour utilisateur, état dans scratch/wasm-auth-recipe/runtime.json. Deux brouillons supplémentaires du scénario HTTP conservés dans la fixture.
+
+Limites : aucun test publication, autosave, gros document, panne module, rôles UI auteur/abonné, multi-onglets, mobile ou installation ZIP dans ce lot. La recette HTTP couvre déjà droits et conflits, pas leur interface. Pas de qualification globale WordPress.
+Écarts observés pour phase 2 : dashboard affichait 0 articles malgré 2 brouillons listés et la rubrique Récemment publié contenait ces brouillons ; vérifier sources de compteurs et filtrage par statut avant transposition.

@@ -1,0 +1,54 @@
+// Writes fake data ONLY to the explicitly identified isolated browser fixture.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
+const runtime=JSON.parse(readFileSync('scratch/wasm-auth-recipe/runtime.json','utf8'));
+assert.match(runtime.database,/^rf_wasm_browser_[a-f0-9]{32}$/);assert.equal(runtime.port,55499);assert.equal(runtime.closed,false);
+const base='http://127.0.0.1:55499';
+assert.equal((await(await fetch(base+'/api/v1/public/settings')).json()).title,'Recette WASM isolee');
+let checks=0;
+async function api(path,token,method='GET',body,status=200){const res=await fetch(base+'/api/v1'+path,{method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const raw=await res.text();let data;try{data=raw?JSON.parse(raw):null}catch{throw new Error(`${method} ${path}: ${res.status} ${raw.slice(0,300)}`)}assert.equal(res.status,status,`${method} ${path}: ${JSON.stringify(data)}`);checks++;return data;}
+const accounts={};for(const role of ['admin','author','subscriber']){const {token}=await api('/auth/login',null,'POST',{login:'wasm-'+role,password:'Recipe-only-password-2026!'});accounts[role]={token,me:await api('/auth/me',token)};}
+const a=accounts.admin.token,u=accounts.author.token,s=accounts.subscriber.token;
+const tag='recette-'+Date.now();
+const prefs={version:1,dashboard:{order:['draft','overview','activity','health'],hidden:['health']}};
+await api('/admin/preferences',a,'PUT',prefs);assert.deepEqual(await api('/admin/preferences',a),prefs);assert.notDeepEqual(await api('/admin/preferences',s),prefs);
+await api('/admin/preferences',a,'PUT',{...prefs,dashboard:{...prefs.dashboard,order:['draft','draft','activity','health']}},400);
+const catalog=await api('/admin/module-catalog',a);assert.equal(catalog.length,8);
+await api('/admin/modules',a,'PUT',{forms:true,lms:true,ecommerce:true,galleries:true,mailing:true,automations:true});
+const schema={type:'object',properties:{nom:{type:'string',minLength:2,title:'Nom <script>'},age:{type:'integer',minimum:1}},required:['nom','age'],additionalProperties:false};
+const form=await api('/forms',a,'POST',{name:tag,fields:schema,is_active:true});
+await api('/forms/'+form.id,u,'GET',null,403);
+let page=await fetch(base+'/forms/'+form.slug);assert.equal(page.status,200);let html=await page.text();assert.ok(html.includes('Nom &lt;script&gt;'));assert.equal(page.headers.get('cache-control'),'no-store');
+const token=html.match(/name="_rf_token"[^>]*value="([^"]+)"/)?.[1];assert.ok(token);
+for(const [age,status] of [['pas-un-nombre',422],['18',200]]){const result=await fetch(base+'/forms/'+form.slug,{method:'POST',body:new URLSearchParams({_rf_token:token,nom:'Recette',age})});assert.equal(result.status,status);checks++;}
+const subs=await api('/forms/'+form.id+'/submissions',a);assert.equal(subs.items.length,1);assert.equal(subs.items[0].data.age,18);
+await api('/forms/submissions/'+subs.items[0].id+'/read',u,'POST',{},403);
+const gallery=await api('/galleries',a,'POST',{name:tag});await api('/galleries/'+gallery.id,a,'PUT',{name:tag+' corrigé'});await api('/galleries/'+gallery.id,u,'DELETE',null,403);
+const course=await api('/lms/courses',a,'POST',{title:tag,is_published:true,content:'Contenu privé'});
+await api('/lms/courses/'+course.id+'/lessons',a,'POST',{title:'Leçon recette',content:'Leçon privée'});
+await api('/lms/courses/'+course.id+'/lessons',s,'GET',null,403);
+await api('/lms/courses/'+course.id+'/enrollments',a,'POST',{user_id:accounts.subscriber.me.id});
+assert.equal((await api('/lms/courses/'+course.id+'/lessons',s)).length,1);
+await api('/lms/courses/'+course.id+'/progress',s,'POST',{progress_pct:35});assert.ok((await api('/lms/my-enrollments',s)).some(row=>row.course_id===course.id&&row.progress_pct===35));
+await api('/lms/courses/'+course.id+'/progress',s,'POST',{progress_pct:101},422);
+const product=await api('/ecommerce/products',a,'POST',{title:tag,price_cents:250,status:'published'});
+const {order}=await api('/public/ecommerce/checkout',null,'POST',{customer_email:'recette@example.invalid',customer_name:'Recette',items:[{product_id:product.id}],gateway:'manual'});
+assert.equal(order.status,'pending');assert.equal(order.total_cents,250);
+await api('/ecommerce/orders/'+order.id+'/complete',s,'POST',{},403);
+await api('/ecommerce/orders/'+order.id+'/complete',a,'POST',{});
+assert.equal((await api('/ecommerce/orders/'+order.id,a)).order.status,'completed');
+const campaignInput={name:tag,subject:'Recette locale',body:'Aucun envoi externe',recipient_ids:[accounts.subscriber.me.id]};
+let campaign=await api('/mailing/campaigns',a,'POST',campaignInput);
+await api('/mailing/campaigns/'+campaign.id,a,'PUT',{...campaignInput,expected_version:0},409);
+const queued=await api('/mailing/campaigns/'+campaign.id+'/queue',a,'POST',{expected_version:campaign.version});assert.equal(queued.state,'queued');
+assert.equal((await api('/mailing/campaigns/'+campaign.id+'/queue',a,'POST',{expected_version:campaign.version})).version,queued.version);
+await api('/mailing/campaigns',u,'GET',null,403);
+const recipe=await api('/automations/recipes',a,'POST',{name:tag,subject:'Recette locale',body:'Aucun envoi externe',recipient_id:accounts.subscriber.me.id,delay_seconds:0,active:true});
+const invocation={invocation_id:randomUUID(),expected_version:recipe.version};
+const run=await api('/automations/recipes/'+recipe.id+'/run',a,'POST',invocation);assert.equal((await api('/automations/recipes/'+recipe.id+'/run',a,'POST',invocation)).job_id,run.job_id);
+const receipt=await api('/mailing/capture',a,'POST',{});assert.equal(receipt.transport,'capture');assert.ok(receipt.handled>=2);
+assert.equal((await api('/automations/recipes/'+recipe.id+'/runs',a))[0].state,'succeeded');
+await api('/admin/modules',a,'PUT',{mailing:false,automations:false});await api('/mailing/campaigns',a,'GET',null,404);
+await api('/admin/modules',a,'PUT',{mailing:true,automations:true});assert.ok((await api('/mailing/campaigns',a)).some(row=>row.id===campaign.id));
+console.log(`PASS ${checks} contrats HTTP ; préférences isolées, formulaire public typé, droits, LMS, campagnes et recettes en capture locale. Identifiant ${tag}`);

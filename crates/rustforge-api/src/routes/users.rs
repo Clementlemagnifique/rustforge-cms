@@ -42,6 +42,17 @@ pub async fn list(
     Ok(Json(page))
 }
 
+pub async fn get(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<User>> {
+    if !auth.user.role.is_admin() && auth.user.id != id {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(Json(users::get(&state.db, id).await?))
+}
+
 pub async fn create(
     State(state): State<AppState>,
     auth: AuthUser,

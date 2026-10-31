@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {
+      "id": "2fade509-c3b2-4b48-a94f-18c1371a7ae7",
+      "kind": "post",
+      "url": "http://127.0.0.1:55499/fr/post/landing-rust-post-1793440009250",
+      "title": "Landing Rust post 1793440009250"
+    },
+    {
+      "id": "a6b54b53-c508-4077-853f-780e6cee84bc",
+      "kind": "page",
+      "url": "http://127.0.0.1:55499/fr/page/landing-rust-page-1793440009250",
+      "title": "Landing Rust page 1793440009250"
+    }
+  ],
+  "checks": 33
+}

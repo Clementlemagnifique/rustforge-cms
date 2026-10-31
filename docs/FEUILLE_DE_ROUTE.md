@@ -1,9 +1,5 @@
-# RustForge CMS — FEUILLE DE ROUTE
+# RustForge CMS — feuille de route
 
-Document réorienté le 28 octobre 2026. Le suivi actif est [PLAN_ACTION_GLOBAL.md](PLAN_ACTION_GLOBAL.md).
+Cette page est un raccourci vers la [feuille de route unique](../FEUILLE_DE_ROUTE.md). La transposition du Studio suit le [plan Full Rust/WASM](PLAN_MIGRATION_FULL_RUST_WASM.md) et la première entrée du [journal](pilotage/08_JOURNAL_REPRISE.md).
 
-Apport conservé : Anciennes phases reclassées selon code et preuves; les cases cochées ne valent pas validation.
-
-Les déclarations anciennes de complétude, de performance ou d’intégration ne sont pas des preuves de livraison. Le [tableau de l’existant](pilotage/07_ETAT_EXISTANT.md) indique les composants réellement identifiés et les limites.
-
-[Original conservé](historique/2026-10-28/docs/FEUILLE_DE_ROUTE.md) · [Registre documentaire](pilotage/05_REGISTRE_DOCUMENTAIRE.md).
+Ne pas maintenir ici une seconde liste de jalons ou une seconde consigne de reprise.

@@ -31,6 +31,9 @@ import {
   SlidersHorizontal,
   ExternalLink,
   Layers,
+  BarChart3,
+  Languages,
+  Globe,
 } from 'lucide-react';
 import { useStudioStore } from '../stores/useStudioStore';
 
@@ -62,6 +65,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const user = useStudioStore(s => s.user);
+  const navigation = useStudioStore(s => s.navState);
   const zenMode = useStudioStore((s) => s.zenMode);
   const toggleZenMode = useStudioStore((s) => s.toggleZenMode);
   const studioDensity = useStudioStore((s) => s.studioDensity);
@@ -122,7 +127,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: MessageSquare,
         keywords: ['contact', 'messages', 'leads', 'inbox'],
         action: () => {
-          onNavigate('forms');
+          onNavigate('module:forms');
           onClose();
         },
       },
@@ -133,7 +138,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: ShoppingBag,
         keywords: ['produits', 'achats', 'ventes', 'paniers', 'telechargements'],
         action: () => {
-          onNavigate('ecommerce');
+          onNavigate('ecommerce:products');
           onClose();
         },
       },
@@ -144,7 +149,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: GraduationCap,
         keywords: ['cours', 'lecons', 'eleves', 'apprenants', 'formation'],
         action: () => {
-          onNavigate('lms');
+          onNavigate('lms:courses');
           onClose();
         },
       },
@@ -204,6 +209,61 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         },
       },
       {
+        id: 'nav:analytics',
+        title: 'Statistiques & Mesure d’Audience',
+        section: 'Navigation',
+        icon: BarChart3,
+        keywords: ['stats', 'visites', 'audience', 'analytics', 'trafic', 'visiteurs', 'cnil', 'rgpd'],
+        action: () => {
+          onNavigate('analytics');
+          onClose();
+        },
+      },
+      {
+        id: 'nav:analytics_settings',
+        title: 'Réglages de mesure d’audience',
+        section: 'Navigation',
+        icon: SlidersHorizontal,
+        keywords: ['purge', 'retention', 'dnt', 'analytics settings', 'confidentialite'],
+        action: () => {
+          onNavigate('analytics:settings');
+          onClose();
+        },
+      },
+      {
+        id: 'nav:translations',
+        title: 'Traductions & Matrice des contenus',
+        section: 'Navigation',
+        icon: Languages,
+        keywords: ['traductions', 'translations', 'multilingue', 'langues', 'i18n', 'locales'],
+        action: () => {
+          onNavigate('translations');
+          onClose();
+        },
+      },
+      {
+        id: 'nav:catalogs',
+        title: 'Éditeur de Catalogues UI (PO/JSON)',
+        section: 'Navigation',
+        icon: Globe,
+        keywords: ['catalogues', 'gettext', 'po', 'traductions interface', 'loco'],
+        action: () => {
+          onNavigate('translations:catalogs');
+          onClose();
+        },
+      },
+      {
+        id: 'nav:language_settings',
+        title: 'Configuration des langues du site',
+        section: 'Navigation',
+        icon: SlidersHorizontal,
+        keywords: ['langues', 'languages settings', 'hreflang', 'i18n'],
+        action: () => {
+          onNavigate('translations:settings');
+          onClose();
+        },
+      },
+      {
         id: 'nav:capsules',
         title: 'Sauvegardes & Restauration',
         section: 'Navigation',
@@ -241,23 +301,23 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       },
       {
         id: 'new:product',
-        title: 'Ajouter un Produit numérique',
+        title: 'Ouvrir les produits numériques',
         section: 'Création Rapide',
         icon: ShoppingBag,
         keywords: ['vendre', 'produit', 'tarifs'],
         action: () => {
-          onNavigate('rf_products');
+          onNavigate('ecommerce:products');
           onClose();
         },
       },
       {
         id: 'new:course',
-        title: 'Créer un Cours de Formation',
+        title: 'Ouvrir les cours de formation',
         section: 'Création Rapide',
         icon: GraduationCap,
         keywords: ['lms', 'formation', 'cours', 'curriculum'],
         action: () => {
-          onNavigate('rf_lms_courses');
+          onNavigate('lms:courses');
           onClose();
         },
       },
@@ -316,17 +376,28 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     [onNavigate, onClose, onOpenAi, zenMode, toggleZenMode, studioDensity, setStudioDensity]
   );
 
+  const allowedCommands = useMemo(() => {
+    const routes = new Set(navigation?.userId === user?.id ? navigation?.data.items.map(n => n.route).filter(Boolean) : []);
+    const targets: Record<string, string> = {
+      'nav:dashboard':'dashboard','nav:posts':'entries:post','nav:pages':'entries:page','nav:media':'media',
+      'nav:forms':'module:forms','nav:ecommerce':'ecommerce:products','nav:lms':'lms:courses','nav:columns':'settings:columns',
+      'nav:appearance':'appearance','nav:settings':'settings','nav:users':'users','nav:jobs':'jobs','nav:capsules':'capsules',
+      'new:post':'new:post','new:page':'new:page','new:product':'ecommerce:products','new:course':'lms:courses','action:ai':'ai-studio',
+    };
+    return commands.filter(c => targets[c.id] ? routes.has(targets[c.id]) : c.id.startsWith('action:'));
+  }, [commands, navigation, user?.id]);
+
   // Filtrage réactif selon la saisie
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) return commands;
+    if (!query.trim()) return allowedCommands;
     const clean = query.toLowerCase().trim();
-    return commands.filter((c) => {
+    return allowedCommands.filter((c) => {
       const matchTitle = c.title.toLowerCase().includes(clean);
       const matchSection = c.section.toLowerCase().includes(clean);
       const matchKeywords = c.keywords.some((k) => k.toLowerCase().includes(clean));
       return matchTitle || matchSection || matchKeywords;
     });
-  }, [commands, query]);
+  }, [allowedCommands, query]);
 
   // Focus automatique du champ et initialisation à l'ouverture
   useEffect(() => {

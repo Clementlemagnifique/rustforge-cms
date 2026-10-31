@@ -1,0 +1,1 @@
+PASS : transition React et Studio Leptos accessibles ; page de recette rendue en HTML par le serveur après archivage.

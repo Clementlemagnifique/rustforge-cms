@@ -49,6 +49,10 @@ export interface StudioStoreState {
   isCommandPaletteOpen: boolean;
   zenMode: boolean;
   studioDensity: 'comfortable' | 'compact';
+  darkMode: boolean;
+  isScreenOptionsOpen: boolean;
+  isHelpOpen: boolean;
+  isMenuCollapsed: boolean;
 
   // --- Actions synchrones ---
   setUser: (user: User | null) => void;
@@ -59,6 +63,10 @@ export interface StudioStoreState {
   setCommandPaletteOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   toggleZenMode: () => void;
   setZenMode: (zen: boolean) => void;
+  toggleDarkMode: () => void;
+  toggleScreenOptions: () => void;
+  toggleHelp: () => void;
+  toggleMenuCollapsed: () => void;
   setStudioDensity: (density: 'comfortable' | 'compact') => void;
   updateNavigationData: (data: AdminNavigation) => void;
   syncFromHash: () => void;
@@ -87,7 +95,11 @@ export const useStudioStore = create<StudioStoreState>((set, get) => ({
   isAiModalOpen: false,
   isCommandPaletteOpen: false,
   zenMode: false,
-  studioDensity: (localStorage.getItem('rf_studio_density') as 'comfortable' | 'compact') || 'comfortable',
+  studioDensity: (() => { try { return localStorage.getItem('rf_studio_density') === 'compact' ? 'compact' : 'comfortable'; } catch { return 'comfortable'; } })(),
+  darkMode: (() => { try { return localStorage.getItem('rf_dark_mode') === 'true'; } catch { return false; } })(),
+  isScreenOptionsOpen: false,
+  isHelpOpen: false,
+  isMenuCollapsed: (() => { try { return localStorage.getItem('rf_menu_collapsed') === 'true'; } catch { return false; } })(),
 
   setUser: (user) => set({ user }),
 
@@ -117,6 +129,22 @@ export const useStudioStore = create<StudioStoreState>((set, get) => ({
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
   setZenMode: (zen) => set({ zenMode: zen }),
+
+  toggleDarkMode: () => {
+    const next = !get().darkMode;
+    try { localStorage.setItem('rf_dark_mode', String(next)); } catch {}
+    set({ darkMode: next });
+  },
+
+  toggleScreenOptions: () => set((state) => ({ isScreenOptionsOpen: !state.isScreenOptionsOpen, isHelpOpen: false })),
+
+  toggleHelp: () => set((state) => ({ isHelpOpen: !state.isHelpOpen, isScreenOptionsOpen: false })),
+
+  toggleMenuCollapsed: () => {
+    const next = !get().isMenuCollapsed;
+    try { localStorage.setItem('rf_menu_collapsed', String(next)); } catch {}
+    set({ isMenuCollapsed: next });
+  },
 
   setStudioDensity: (density) => {
     try {

@@ -1,6 +1,11 @@
 # RustForge CMS — plan directeur
 
-Décision de référence du 28 octobre 2026. Ce document précise la méthode; l’ordre d’exécution figure dans le [plan d’action global](../PLAN_ACTION_GLOBAL.md).
+Méthode issue du 28 octobre, clarifiée le 30 octobre 2026. L'ordre d'exécution actif est celui du [plan Full Rust/WASM](../PLAN_MIGRATION_FULL_RUST_WASM.md) et de la première entrée du [journal](08_JOURNAL_REPRISE.md) ; le [plan global](../PLAN_ACTION_GLOBAL.md) conserve le backlog produit.
+
+**Clarification du 30 octobre :** l'utilisateur confirme Rust. La
+[phase de clarification](14_CLARIFICATION_ET_NETTOYAGE.md) est active avant les
+nouveaux écrans ; leur réalisation suit le [plan admin Rust](13_PLAN_ADMIN_RUST.md).
+Le Studio React est maintenu pour compatibilité pendant cette transition.
 
 ## Point de départ
 
@@ -13,11 +18,11 @@ Le dossier `wordpress-plugins-ref` est une référence statique explicitement de
 | Sujet | Décision | Conséquence |
 | --- | --- | --- |
 | Identité | RustForge CMS, RustForge Studio, binaire `rustforge` | Renommer les présentations et futurs paquets. Les artefacts anciens restent identifiables par leur vrai nom. |
-| Noms techniques | `rf_` pour les nouvelles clés réservées; `rf:` pour les blocs sérialisés; `rf-`/`--rf-` pour CSS; capacités `rf.domaine.action` | Transition versionnée des anciens noms. Aucun remplacement aveugle dans des données importées, signatures ou formats de tiers. |
+| Noms techniques | `rf_` pour les nouvelles clés réservées; `rf.document/1` et attributs `rf_*` pour les blocs natifs; `rf-`/`--rf-` pour CSS; capacités `rf.domaine.action` | Transition versionnée des anciens noms. Aucun remplacement aveugle dans des données importées, signatures ou formats de tiers. |
 | Architecture | Monolithe Rust modulaire, PostgreSQL, API Axum, SSR MiniJinja et cache Moka | Étendre les services et contrats existants; pas de microservices obligatoires pour installer un site. |
 | Éditeur | Modèle structuré de blocs, rendu serveur unique, mode source avancé | Conserver l’ancien Markdown; migration explicite et réversible; aucun éditeur enrichi ne devient une seconde source de vérité. |
 | Thème | Faire évoluer `themes/default` vers le contrat `rf-base` | Ne pas créer dès maintenant une copie concurrente de thèmes/templates. Conserver le fallback embarqué et tester leur cohérence. |
-| Modules officiels | Capacités natives activables, pas 17 clones isolés | Formulaires, médias, mail, permissions et jobs partagés. WASM réservé aux besoins d’extension isolée. |
+| Modules officiels | Capacités natives activables, pas 17 clones isolés | Formulaires, médias, mail, permissions et jobs partagés. Extensions isolées en WASM ; transposition progressive du Studio en WASM selon le plan actif. |
 | Cache | Conserver Moka et améliorer politiques HTTP, purge, préchargement et exclusions | Les modes PHP/.htaccess sont remplaçables; les besoins fonctionnels de WP Super Cache restent suivis. |
 | IA | Facultative, soumise aux capacités et permissions | Reprendre les plans et approbations existants; ajouter les outils domaine par domaine. |
 | Compatibilité | Données importées conservées et alternatives explicites | Pas de runtime PHP ni de promesse de conversion automatique de toute logique de plugin. |

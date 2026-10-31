@@ -252,13 +252,18 @@ mod tests {
         assert_eq!(format_wp_datetime(&dt, "j F Y", "en"), "29 October 2026");
         assert_eq!(format_wp_datetime(&dt, "Y-m-d", "fr"), "2026-10-29");
         assert_eq!(format_wp_datetime(&dt, "d/m/Y", "fr"), "29/10/2026");
-        assert_eq!(format_wp_datetime(&dt, "l j F Y", "fr"), "jeudi 29 octobre 2026");
+        assert_eq!(
+            format_wp_datetime(&dt, "l j F Y", "fr"),
+            "jeudi 29 octobre 2026"
+        );
 
         // Standard time formats
         assert_eq!(format_wp_datetime(&dt, "H:i", "fr"), "14:35");
         assert_eq!(format_wp_datetime(&dt, "g:i a", "fr"), "2:35 pm");
         assert_eq!(format_wp_datetime(&dt, "g:i A", "fr"), "2:35 PM");
-        assert_eq!(format_wp_datetime(&dt, r"H \h i \m\i\n", "fr"), "14 h 35 min");
+        assert_eq!(
+            format_wp_datetime(&dt, r"H \h i \m\i\n", "fr"),
+            "14 h 35 min"
+        );
     }
 }
-

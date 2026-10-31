@@ -1,0 +1,204 @@
+{
+  "reference_locale_version_declaree": "7.1.3 (wp-includes/version.php ; pas une vérification de version en ligne)",
+  "demonstration_officielle": "https://wordpress.org/gutenberg/",
+  "blocs": [
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/paragraph/block.json",
+      "sha256": "70a5e1bc941b4adb1591dccbe8e1095ecbfd1f7baf6c2a7004d9f9c047d31c80",
+      "wordpress": "core/paragraph",
+      "rust": "paragraph",
+      "attributes": [
+        "content",
+        "dropCap",
+        "placeholder",
+        "direction"
+      ],
+      "supports": [
+        "align",
+        "splitting",
+        "anchor",
+        "className",
+        "__experimentalBorder",
+        "color",
+        "spacing",
+        "typography",
+        "__experimentalSelector",
+        "__unstablePasteTextInline",
+        "interactivity"
+      ],
+      "ecarts_restants": [
+        "typographie",
+        "couleurs et espacements par bloc"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    },
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/heading/block.json",
+      "sha256": "de2b28fb6a00552e9c57cc03b0249cdaaf73d4da57bcc570c6a42f87fa59f06a",
+      "wordpress": "core/heading",
+      "rust": "heading",
+      "attributes": [
+        "content",
+        "level",
+        "levelOptions",
+        "placeholder"
+      ],
+      "supports": [
+        "align",
+        "anchor",
+        "className",
+        "splitting",
+        "__experimentalBorder",
+        "color",
+        "spacing",
+        "typography",
+        "__unstablePasteTextInline",
+        "__experimentalSlashInserter",
+        "interactivity"
+      ],
+      "ecarts_restants": [
+        "styles avancés",
+        "ancre explicite"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    },
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/columns/block.json",
+      "sha256": "7d93c8f8643ce66aac6a4a4f883e98bbf48a205a06e6d39aa3ccd7704e9ce608",
+      "wordpress": "core/columns",
+      "rust": "columns",
+      "attributes": [
+        "verticalAlignment",
+        "isStackedOnMobile",
+        "templateLock"
+      ],
+      "supports": [
+        "anchor",
+        "align",
+        "html",
+        "color",
+        "spacing",
+        "layout",
+        "__experimentalBorder",
+        "typography",
+        "interactivity",
+        "shadow"
+      ],
+      "ecarts_restants": [
+        "blocs enfants imbriqués",
+        "largeurs et alignement vertical",
+        "choix empilement mobile"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    },
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/button/block.json",
+      "sha256": "862ba8199ce92d6846291db13410f8ff806650c5f808e5b25c00b77c74e482bf",
+      "wordpress": "core/button",
+      "rust": "button",
+      "attributes": [
+        "tagName",
+        "type",
+        "url",
+        "title",
+        "text",
+        "linkTarget",
+        "rel",
+        "placeholder",
+        "backgroundColor",
+        "textColor",
+        "gradient"
+      ],
+      "supports": [
+        "anchor",
+        "splitting",
+        "align",
+        "alignWide",
+        "color",
+        "dimensions",
+        "typography",
+        "reusable",
+        "shadow",
+        "spacing",
+        "__experimentalBorder",
+        "interactivity"
+      ],
+      "ecarts_restants": [
+        "groupe de boutons",
+        "ouverture ciblée",
+        "styles avancés"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    },
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/details/block.json",
+      "sha256": "24232f6ff091aec0243e2da999ed1ee1ad8ad8d3fbb3d091cb0141e5cb80816f",
+      "wordpress": "core/details",
+      "rust": "details",
+      "attributes": [
+        "showContent",
+        "summary",
+        "name",
+        "placeholder"
+      ],
+      "supports": [
+        "__experimentalOnEnter",
+        "align",
+        "anchor",
+        "color",
+        "__experimentalBorder",
+        "html",
+        "spacing",
+        "typography",
+        "layout",
+        "interactivity",
+        "allowedBlocks"
+      ],
+      "ecarts_restants": [
+        "styles et espacements avancés"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    },
+    {
+      "source": "wordpress-plugins-ref/wordpress/wp-includes/blocks/group/block.json",
+      "sha256": "42efbd08becc69b7fe247d49de3efb7215d143d8226ff344024f5962e63f9ba7",
+      "wordpress": "core/group",
+      "rust": "group",
+      "attributes": [
+        "tagName",
+        "templateLock"
+      ],
+      "supports": [
+        "__experimentalOnEnter",
+        "__experimentalOnMerge",
+        "__experimentalSettings",
+        "align",
+        "anchor",
+        "ariaLabel",
+        "html",
+        "background",
+        "color",
+        "shadow",
+        "spacing",
+        "dimensions",
+        "__experimentalBorder",
+        "position",
+        "typography",
+        "layout",
+        "interactivity",
+        "allowedBlocks"
+      ],
+      "ecarts_restants": [
+        "blocs enfants structurés",
+        "verrouillage de modèle"
+      ],
+      "etat": "partiel, pas de parité revendiquée"
+    }
+  ],
+  "compositions_sources": [
+    "wordpress-plugins-ref/theme wordpress/twentytwentyfive/patterns/page-landing-event.php",
+    "wordpress-plugins-ref/theme wordpress/twentytwentyfive/patterns/text-faqs.php"
+  ],
+  "inspiration_plugin": "wordpress-plugins-ref/plugins-ref/wpforms-lite/src/Integrations/Gutenberg/FormSelector.php",
+  "decision": "réutiliser rf.document/1 ; adaptations Rust ciblées, pas de PHP exécuté ni de migration opaque automatique"
+}

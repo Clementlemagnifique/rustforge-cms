@@ -72,7 +72,7 @@ Suivi : `MOD-ADM-01` qualifie la référence puis distribue les options aux tick
 
 ## QuadMenu : gestion avancée des menus publics
 
-QuadMenu inspire **Apparence → Menus du site**. Adminify inspire **Réglages → Interface d'administration → Organisation du menu**. Un menu public référence du contenu et des emplacements ; le menu du Studio référence des routes et des capacités autorisées. Partager les composants d'arbre est possible, fusionner les modèles de droits ne l'est pas.
+Classement cible actuel : **Menus → Menus du site** et **Menus → Menu d’administration** ; Apparence fournit les emplacements/styles publics, Réglages les préférences visuelles du Studio. QuadMenu et Adminify inspirent ces capacités, à réaliser en Rust. Un menu public référence du contenu et des emplacements ; le menu du Studio référence des routes et des capacités autorisées. Partager les composants d'arbre est possible, fusionner les modèles de droits ne l'est pas.
 
 Sources officielles consultées le 28/10/2026 : [accueil](https://quadmenu.com/), [fonctions](https://quadmenu.com/features/), [documentation](https://quadmenu.com/documentation/), [éléments](https://quadmenu.com/documentation/content/items/), [méga-menu](https://quadmenu.com/documentation/content/mega/), [responsive](https://quadmenu.com/documentation/customization/responsive/), [offres Free/Pro](https://quadmenu.com/pricing/). Référence web uniquement, sans plugin local ni recette de démonstration. Options Login/Tabs/Carousel/Social et Customizer annoncées premium ; la documentation marque aussi Archives comme premium. La qualification doit donc rester par option.
 
@@ -98,7 +98,7 @@ Les lignes QM-* détaillent `WP-46`, `TH-15`, `TH-17` et `MOD-NAV-01` ; ce ne so
 
 ### Écran cible et ordre de réalisation
 
-Sous **Apparence → Menus du site**, prévoir un sélecteur de menu et d'emplacement, une colonne d'ajout (pages, catégories, liens), l'arbre central, un panneau de propriétés et un aperçu desktop/mobile. Boutons Enregistrer, Annuler et Dupliquer ; prévenir la sortie avec modifications. Les fonctions avancées sont repliées. Textes dans le catalogue traduisible et identifiants stables rf_.
+Sous **Menus → Menus du site**, prévoir un sélecteur de menu et d'emplacement, une colonne d'ajout (pages, catégories, liens), l'arbre central, un panneau de propriétés et un aperçu desktop/mobile. Boutons Enregistrer, Annuler et Dupliquer ; prévenir la sortie avec modifications. Les fonctions avancées sont repliées. Textes dans le catalogue traduisible et identifiants stables rf_.
 
 | Lot proposé | Contenu et dépendances | Critère de sortie |
 | --- | --- | --- |
@@ -108,4 +108,4 @@ Sous **Apparence → Menus du site**, prévoir un sélecteur de menu et d'emplac
 | NAV-D / MOD-NAV-01 | Colonnes et contenu enrichi QM-03 à QM-08 | Prévisualisation identique au rendu ; CSS borné, ressources à la demande, budgets mesurés |
 | NAV-E / MOD-NAV-01 | Éléments dynamiques/modules puis options premium inspirantes retenues | Services et permissions réutilisés ; cache public/privé séparé ; désactivation sans perte silencieuse |
 
-Ces lots sont planifiés après la séquence G3.3-D/E/F en cours, sauf réarbitrage explicite. Aucun changement du format `site.menus`, du runtime ou de l'ordre de développement n'est livré par cet audit. Le premier contrat doit traiter migration, sauvegarde, URLs, invalidation Moka et droits avant d'étendre l'interface.
+Ces lots fonctionnels NAV-A à E sont conservés, mais leur ordre de session ancien est remplacé : les menus publics relèvent de R06, les préférences du menu admin de R04, après la phase de clarification. Aucun changement du format `site.menus`, du runtime ou de l'ordre de développement n'est livré par cet audit. Le premier contrat doit traiter migration, sauvegarde, URLs, invalidation Moka et droits avant d'étendre l'interface.

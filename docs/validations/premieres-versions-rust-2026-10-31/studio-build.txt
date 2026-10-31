@@ -1,0 +1,36 @@
+    Blocking waiting for file lock on build directory
+   Compiling web-sys v0.3.106
+   Compiling uuid v1.29.0
+   Compiling rustforge-document v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-document)
+   Compiling reactive_graph v0.1.8
+   Compiling gloo-utils v0.2.0
+   Compiling gloo-net v0.6.0
+   Compiling reactive_stores v0.1.8
+   Compiling wasm-streams v0.4.2
+   Compiling tachys v0.1.9
+   Compiling server_fn v0.7.8
+   Compiling leptos_server v0.7.8
+   Compiling leptos_dom v0.7.8
+   Compiling leptos v0.7.8
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 53.71s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+    Blocking waiting for file lock on build directory
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.40s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+    Blocking waiting for file lock on build directory
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.20s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.66s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.88s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

@@ -196,5 +196,176 @@
     "apport": "Preuve ou guide opérationnel conservé; replacé dans le nouveau pilotage.",
     "reference": "docs/README.md",
     "sha256_lf": "bf0db9d8d8c6c1a602d8ac27f2e15b988a108d5f83fe07fbecae0022beffcb23"
+  },
+  {
+    "path": "FEUILLE_DE_ROUTE.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/FEUILLE_DE_ROUTE.md",
+    "sha256": "2e3272e859676844a351ff6f711f98616493481cea274f3b476e3525472c40eb",
+    "sha256_lf": "2e3272e859676844a351ff6f711f98616493481cea274f3b476e3525472c40eb",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "docs/FEUILLE_DE_ROUTE.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/docs/FEUILLE_DE_ROUTE.md",
+    "sha256": "7c4dbb8084862345712edd018d113e8546a965f42789ab98bd2f0141fe1f0bf7",
+    "sha256_lf": "7c4dbb8084862345712edd018d113e8546a965f42789ab98bd2f0141fe1f0bf7",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "docs/README.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/docs/README.md",
+    "sha256": "166fcf1b0ea9af5fc1e093bfcb24aaeda6bbc3d3edf8d39ec29840250dc7eaed",
+    "sha256_lf": "738010135cf7b5b916a5dd165d7f0646fb340563925c8fcb1b10f56097938c9a",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "docs/DEMARRAGE_ET_REPRISE.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/docs/DEMARRAGE_ET_REPRISE.md",
+    "sha256": "dc7883490bce2b3c04983d6a8eb502d4cc72589effc6cfbb4d103677f70ad3d2",
+    "sha256_lf": "303b03413a11d63f20c3b9bfbca07ecf8894a7ec8fd030e6ee0550db75deaa6b",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "docs/PLAN_ACTION_GLOBAL.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/docs/PLAN_ACTION_GLOBAL.md",
+    "sha256": "3d165ed9c530cafb4a788a6d63a1af338af038d1dd8eca2c44654e6a9e36daec",
+    "sha256_lf": "d4df47b92ddcb911f53d2876a4ff26cba2deac71d18e8834620c9eacb2f2dd55",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "archive": "docs/historique/2026-10-30/avant-assainissement/docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "sha256": "9a0039453570f240b697cd61038c5f1fe32e0085fe89888fad2916a762b52d92",
+    "sha256_lf": "919b90e7848dd777df262122c7b4beafae5a0415b24575979881d0b9db7d292b",
+    "statut": "Version du 30 octobre avant assainissement, historique uniquement",
+    "apport": "Préservation des anciennes consignes et assertions avant clarification des documents actifs.",
+    "reference": "docs/README.md"
+  },
+  {
+    "path": "FEUILLE_DE_ROUTE.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/FEUILLE_DE_ROUTE.md",
+    "sha256": "679de6badbc27e5c8d6b183383fa25fd1bd99c493fc30f4cfb86a3b93f038ab1",
+    "sha256_lf": "679de6badbc27e5c8d6b183383fa25fd1bd99c493fc30f4cfb86a3b93f038ab1",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/README.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/README.md",
+    "sha256": "f24748fb16ce8e7ab3b81a0dc74765d6e73de9fbef1ab43c24811ffc271eca6c",
+    "sha256_lf": "f24748fb16ce8e7ab3b81a0dc74765d6e73de9fbef1ab43c24811ffc271eca6c",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/DEMARRAGE_ET_REPRISE.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/DEMARRAGE_ET_REPRISE.md",
+    "sha256": "3cbee4339d70e401d768ec6b286dd1530c9f5a80be5c5df10f03bc141049a645",
+    "sha256_lf": "3cbee4339d70e401d768ec6b286dd1530c9f5a80be5c5df10f03bc141049a645",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/DEVELOPPEMENT_MACOS.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/DEVELOPPEMENT_MACOS.md",
+    "sha256": "54d34cb5a9c48a63f89e55a43703326146e19d8f5d2d2d10f6a587344855bc91",
+    "sha256_lf": "54d34cb5a9c48a63f89e55a43703326146e19d8f5d2d2d10f6a587344855bc91",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/PLAN_ACTION_GLOBAL.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/PLAN_ACTION_GLOBAL.md",
+    "sha256": "389fed14a41447ba834c469541115604a99097f55a9d352307280aafdf136647",
+    "sha256_lf": "b8f42108752bb6413b5686c71039a46cea6c6b431ad9bea1066558849928448a",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/PLAN_MIGRATION_FULL_RUST_WASM.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/PLAN_MIGRATION_FULL_RUST_WASM.md",
+    "sha256": "6ec568c21248148d4f7b8045ecca38f8cc29d510ffc7e7fd1b9c290fcfc39bd8",
+    "sha256_lf": "6ec568c21248148d4f7b8045ecca38f8cc29d510ffc7e7fd1b9c290fcfc39bd8",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/CARTOGRAPHIE_EXHAUSTIVE_VUES_ADMIN_ET_MODULES.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/CARTOGRAPHIE_EXHAUSTIVE_VUES_ADMIN_ET_MODULES.md",
+    "sha256": "2c88595efe9f717b324e5444866f9300d6d5929390cb14bca47d58de28794c5c",
+    "sha256_lf": "91c159d201271286269509a4ac01eaa8c0524795783016b5c1c8a60a823619bb",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/00_PLAN_DIRECTEUR.md",
+    "sha256": "1230ec4f7be2bfe10869009c91cff18e17f6e32ca8a28618a9d13bb11a2a0692",
+    "sha256_lf": "2ba8c09d3f7a283a1a639b5fc591d57c765c8c8e46fa611f1150de8d68cfd08b",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/04_CONTRATS_TRANSVERSES.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/04_CONTRATS_TRANSVERSES.md",
+    "sha256": "06a2128ef7552e96cd727fa9d16f2620fed49526f5b7a0df1436ef927118c43a",
+    "sha256_lf": "9a6b390d3290d9b9831573087a96480a7525006767cd110f35fd274c529a53a2",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/05_REGISTRE_DOCUMENTAIRE.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/05_REGISTRE_DOCUMENTAIRE.md",
+    "sha256": "14227de4ca48516f426834203b4f0f631df58b7c6dd747b937c9eca117e2d112",
+    "sha256_lf": "dabd4e46629b15a646ac0970458a0080cf43fe4f4534cde3cc008aae507b375b",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/08_JOURNAL_REPRISE.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/08_JOURNAL_REPRISE.md",
+    "sha256": "2c64919312725b3fe3979c1b222fce0c8c71e9d79a5f4ec0f59881380a2a3336",
+    "sha256_lf": "2c64919312725b3fe3979c1b222fce0c8c71e9d79a5f4ec0f59881380a2a3336",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/09_CONTROLE_PILOTAGE.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/09_CONTROLE_PILOTAGE.md",
+    "sha256": "37a1ea21dc4ec2c5507f205a3658763f5f1e038fb6c8ad4e9204d3b943638ef9",
+    "sha256_lf": "37a1ea21dc4ec2c5507f205a3658763f5f1e038fb6c8ad4e9204d3b943638ef9",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
+  },
+  {
+    "path": "docs/pilotage/12_REFERENCE_ADMINIFY_STUDIO.md",
+    "archive": "docs/historique/2026-10-30/avant-clarification-rust/docs/pilotage/12_REFERENCE_ADMINIFY_STUDIO.md",
+    "sha256": "248f8ca689d2a3b605abde3d17bcd41ef1131ca7877773a7c4fb7e0a1b6aae14",
+    "sha256_lf": "bed685331ab9ca2e7b65a76be831bd41b35e1348945a2af8344c77b3c5a5d567",
+    "statut": "Avant clarification Rust et rangement local du 30 octobre 2026",
+    "apport": "Contexte préservé avant clarification de la suite ; aucune instruction active dans cette copie.",
+    "reference": "docs/pilotage/14_CLARIFICATION_ET_NETTOYAGE.md"
   }
 ]

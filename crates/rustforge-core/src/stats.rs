@@ -21,12 +21,23 @@ pub struct TypeStats {
 
 #[derive(Debug, Serialize)]
 pub struct DashboardStats {
+    pub server_version: &'static str,
     pub content_types: Vec<TypeStats>,
     pub media: i64,
     pub media_bytes: i64,
     pub users: i64,
     pub terms: i64,
     pub recent: Vec<Entry>,
+    /// Projection légère et explicite pour le Studio Rust ; `recent` reste compatible.
+    pub activity: Vec<DashboardActivity>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DashboardActivity {
+    pub id: uuid::Uuid,
+    pub title: String,
+    pub content_type: String,
+    pub state: &'static str,
 }
 
 pub async fn dashboard(db: &PgPool) -> CoreResult<DashboardStats> {
@@ -34,15 +45,16 @@ pub async fn dashboard(db: &PgPool) -> CoreResult<DashboardStats> {
 }
 
 pub async fn dashboard_for(db: &PgPool, author: Option<uuid::Uuid>) -> CoreResult<DashboardStats> {
+    let now = chrono::Utc::now();
     let content_types = sqlx::query_as::<_, TypeStats>(
         "SELECT ct.slug, ct.name, ct.icon,
-            count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at <= now()) AS published,
+            count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at <= $2) AS published,
             count(e.id) FILTER (WHERE e.status = 'draft') AS drafts,
-            count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at > now()) AS scheduled
+            count(e.id) FILTER (WHERE e.status = 'published' AND e.published_at > $2) AS scheduled
          FROM content_types ct LEFT JOIN entries e ON e.content_type_id = ct.id AND ($1::uuid IS NULL OR e.author_id=$1)
          GROUP BY ct.id ORDER BY ct.is_system DESC, ct.name",
     )
-    .bind(author).fetch_all(db)
+    .bind(author).bind(now).fetch_all(db)
     .await?;
 
     let (media, media_bytes): (i64, i64) =
@@ -74,12 +86,32 @@ pub async fn dashboard_for(db: &PgPool, author: Option<uuid::Uuid>) -> CoreResul
     .await?
     .items;
 
+    let activity = recent
+        .iter()
+        .map(|entry| DashboardActivity {
+            id: entry.id,
+            title: entry.title.clone(),
+            content_type: entry.content_type.clone(),
+            state: match entry.status {
+                crate::models::EntryStatus::Draft => "draft",
+                crate::models::EntryStatus::Archived => "archived",
+                crate::models::EntryStatus::Trash => "trash",
+                crate::models::EntryStatus::Published => match entry.published_at {
+                    Some(at) if at > now => "scheduled",
+                    Some(_) => "published",
+                    None => "undated",
+                },
+            },
+        })
+        .collect();
     Ok(DashboardStats {
+        server_version: env!("CARGO_PKG_VERSION"),
         content_types,
         media,
         media_bytes,
         users,
         terms,
         recent,
+        activity,
     })
 }

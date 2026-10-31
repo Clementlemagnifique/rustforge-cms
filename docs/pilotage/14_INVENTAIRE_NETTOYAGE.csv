@@ -1,0 +1,23 @@
+﻿chemin,taille_kio,taille_mio,categorie,decision,condition,suppression_effectuee
+target,22907132,22370.25,Reconstructible,Candidat ultérieur,"Arrêter la recette, conserver les preuves puis reconstruire serveur et WASM.",non
+admin/node_modules,160344,156.59,Reconstructible,Candidat ultérieur,npm ci nécessaire avant le prochain build de transition.,non
+admin/dist,86528,84.50,Assets servis,Conserver pendant la recette,Ne retirer qu’après arrêt et reconstruction des deux interfaces.,non
+.npm,35076,34.25,Cache npm,Candidat ultérieur,Les prochaines installations nécessiteront le réseau.,non
+admin/public/wasm,2332,2.28,WASM généré,Candidat ultérieur,Reconstruire le pont avant Vite ; ne pas publier un Studio incomplet.,non
+admin/public/rust,76068,74.29,Studio Rust généré,Build courant conservé ; anciens assets archivés,"31 octobre : six fichiers actifs, publication avec archivage et empreintes.",non
+crates/rustforge-studio/dist,76068,74.29,Sortie Trunk,Candidat ultérieur,Reconstructible avec les outils et dépendances installés.,non
+.tools,105692,103.21,Outils natifs et Windows,Conserver,"Ce sont des outils installés, pas un cache ; chemins encore utilisés par les scripts.",non
+.pgsql,1114976,1088.84,Données et outils Windows transférés,Préserver,Restaurer les données personnelles avant toute décision de retrait.,non
+scratch/consolidation-db,324876,317.26,Base Windows transférée,Préserver,Ne pas assimiler à un simple dossier temporaire.,non
+scratch/macos-postgres,66992,65.42,Base de recette Mac active,Préserver,Processus actif ; ne pas déplacer ni supprimer.,non
+scratch/wasm-auth-recipe,44,0.04,État et fichiers de recette,Préserver,Nécessaire aux scripts de démarrage et aux tests.,non
+scratch/v1-browser-test,43272,42.26,Ancienne fixture,À inspecter,"Peut contenir données, fichiers et preuves ; caractère jetable à confirmer.",non
+scratch/v1-browser-test-2,43272,42.26,Ancienne fixture,À inspecter,Même précaution ; pas de suppression exécutée.,non
+scratch/v1-browser-test-3,44120,43.09,Ancienne fixture,À inspecter,Même précaution ; pas de suppression exécutée.,non
+scratch/v1-final-check,43500,42.48,Ancienne fixture,À inspecter,Même précaution ; pas de suppression exécutée.,non
+scratch/wasm-browser-root,5912,5.77,Anciennes fixtures WASM,À inspecter,Vérifier dépendances des anciennes preuves avant retrait.,non
+releases,67100,65.53,Paquets et sources historiques,Conserver,Peuvent servir de référence et de récupération.,non
+wordpress-plugins-ref,511368,499.38,Références fonctionnelles,Conserver,Source des matrices ; pas un cache.,non
+capture-ref,1376,1.34,Références visuelles,Conserver,"À utiliser pour la clarification, pas à nettoyer.",non
+archives,684,0.67,Historique local,Conserver,Contient les 87 fichiers rangés et leurs empreintes.,non
+archives/leptos-assets,1978004,1931.64,Anciennes sorties générées archivées,Archivage réversible ; pas de purge,Manifeste SHA-256 ; restauration via scripts/publish-rust-studio.py. Ne pas additionner à une ancienne taille des sorties actives.,non

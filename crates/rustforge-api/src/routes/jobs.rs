@@ -135,11 +135,10 @@ pub async fn capture_batch(
     if !(1..=10).contains(&body.limit) {
         return Err(ApiError::BadRequest("Lot limité à 10 tâches".into()));
     }
-    let (transport, mail_mode) = mail::load_transport(&state.db).await;
-    let handled = mail::run_batch(&state.db, transport.as_ref(), body.limit as usize).await?;
-    Ok(private(
-        json!({"handled":handled,"mail_mode":mail_mode}),
-    ))
+    // Cette route et son bouton annoncent une capture locale, jamais un envoi réel.
+    let mail_mode = "capture";
+    let handled = mail::run_batch(&state.db, &mail::CaptureTransport, body.limit as usize).await?;
+    Ok(private(json!({"handled":handled,"mail_mode":mail_mode})))
 }
 pub async fn capture(
     State(state): State<AppState>,

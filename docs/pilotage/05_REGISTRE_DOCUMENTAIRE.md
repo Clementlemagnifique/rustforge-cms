@@ -45,3 +45,22 @@ Une case ancienne cochée, un nom de table ou une déclaration `ImplementedAndTe
 | Ancienne phase « tout est fini » | Remplacée par CSV et preuves datées; pas de score de 95 % sans base de comparaison qualifiée. |
 
 Les empreintes détaillées et la destination de chaque document figurent dans `registre_documents.json`. Les copies historiques peuvent contenir des liens périmés; les documents actifs doivent pointer vers les chemins actuels.
+
+## Assainissement ciblé du 30 octobre 2026
+
+Six documents d'entrée ont été archivés avant clarification sous docs/historique/2026-10-30/avant-assainissement/ et ajoutés au registre JSON avec empreintes. Les archives du 28 restent intactes. La feuille de route racine devient le point d'entrée unique ; sa copie docs/ est un raccourci. Les anciennes consignes d'exécution du plan global sont historiques, tandis que ses objectifs produit restent actifs. L'index définit la hiérarchie de lecture. Aucun code, tableau fonctionnel ou source de référence n'est supprimé.
+
+## Clarification Rust et rangement du 30 octobre 2026
+
+Treize documents ont été copiés à l'identique avant révision sous
+`docs/historique/2026-10-30/avant-clarification-rust/`, avec empreintes ajoutées au
+registre JSON. Les archives antérieures sont inchangées. L'architecture Full Rust
+est réécrite autour de l'existant et de critères ; les anciennes hypothèses sont
+conservées dans cette copie. Le contrôle de lot 09 devient celui de la clarification.
+La source d'exécution est la première entrée du journal, puis la phase 14 et le plan 13.
+Les lots R00–R16 ne changent pas les 438 tâches métier.
+
+Les 87 fichiers ponctuels de scratch sont rangés dans l'archive locale exclue de Git,
+avec un manifeste de déplacement et d'intégrité. Les vieux chemins cités dans le
+journal se retrouvent via scratch/README.md et ce manifeste. Aucune purge ni nouvelle
+recette produit réalisée ; les bases et références ne sont pas déplacées.

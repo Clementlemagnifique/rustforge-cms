@@ -1,0 +1,66 @@
+31 octobre 2026 — réception des formulaires, conservation applicative et captures locales
+
+Réemploi : FormsView/JobsView/API, core forms/jobs/mail/settings/scheduler, Leptos existant.
+Référence WPForms Lite locale conservée ; pas de portage PHP ni de retrait des anciennes vues.
+
+Livré :
+- Écran Soumissions dédié et composant partagé sous les formulaires ; CSV extrait sans
+  second moteur. Recherche littérale sur le JSON des réponses (pas les métadonnées),
+  filtres lecture/honeypot, pagination stable, détail échappé, lecture à la consultation,
+  lu/non lu, compteurs, corbeille et restauration avec état attendu. Refus des conflits.
+- Migration 20261031000011 : deleted_at nullable et index. Aucune donnée effacée par
+  migration. Les anciennes vues excluent désormais la corbeille de leur liste par défaut.
+- Réglages : sans purge automatique par défaut, 90 jours, 30 jours. Confirmation avant
+  activation dans Leptos. Validation serveur des seules trois valeurs, admin seulement.
+- Durée calculée depuis la réception, sur tous les formulaires et tous les dossiers.
+  Purge définitive, au plus 1 000 par cycle du planificateur existant (30 s dans serve).
+  Absence/null/none => zéro purge. Verrou commun avec l’édition du réglage. Aucun nouveau
+  worker. Sauvegardes indépendantes ; restauration native désactive la politique importée.
+- Diagnostic : compteurs par état, transport configuré, échéances et codes expurgés ;
+  lot confirmé d’au plus 10 captures transactionnelles/discussion, résultat et aperçu.
+  CaptureTransport imposé, aucun SMTP. Campagnes/automatisations ont leur propre parcours.
+- Menu : rf_settings_forms ajouté sous Réglages, rf_form_settings relié à la même capacité.
+  171 entrées (32 ready/52 partial/87 planned), 23 familles, cinq séparateurs ; aucun
+  nouveau ready. 438 tâches, 38 composants et 17 lots ; aucune clôture globale inventée.
+
+Vérifié :
+- Suite cargo test --workspace --locked --offline réussie ; tests PostgreSQL ignorés dans
+  la suite générale, test ciblé externe ci-dessous exécuté séparément.
+- 79 tests unitaires core, 24 Studio ; recherche bornée/littérale, query encoding et
+  clés/contrats du catalogue inclus. Clippy strict API/core transitif et WASM UI, builds.
+- forms_inbox_postgres : deux bases rf_inbox_test_* créées sur le seul PostgreSQL55496,
+  migrées puis retirées. Transitions/dédoublonnage, conflits, recherche littérale,
+  absence de purge par défaut, valeurs invalides refusées, purge 90 jours puis 30 jours
+  via scheduler, restauration d’un snapshot sans migration11/deleted_at, politique
+  importée désactivée et données restaurées vérifiées. 1 test intégration réussi.
+- 42 contrôles HTTP tests/inbox-captures-recipe.mjs sur fixture identifiée 55499 :
+  25 réponses de même date sur deux pages sans doublon ; filtres et compteurs ; lu/non lu ;
+  corbeille/restauration/conflits ; droits auteur propriétaire/autre et abonné ; valeurs
+  de conservation ; capture bornée, aperçu privé, no-store. Fausses données uniquement.
+- Navigation admin/auteur/abonné et séparation de l’arbre prévu ; bootstrap externe,
+  MIME/magic WASM et CSP vérifiés.
+- Navigateur réel : recherche 50%_ littérale et texte <script> affiché sans exécution,
+  consultation marquée lue, retour non lu, confirmation corbeille, restauration et
+  compteurs 25/24/25. Trois choix de politique visibles ; défaut sans purge ; sauvegarde
+  d’une politique active désactivée tant que la confirmation manque ; activation UI
+  vérifiée puis annulée, sans activer de purge sur la fixture.
+- Bouton de lot réel : une capture fictive traitée, compteurs mis à jour (attente 4→3,
+  terminées 9→10), aperçu sujet/texte vérifié. Aucun transport réseau.
+- Bureau et mobile390 : pas de débordement global (scrollWidth=390), table intérieure
+  défilante ; captures locales enregistrées.
+
+Limites / suite :
+- Suppression définitive manuelle et actions en masse non livrées ; corbeille restaurable.
+  Après expiration avec purge activée, réception ET corbeille sont supprimées sans retour
+  applicatif. Le réglage ne retire pas les données déjà détenues dans les sauvegardes.
+- Réglage global, pas encore de dérogation par formulaire ni d’export préalable programmé.
+- Recherche JSON textuelle, sans index de recherche complet ; dates affichées UTC brutes.
+- CSV : toute la réception hors corbeille, indépendamment des filtres ; 10 000 / 10 Mo,
+  sans instantané global (limites de concurrence déjà documentées au lot précédent).
+- Captures en lot transactionnelles/discussion seulement ; pas une exécution générique
+  des tâches ni des campagnes. At-least-once et limites mail du moteur existant conservées.
+- Taxonomies personnalisées, ordre des pages, notifications/champs avancés restent ouverts.
+- Seule la fixture 55499 reconstruite/redémarrée ; 8080 et Windows préservés. Sources
+  React conservées, assets remplacés archivés par le publisher. Aucun commit/push.
+- La première compilation du test ciblé référençait une dépendance url non directe ;
+  corrigée par le type réexporté déjà disponible, sans nouvelle dépendance, puis succès.

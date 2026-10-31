@@ -3,10 +3,10 @@ export type Role = 'admin' | 'editor' | 'author' | 'subscriber';
 export interface AdminMenuItem {
   id: string; parent: string | null; label: string; label_key: string; route: string | null;
   module: string | null; roles: Role[]; state: 'ready' | 'partial' | 'planned';
-  design: string; features: string[]; tasks: string[]; source: string;
+  design: string; features: string[]; tasks: string[]; source: string; planning?: boolean; separator_before?: boolean;
 }
 export interface AdminNavigation {
-  schema_version: number; items: AdminMenuItem[]; catalog: AdminMenuItem[];
+  schema_version: number; items: AdminMenuItem[]; catalog: AdminMenuItem[]; menu_items?: AdminMenuItem[];
   modules: Record<string, boolean>; supported_modules: string[];
 }
 
@@ -79,6 +79,8 @@ export interface Entry {
   featured_media_url?: string;
   published_at?: string;
   scheduled_unpublish_at?: string | null;
+  locale?: string;
+  translation_group_id?: string | null;
   created_at: string;
   updated_at: string;
   terms: TermRef[];
@@ -169,6 +171,49 @@ export interface DashboardStats {
   users: number;
   terms: number;
   recent: Entry[];
+}
+
+export interface PageMetric {
+  path: string;
+  views: number;
+  unique_visitors: number;
+}
+
+export interface ReferrerMetric {
+  referrer: string;
+  views: number;
+}
+
+export interface DeviceMetric {
+  device_type: string;
+  views: number;
+  percentage: number;
+}
+
+export interface TimeseriesPoint {
+  period_key: string;
+  views: number;
+  unique_visitors: number;
+}
+
+export interface AnalyticsSummary {
+  total_views: number;
+  unique_visitors: number;
+  views_per_visitor: number;
+  top_pages: PageMetric[];
+  top_referrers: ReferrerMetric[];
+  devices: DeviceMetric[];
+  timeseries: TimeseriesPoint[];
+  period: string;
+  notice: string;
+}
+
+export interface AnalyticsSettings {
+  enabled: boolean;
+  retention_months: number;
+  honor_dnt: boolean;
+  exclude_authenticated: boolean;
+  excluded_paths: string[];
 }
 
 export interface ToolDefinition {
@@ -482,3 +527,75 @@ export interface EnrollmentDetails {
   created_at: string;
 }
 
+
+
+// ---------------------------------------------------------------------------
+// Multilinguisme souverain & Catalogues de traduction (MOD-I18N)
+// ---------------------------------------------------------------------------
+
+export interface SupportedLanguage {
+  code: string;
+  label: string;
+  is_rtl: boolean;
+}
+
+export interface LanguagesConfig {
+  available: SupportedLanguage[];
+  active: SupportedLanguage[];
+  default: string;
+}
+
+export interface TranslationSibling {
+  id: string;
+  locale: string;
+  title: string;
+  slug: string;
+  status: EntryStatus;
+}
+
+export interface TranslationMatrixRow {
+  id: string;
+  title: string;
+  slug: string;
+  content_type: string;
+  locale: string;
+  status: EntryStatus;
+  translation_group_id?: string | null;
+  translations: TranslationSibling[];
+}
+
+export interface TranslationMatrixResponse {
+  active_languages: SupportedLanguage[];
+  items: TranslationMatrixRow[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface CatalogItem {
+  msgid: string;
+  msgstr: string;
+  context?: string;
+  comments?: string[];
+  references?: string[];
+}
+
+export interface TranslationCatalog {
+  locale: string;
+  items: CatalogItem[];
+  updated_at: string;
+}
+
+
+export interface ThemeSummary {
+  slug: string;
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  is_active: boolean;
+  tokens: Record<string, any>;
+  screenshot?: string;
+  tags?: string[];
+  is_block_theme?: boolean;
+}

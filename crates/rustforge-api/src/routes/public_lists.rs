@@ -30,9 +30,15 @@ pub struct ListParams {
 }
 impl ListParams {
     pub fn comment_page(&self) -> ApiResult<Option<i64>> {
-        self.comment_page.as_deref().map(|raw| raw.parse::<i64>().ok()
-            .filter(|n| (1..=1_000_000).contains(n))
-            .ok_or_else(|| ApiError::BadRequest("Page de commentaires invalide".into()))).transpose()
+        self.comment_page
+            .as_deref()
+            .map(|raw| {
+                raw.parse::<i64>()
+                    .ok()
+                    .filter(|n| (1..=1_000_000).contains(n))
+                    .ok_or_else(|| ApiError::BadRequest("Page de commentaires invalide".into()))
+            })
+            .transpose()
     }
 
     pub fn normalized(&self) -> ApiResult<(String, i64)> {
@@ -145,8 +151,7 @@ pub async fn archive(
 ) -> ApiResult<Response> {
     validate_locale(&locale)?;
     let (_, page) = params.normalized()?;
-    let (_, category_base, tag_base) =
-        super::permalinks::load_permalink_settings(&state.db).await;
+    let (_, category_base, tag_base) = super::permalinks::load_permalink_settings(&state.db).await;
 
     let (real_taxonomy, is_canonical) = if taxonomy == "category" {
         if !category_base.is_empty() && category_base != "category" {
@@ -185,7 +190,14 @@ pub async fn archive(
         .into_response());
     }
 
-    render(state, locale, page, None, Some((real_taxonomy.to_string(), term))).await
+    render(
+        state,
+        locale,
+        page,
+        None,
+        Some((real_taxonomy.to_string(), term)),
+    )
+    .await
 }
 async fn render(
     state: AppState,
@@ -255,7 +267,8 @@ mod tests {
         assert_eq!(
             ListParams {
                 q: Some("  deux  mots ".into()),
-                page: None, comment_page: None
+                page: None,
+                comment_page: None
             }
             .normalized()
             .unwrap(),
@@ -265,7 +278,8 @@ mod tests {
             assert!(
                 ListParams {
                     q: None,
-                    page: Some(page.into()), comment_page: None
+                    page: Some(page.into()),
+                    comment_page: None
                 }
                 .normalized()
                 .is_err()
@@ -274,7 +288,8 @@ mod tests {
         assert!(
             ListParams {
                 q: Some("é".repeat(201)),
-                page: None, comment_page: None
+                page: None,
+                comment_page: None
             }
             .normalized()
             .is_err()

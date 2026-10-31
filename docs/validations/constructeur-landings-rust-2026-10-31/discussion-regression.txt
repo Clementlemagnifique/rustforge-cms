@@ -1,0 +1,1 @@
+PASS 34 contrôles : héritage/ouverture/fermeture, SSR/cache, soumission, droits/connexion, version attendue, révision et conservation des champs.

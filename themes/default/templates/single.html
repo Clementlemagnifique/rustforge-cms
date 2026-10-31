@@ -3,9 +3,10 @@
 {% block title %}{{ entry.title }}{% endblock %}
 
 {% block content %}
-<article class="container" style="max-width: 820px; padding-top: 3.5rem; padding-bottom: 5rem;">
+<article class="container rf-entry-layout-{{ entry_template | default('default') }}" style="max-width: {% if entry_template == 'wide' or entry_template == 'landing' %}var(--tp-container){% else %}820px{% endif %}; padding-top: 3.5rem; padding-bottom: 5rem;">
     <!-- En-tête de l'article -->
     <header style="margin-bottom: 2.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 2rem;">
+        {% if entry_template != "landing" %}
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <span style="color: var(--tp-accent); font-weight: 700; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
                 {{ entry.content_type }}
@@ -16,6 +17,7 @@
             </a>
         </div>
 
+        {% endif %}
         <h1 style="font-size: 2.75rem; margin-top: 0; margin-bottom: 1.2rem; letter-spacing: -0.02em;">
             {{ entry.title }}
         </h1>
@@ -26,18 +28,23 @@
         </p>
         {% endif %}
 
+        {% if entry_template != "landing" %}
         <div style="display: flex; align-items: center; gap: 1rem; color: #64748b; font-size: 0.9rem;">
             <span>Par <strong>{{ entry.author_name | default("RustForge CMS") }}</strong></span>
             <span>&bull;</span>
             <span>Publié le {{ entry.published_at | default("Récemment") }}</span>
         </div>
+        {% endif %}
     </header>
+
+    {% include "featured-image.html" %}
 
     <!-- Corps de l'article (rendu HTML Ammonia assaini et filtré WASM) -->
     <div class="entry-body" style="font-size: 1.125rem; line-height: 1.8; color: #cbd5e1;">
         {{ entry.body_html | safe }}
     </div>
 
+    {% if entry_template != "landing" or comments_open or comments_count > 0 %}
     <!-- Section Commentaires (WP-42 à WP-45) -->
     <section id="comments" style="margin-top: 4rem; padding-top: 3rem; border-top: 1px solid rgba(255,255,255,0.08);">
         <h2 style="font-size: 1.8rem; margin-bottom: 2rem;">
@@ -125,6 +132,8 @@
         {% endif %}
     </section>
 
+    {% endif %}
+    {% if entry_template != "landing" %}
     <!-- Pied d'article -->
     <footer style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
         <a href="/{{ locale }}" style="font-weight: 600;">&larr; Retour à l'accueil</a>
@@ -132,6 +141,7 @@
             Relire en mode sans distraction &rarr;
         </a>
     </footer>
+    {% endif %}
 </article>
 
 <script>

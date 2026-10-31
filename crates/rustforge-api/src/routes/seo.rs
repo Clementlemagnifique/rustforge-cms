@@ -13,7 +13,7 @@ use crate::{
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::Response,
 };
 use chrono::{DateTime, Utc};
@@ -160,8 +160,7 @@ async fn handle_sitemap(state: AppState, locale: &str) -> ApiResult<Response> {
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    let (permalink_structure, _, _) =
-        super::permalinks::load_permalink_settings(&state.db).await;
+    let (permalink_structure, _, _) = super::permalinks::load_permalink_settings(&state.db).await;
 
     let entries: Vec<SitemapEntry> = sqlx::query_as(
         r#"SELECT e.id, ct.slug AS content_type, e.slug, e.created_at, e.updated_at, e.published_at

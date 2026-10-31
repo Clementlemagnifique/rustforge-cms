@@ -1,0 +1,71 @@
+31 octobre 2026 — Rustemberg : bibliothèque initiale et landing pages
+
+Décisions utilisateur : constructeur nommé Rustemberg, commun aux articles/pages/landings.
+V1 : reproduire intelligemment les conventions WordPress/Gutenberg en Rust, sans réinventer
+l’expérience. Les capacités éditoriales des modules passent en priorité par leurs blocs ;
+les besoins complémentaires sont notés pendant le développement. Contrats actualisés.
+
+Références examinées : démonstration https://wordpress.org/gutenberg/ (inséreur, compositions,
+vue d’ensemble, réglages), WordPress local wp-includes/blocks/{paragraph,heading,columns,
+button,details,group}/block.json, patterns Twenty Twenty-Five page-landing-event/text-faqs,
+WPForms FormSelector ; sources React GutenbergCanvas/Inserter/Inspector/patterns/store.
+comparaison-gutenberg.json contient les chemins, empreintes, capacités et écarts.
+
+Constat : le noyau documentaire et les services sont déjà Rust. L’interface Gutenberg
+avancée conservée dans admin/src/components/editor est en TSX, raccordée au noyau Rust.
+Le journal du 30/10 précisait que le portage Leptos de l’interface restait partiel ;
+aucune seconde interface Leptos complète retrouvée dans les sources/historique examinés.
+Le brouillon ouvert 0567be03-fed2-4fa1-8f13-bf1435a51b8d a été lu seulement : format
+historique, body vide, fields.post_format présent. Il n’a pas été converti ni modifié.
+Le lien Éditeur de transition est rétabli dans l’éditeur natif des contenus enregistrés.
+
+Livré en Rust : bibliothèque recherchable, quatre compositions statiques (bannière/CTA,
+avantages, FAQ, landing) réutilisant rf.document/1, insertion à la fin sans écrasement,
+IDs neufs, limite256 ; duplication, vue d’ensemble avec focus du bloc, aperçu de contenu
+aux largeurs bureau/tablette/mobile. Conversion Markdown explicite et annulable conservée.
+Colonnes : champs distincts pour préserver leur texte multiligne lors d’une édition.
+
+Modèles standard, large et landing validés côté serveur, stockés dans fields._rf_template,
+révisions/concurrence et fusion des champs réutilisées. Le modèle landing masque navigation,
+pied de site et métadonnées ; titre/contenu conservés, discussion existante maintenue,
+bloc de discussion omis seulement si fermé et vide. Aucune fermeture implicite ; choix
+explicite dans l’inspecteur. Contrat de présentation appliqué aux quatre thèmes et au
+rendu embarqué ; accueil statique compatible. Pas de chemin de template arbitraire.
+
+Défaut détecté visuellement : un second sanitizer dans entries::attach_terms retirait
+les classes colonnes/boutons à la lecture. Il réutilise maintenant le sanitizer documentaire
+partagé, conservant classes/médias autorisés et excluant scripts/événements/styles actifs.
+Test de sécurité ajouté et recette HTTP renforcée sur les classes réellement servies.
+Aucune source ni donnée ancienne supprimée ; aucun nouveau moteur ni migration de base.
+
+Validation : 166 tests workspace passés (cinq intégrations ignorées par défaut), Clippy
+strict workspace/all-targets et Studio WASM, builds serveur/Studio/React, lint React,
+19 tests JS navigation/commentaires et deux tests préférences de colonnes. 33 contrôles HTTP
+landings +34 régression discussion ; navigation trois rôles, CSP/bootstrap validés.
+Navigateur : composition ajoutée à trois blocs existants (total10), duplication puis annulation,
+focus depuis la vue d’ensemble, sauvegarde ; colonne multiligne enregistrée sans modifier
+la seconde, coffre intact ; aperçu390px. Public : deux grilles et deux boutons stylés,
+mobile390 : document375, grille327px, une colonne sans débordement. Captures conservées.
+Dernière publication native archivée : archives/leptos-assets/20261031T095520Z-62c25c57.
+
+Limites : socle partiel, pas un Gutenberg complet. Édition visuelle directe, inséreur en
+panneau, sélection/réglages contextuels, blocs enfants imbriqués, styles/alignements et
+verrouillages à poursuivre. Les compositions ne sont pas des formulaires ni des modules
+activés ; adresse exemple.invalid à remplacer. Anciens écrans conservés.
+Menu172 entrées/23familles/5séparateurs ; aucune clôture de parité globale.
+Seule fixture55499 redémarrée ; 8080 et bases Windows préservés.
+Push main demandé pour ce jalon : revue des fichiers et exclusions, puis synchronisation
+GitHub à vérifier à la clôture. Pas de modèles IA, bases, références WordPress ou outils
+locaux à embarquer dans le commit.
+
+État Git à la clôture : commit main refusé par le contrôle automatique en raison de la
+portée cumulée (655 fichiers, +110185/-66021 lignes brutes, fins de ligne Windows incluses).
+Aucun commit ni push créé. Confirmation utilisateur explicite du périmètre demandée.
+Revue exhaustive locale : scratch/revue-push-main-2026-10-31.txt. Les modifications de suivi
+postérieures au refus restent dans le dossier de travail ; ne pas prétendre main synchronisé.
+
+Clarification utilisateur suivante : publication du cumul sur une branche dédiée autorisée,
+avec README/documents à jour, sans fusion main. Branche prévue :
+codex/reprise-macos-leptos-rustemberg. Main recevra ultérieurement le projet nettoyé et validé.
+Cette autorisation remplace la demande de confirmation main ; elle ne contourne pas son
+refus et ne donne aucune autorisation de pousser directement sur main dans ce jalon.

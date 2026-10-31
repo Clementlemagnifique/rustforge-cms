@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+
+<html lang="{{ locale }}" class="scroll-smooth">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {% if blog_public == false or force_noindex %}
+
+    <meta name="robots" content="noindex, nofollow">
+
+    {% endif %}
+
+    {% if canonical_url %}
+
+    <link rel="canonical" href="{{ canonical_url | safe }}" />
+
+    {% endif %}
+
+    <title>{% block title %}Accueil{% endblock %} — {{ site_title }}</title>
+
+    <!-- Favicon & Icône de site multi-résolutions (WP-74) -->
+    {% if site_icon_32 %}
+    <link rel="icon" type="image/webp" sizes="32x32" href="{{ site_icon_32 }}" />
+    {% elif site_icon %}
+    <link rel="icon" href="{{ site_icon }}" />
+    {% endif %}
+    {% if site_icon_180 %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ site_icon_180 }}" />
+    {% endif %}
+    {% if site_icon_192 %}
+    <link rel="icon" type="image/webp" sizes="192x192" href="{{ site_icon_192 }}" />
+    {% endif %}
+
+
+    
+
+    <!-- SEO & GEO Optimization Schema.org JSON-LD -->
+
+    {% if schema_org %}
+
+    <script type="application/ld+json">
+
+        {{ schema_org | tojson }}
+
+    </script>
+
+    {% endif %}
+
+
+
+    <!-- Multilingue : Balises Hreflang pour le référencement international -->
+
+    {% for alt_lang in available_locales %}
+
+    <link rel="alternate" hreflang="{{ alt_lang.code }}" href="{{ alt_lang.url }}" />
+
+    {% endfor %}
+
+
+
+    <!-- Flux de syndication RSS 2.0 & Atom (WP-101) -->
+
+    <link rel="alternate" type="application/rss+xml" title="{{ site_title }} &raquo; Flux RSS" href="/{{ locale }}/feed" />
+
+    <link rel="alternate" type="application/atom+xml" title="{{ site_title }} &raquo; Flux Atom" href="/{{ locale }}/feed/atom" />
+
+
+
+    <!-- Design Tokens dynamiques injectés en variables CSS -->
+
+    <style>
+
+        :root {
+
+            --tp-primary: {{ design_tokens.primary_color | default('#4f46e5') }};
+
+            --tp-accent: {{ design_tokens.accent_color | default('#06b6d4') }};
+
+            --tp-radius: {{ design_tokens.radius | default('12px') }};
+
+            --tp-container: {{ design_tokens.container_width | default('1100px') }};
+
+            --tp-font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+            --tp-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+        }
+
+
+
+        .rf-public-list { overflow-wrap:anywhere; }
+
+        .rf-search-controls, .rf-pagination { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin:1rem 0; }
+
+        .rf-search-controls input { box-sizing:border-box; max-width:100%; min-width:0; padding:.7rem; font:inherit; }
+
+        .rf-public-list article { border-bottom:1px solid #475569; padding:1rem 0; }
+
+        a:focus-visible, button:focus-visible, input:focus-visible { outline:3px solid var(--tp-accent); outline-offset:4px; }
+
+        body {
+
+            font-family: var(--tp-font-body);
+
+            background-color: #0b0f19;
+
+            color: #cbd5e1;
+
+            margin: 0;
+
+            line-height: 1.7;
+
+        }
+
+
+
+        h1, h2, h3, h4, h5, h6 {
+
+            font-family: var(--tp-font-heading);
+
+            color: #f8fafc;
+
+            font-weight: 700;
+
+            line-height: 1.25;
+
+        }
+
+
+
+        a { color: var(--tp-primary); text-decoration: none; transition: color 0.2s; }
+
+        a:hover { color: var(--tp-accent); }
+
+
+
+        .container { max-width: var(--tp-container); margin: 0 auto; padding: 0 1.5rem; }
+
+        /* Le menu reste entièrement accessible sans JavaScript sur petit écran. */
+
+        .rf-header-layout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; padding-top: 0.75rem; padding-bottom: 0.75rem; min-height: 70px; box-sizing: border-box; }
+
+        .rf-site-brand { min-width: 0; overflow-wrap: anywhere; }
+
+        .rf-site-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; min-width: 0; }
+        .rf-site-navigation a { max-width: 100%; overflow-wrap: anywhere; }
+        .rf-nav-item { position: relative; display: inline-flex; align-items: center; }
+        .rf-nav-link { display: inline-flex; align-items: center; gap: 0.35rem; }
+        .rf-arrow-indicator { font-size: 0.65rem; transition: transform 0.2s; opacity: 0.7; }
+        .rf-nav-item.has-children:hover > .rf-nav-link .rf-arrow-indicator,
+        .rf-nav-item.has-children:focus-within > .rf-nav-link .rf-arrow-indicator {
+            transform: rotate(180deg);
+        }
+        .rf-nav-item.has-children > .rf-sub-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 220px;
+            background: rgba(15, 20, 34, 0.96);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--tp-radius);
+            padding: 0.5rem 0;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            list-style: none;
+            margin: 0;
+        }
+        .rf-nav-item.has-children:hover > .rf-sub-menu,
+        .rf-nav-item.has-children:focus-within > .rf-sub-menu {
+            display: flex;
+            flex-direction: column;
+        }
+        .rf-sub-item { position: relative; margin: 0; padding: 0; }
+        .rf-sub-item > a {
+            padding: 0.5rem 1.1rem;
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            display: block;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .rf-sub-item > a:hover, .rf-sub-item > a:focus {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+        }
+        .rf-sub-item.has-children > .rf-sub-sub-menu {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 100%;
+            min-width: 200px;
+            background: rgba(15, 20, 34, 0.98);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--tp-radius);
+            padding: 0.5rem 0;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            z-index: 101;
+            list-style: none;
+            margin: 0;
+        }
+        .rf-sub-item.has-children:hover > .rf-sub-sub-menu,
+        .rf-sub-item.has-children:focus-within > .rf-sub-sub-menu {
+            display: flex;
+            flex-direction: column;
+        }
+        .rf-sub-sub-menu > li > a {
+            padding: 0.45rem 1rem;
+            color: #cbd5e1;
+            font-size: 0.85rem;
+            display: block;
+            white-space: nowrap;
+        }
+        .rf-sub-sub-menu > li > a:hover, .rf-sub-sub-menu > li > a:focus {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+        }
+        .rf-sub-label-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .rf-subtitle { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem; font-weight: normal; }
+        .rf-badge {
+            display: inline-block;
+            padding: 0.1rem 0.4rem;
+            font-size: 0.65rem;
+            font-weight: 700;
+            border-radius: 9999px;
+            background: var(--tp-accent);
+            color: #0b0f19;
+            margin-left: 0.35rem;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+        .rf-nav-toggle-checkbox { display: none; }
+        .rf-nav-toggle-btn {
+            display: none;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--tp-radius);
+            padding: 0.5rem 0.75rem;
+            color: #f8fafc;
+            cursor: pointer;
+            user-select: none;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .rf-nav-toggle-btn:hover, .rf-nav-toggle-btn:focus-visible {
+            background: rgba(255, 255, 255, 0.12);
+            outline: 2px solid var(--tp-primary);
+        }
+        @media (max-width: 768px) {
+            .rf-nav-toggle-btn { display: inline-flex; }
+            .rf-nav-toggle-checkbox:checked ~ .rf-site-navigation {
+                display: flex;
+            }
+            .rf-site-navigation {
+                display: none;
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+                padding-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .rf-nav-item {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .rf-nav-item.has-children > .rf-sub-menu {
+                position: static;
+                display: flex;
+                flex-direction: column;
+                box-shadow: none;
+                border: none;
+                border-left: 2px solid rgba(255, 255, 255, 0.15);
+                border-radius: 0;
+                background: rgba(0, 0, 0, 0.2);
+                margin: 0.25rem 0 0.5rem 0.75rem;
+                padding: 0.25rem 0;
+            }
+            .rf-sub-item.has-children > .rf-sub-sub-menu {
+                position: static;
+                display: flex;
+                flex-direction: column;
+                box-shadow: none;
+                border: none;
+                border-left: 2px solid var(--tp-accent);
+                border-radius: 0;
+                background: rgba(0, 0, 0, 0.25);
+                margin: 0.25rem 0 0.5rem 0.75rem;
+                padding: 0.25rem 0;
+            }
+        }
+
+        .glass-nav {
+
+            background: rgba(11, 15, 25, 0.85);
+
+            backdrop-filter: blur(12px);
+
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+            position: sticky;
+
+            top: 0;
+
+            z-index: 50;
+
+        }
+
+        .btn-primary {
+
+            background: var(--tp-primary);
+
+            color: white;
+
+            padding: 0.6rem 1.2rem;
+
+            border-radius: var(--tp-radius);
+
+            font-weight: 600;
+
+            display: inline-block;
+
+            transition: all 0.2s;
+
+        }
+
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* Styles blocs riches souverains */
+        .rf-callout {
+            border-left: 4px solid var(--tp-primary);
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 0 var(--tp-radius) var(--tp-radius) 0;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+        }
+        .rf-callout-header { margin-bottom: 0.5rem; }
+        .rf-callout-info { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+        .rf-callout-warning { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+        .rf-callout-success { border-left-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+        .rf-callout-tip { border-left-color: #8b5cf6; background: rgba(139, 92, 246, 0.08); }
+        .rf-details {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--tp-radius);
+            background: rgba(255, 255, 255, 0.02);
+            margin: 1rem 0;
+            padding: 0.75rem 1rem;
+        }
+        .rf-details summary {
+            cursor: pointer;
+            user-select: none;
+            padding: 0.25rem 0;
+            color: #f8fafc;
+        }
+        .rf-details summary:focus-visible { outline: 2px solid var(--tp-accent); }
+        .rf-details-body { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+        .rf-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .rf-column { min-width: 0; }
+        .rf-media-text {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            align-items: center;
+            margin: 2rem 0;
+        }
+        .rf-media-text.rf-media-right .rf-media-figure { order: 2; }
+        .rf-media-text.rf-media-right .rf-media-content { order: 1; }
+        .rf-media-figure img { max-width: 100%; height: auto; border-radius: var(--tp-radius); display: block; }
+        @media (max-width: 768px) {
+            .rf-media-text { grid-template-columns: 1fr; gap: 1rem; }
+            .rf-media-text.rf-media-right .rf-media-figure { order: 1; }
+            .rf-media-text.rf-media-right .rf-media-content { order: 2; }
+        }
+
+        {% if design_tokens.custom_css %}
+
+        {{ design_tokens.custom_css }}
+
+        {% endif %}
+
+    </style>
+
+</head>
+
+<body class="antialiased">
+
+    <!-- En-tête Navigation -->
+    {% if entry_template != "landing" %}
+    <header class="glass-nav">
+        <div class="container rf-header-layout">
+            <div class="rf-site-brand">
+                <a href="/{{ locale }}" style="font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="background: linear-gradient(135deg, var(--tp-primary), var(--tp-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{ site_title }}</span>
+                </a>
+            </div>
+
+            <input type="checkbox" id="rf-nav-toggle-input" class="rf-nav-toggle-checkbox" aria-label="Afficher ou masquer la navigation" />
+            <label for="rf-nav-toggle-input" class="rf-nav-toggle-btn" role="button" tabindex="0" aria-label="Menu de navigation">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                <span>Menu</span>
+            </label>
+
+            <!-- Sélecteur de langue & Navigation (Emplacement header WP-46, NAV-A/C) -->
+            <nav class="rf-site-navigation" aria-label="Navigation principale">
+                {% if menus and menus.header and menus.header | length > 0 %}
+                    {% for item in menus.header %}
+                        {% if item.children and item.children | length > 0 %}
+                        <div class="rf-nav-item has-children">
+                            <a href="{{ item.url }}" class="rf-nav-link" {% if item.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                                <span>{{ item.label }}</span>
+                                {% if item.badge %}<span class="rf-badge">{{ item.badge }}</span>{% endif %}
+                                <span class="rf-arrow-indicator" aria-hidden="true">▼</span>
+                            </a>
+                            <ul class="rf-sub-menu" role="menu">
+                                {% for child in item.children %}
+                                <li class="rf-sub-item{% if child.children and child.children | length > 0 %} has-children{% endif %}" role="none">
+                                    <a href="{{ child.url }}" role="menuitem" {% if child.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                                        <div class="rf-sub-label-row">
+                                            <span>{{ child.label }}</span>
+                                            {% if child.badge %}<span class="rf-badge">{{ child.badge }}</span>{% endif %}
+                                        </div>
+                                        {% if child.subtitle %}<span class="rf-subtitle">{{ child.subtitle }}</span>{% endif %}
+                                    </a>
+                                    {% if child.children and child.children | length > 0 %}
+                                    <ul class="rf-sub-sub-menu" role="menu">
+                                        {% for subchild in child.children %}
+                                        <li role="none">
+                                            <a href="{{ subchild.url }}" role="menuitem" {% if subchild.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                                                <div class="rf-sub-label-row">
+                                                    <span>{{ subchild.label }}</span>
+                                                    {% if subchild.badge %}<span class="rf-badge">{{ subchild.badge }}</span>{% endif %}
+                                                </div>
+                                                {% if subchild.subtitle %}<span class="rf-subtitle">{{ subchild.subtitle }}</span>{% endif %}
+                                            </a>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% else %}
+                        <a href="{{ item.url }}" class="rf-nav-link" {% if item.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                            <span>{{ item.label }}</span>
+                            {% if item.badge %}<span class="rf-badge">{{ item.badge }}</span>{% endif %}
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <a href="/{{ locale }}">Accueil</a>
+                    <a href="/{{ locale }}#publications">Publications</a>
+                {% endif %}
+
+                <a href="/{{ locale }}/search">Rechercher</a>
+                <a href="/admin" class="btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Studio Admin</a>
+            </nav>
+        </div>
+    </header>
+    {% endif %}
+
+    <!-- Contenu Principal -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Pied de page (Emplacement footer WP-46) -->
+    {% if entry_template != "landing" %}
+    <footer style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 5rem; padding: 3rem 0; text-align: center; color: #64748b; font-size: 0.9rem;">
+        <div class="container">
+            {% if menus and menus.footer and menus.footer | length > 0 %}
+            <nav style="display: flex; justify-content: center; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1rem;">
+                {% for item in menus.footer %}
+                <a href="{{ item.url }}" {% if item.target == '_blank' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                    <span>{{ item.label }}</span>
+                    {% if item.badge %}<span class="rf-badge">{{ item.badge }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </nav>
+            {% endif %}
+            <p>{{ site_title }}</p>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem;">Créé avec RustForge CMS · Votre contenu, simplement.</p>
+        </div>
+    </footer>
+    {% endif %}
+
+    <script>
+        (function() {
+            var toggle = document.getElementById('rf-nav-toggle-input');
+            var btn = document.querySelector('.rf-nav-toggle-btn');
+            if (!toggle) return;
+            if (btn) {
+                btn.addEventListener('keydown', function(e) {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        toggle.checked = !toggle.checked;
+                    }
+                });
+            }
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && toggle.checked) {
+                    toggle.checked = false;
+                    if (btn) btn.focus();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+

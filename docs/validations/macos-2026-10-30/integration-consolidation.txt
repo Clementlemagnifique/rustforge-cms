@@ -1,0 +1,59 @@
+    Blocking waiting for file lock on build directory
+   Compiling log v0.4.34
+   Compiling tracing-core v0.1.36
+   Compiling pulley-interpreter v50.0.0
+   Compiling regalloc2 v0.15.2
+   Compiling wasmtime-environ v50.0.0
+   Compiling wit-parser v0.261.0
+   Compiling wasm-compose v0.261.0
+   Compiling tracing v0.1.44
+   Compiling sqlx-core v0.8.6
+   Compiling cranelift-codegen-meta v0.137.0
+   Compiling wit-component v0.261.0
+   Compiling sqlx-postgres v0.8.6
+   Compiling wasmtime-internal-wit-bindgen v50.0.0
+   Compiling cranelift-codegen v0.137.0
+   Compiling wasmtime-internal-fiber v50.0.0
+   Compiling wasmtime-internal-cache v50.0.0
+   Compiling hyper-util v0.1.21
+   Compiling tower v0.5.3
+   Compiling markup5ever v0.40.0
+   Compiling witx v0.9.1
+   Compiling wiggle-generate v50.0.0
+   Compiling html5ever v0.40.1
+   Compiling sqlx-macros-core v0.8.6
+   Compiling cranelift-frontend v0.137.0
+   Compiling wasmtime-internal-unwinder v50.0.0
+   Compiling cranelift-native v0.137.0
+   Compiling wiggle-macro v50.0.0
+   Compiling wasmtime-internal-cranelift v50.0.0
+   Compiling ammonia v4.2.4
+   Compiling tower-http v0.6.11
+   Compiling wasmtime-internal-component-macro v50.0.0
+   Compiling hyper-rustls v0.27.10
+   Compiling zopfli v0.8.4
+   Compiling zip v2.6.1
+   Compiling sqlx-macros v0.8.6
+   Compiling reqwest v0.12.28
+   Compiling rustforge-document v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-document)
+   Compiling axum-core v0.5.6
+   Compiling axum v0.8.9
+   Compiling sqlx v0.8.6
+   Compiling rustforge-core v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-core)
+   Compiling wasmtime v50.0.0
+   Compiling wasmtime-wasi-io v50.0.0
+   Compiling wiggle v50.0.0
+   Compiling wasmtime-wasi v50.0.0
+   Compiling rustforge-plugins v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-plugins)
+   Compiling rustforge-api v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6m 10s
+     Running tests/consolidation.rs (target/debug/deps/consolidation-77d58fb1e4bafad0)
+
+running 4 tests
+test malformed_php_and_form_constraints_are_rejected ... ok
+test upload_cannot_disguise_active_html ... ok
+test rf_xml_preserves_complete_envelope_and_cdata ... ok
+test postgres_http_and_native_backup_regressions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.32s
+

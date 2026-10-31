@@ -1,0 +1,358 @@
+{
+  "scope": "Static relative imports/exports/types from main.tsx and test imports; not a deletion proof. Dynamic generated WASM loader is retained.",
+  "total_ts_sources": 73,
+  "reachable_from_main": 59,
+  "test_only": [],
+  "outside_static_graph": [
+    "admin/src/components/DashboardView.tsx",
+    "admin/src/components/Header.tsx",
+    "admin/src/components/NativeBlockEditor.tsx",
+    "admin/src/components/Sidebar.tsx",
+    "admin/src/components/StudioHeader.tsx",
+    "admin/src/components/StudioNavigation.tsx",
+    "admin/src/components/StudioNavigationPanel.tsx",
+    "admin/src/components/editor/EditorContentTab.tsx",
+    "admin/src/components/editor/EditorDocumentTab.tsx",
+    "admin/src/components/editor/EditorHeaderBar.tsx",
+    "admin/src/components/editor/EditorMetaTabs.tsx",
+    "admin/src/components/editor/EditorTitleSlugBar.tsx",
+    "admin/src/editor/messages.fr.ts",
+    "admin/src/stores/index.ts"
+  ],
+  "edges": {
+    "admin/src/App.tsx": [
+      "admin/src/components/AdminPlanView.tsx",
+      "admin/src/components/AiAssistantModal.tsx",
+      "admin/src/components/AnalyticsView.tsx",
+      "admin/src/components/AppearanceView.tsx",
+      "admin/src/components/CapsulesView.tsx",
+      "admin/src/components/ColumnSettingsView.tsx",
+      "admin/src/components/CommandPaletteModal.tsx",
+      "admin/src/components/CommentsView.tsx",
+      "admin/src/components/ContentTypesView.tsx",
+      "admin/src/components/ConverterView.tsx",
+      "admin/src/components/EcommerceView.tsx",
+      "admin/src/components/EntriesView.tsx",
+      "admin/src/components/EntryEditorView.tsx",
+      "admin/src/components/FormsView.tsx",
+      "admin/src/components/InstallerWizardView.tsx",
+      "admin/src/components/JobsView.tsx",
+      "admin/src/components/LmsView.tsx",
+      "admin/src/components/LoginView.tsx",
+      "admin/src/components/MediaView.tsx",
+      "admin/src/components/NativeModulesView.tsx",
+      "admin/src/components/PluginsView.tsx",
+      "admin/src/components/RfAdminBar.tsx",
+      "admin/src/components/RfAdminMenu.tsx",
+      "admin/src/components/RfContextualHelpDrawer.tsx",
+      "admin/src/components/RfScreenOptionsDrawer.tsx",
+      "admin/src/components/SettingsView.tsx",
+      "admin/src/components/StartDashboard.tsx",
+      "admin/src/components/TaxonomiesView.tsx",
+      "admin/src/components/ToolsView.tsx",
+      "admin/src/components/TranslationsView.tsx",
+      "admin/src/components/UsersView.tsx",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useStudioStore.ts"
+    ],
+    "admin/src/api.ts": [
+      "admin/src/editor/patterns.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/AdminPlanView.tsx": [
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/AiAssistantModal.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/AnalyticsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useStudioStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/AppearanceView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useAppearanceStore.ts"
+    ],
+    "admin/src/components/CapsulesView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/ColumnSettingsView.tsx": [
+      "admin/src/stores/useColumnSettingsStore.ts",
+      "admin/src/stores/useStudioStore.ts"
+    ],
+    "admin/src/components/CommandPaletteModal.tsx": [
+      "admin/src/stores/useStudioStore.ts"
+    ],
+    "admin/src/components/CommentsView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useCommentsStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/ContentTypesView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/ConverterView.tsx": [
+      "admin/src/api.ts"
+    ],
+    "admin/src/components/DashboardView.tsx": [
+      "admin/src/components/StartDashboard.tsx"
+    ],
+    "admin/src/components/EcommerceView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/EntriesView.tsx": [
+      "admin/src/components/entries/EntriesFilterBar.tsx",
+      "admin/src/components/entries/EntriesKanban.tsx",
+      "admin/src/components/entries/EntriesTable.tsx",
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/EntryEditorView.tsx": [
+      "admin/src/components/editor/GutenbergCanvas.tsx",
+      "admin/src/components/editor/GutenbergInserterDrawer.tsx",
+      "admin/src/components/editor/GutenbergInspectorSidebar.tsx",
+      "admin/src/components/editor/GutenbergTopBar.tsx",
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/FormsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/Header.tsx": [
+      "admin/src/components/StudioHeader.tsx"
+    ],
+    "admin/src/components/InstallerWizardView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/JobsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/LmsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/LoginView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/MediaView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useMediaStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/MigrationView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/NativeBlockEditor.tsx": [
+      "admin/src/api.ts",
+      "admin/src/editor/document.ts",
+      "admin/src/editor/messages.fr.ts",
+      "admin/src/editor/patterns.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/NativeModulesView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/PluginsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/RfAdminBar.tsx": [
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/RfAdminMenu.tsx": [
+      "admin/src/navigation.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/RfContextualHelpDrawer.tsx": [],
+    "admin/src/components/RfScreenOptionsDrawer.tsx": [
+      "admin/src/stores/useColumnSettingsStore.ts",
+      "admin/src/stores/useStudioStore.ts"
+    ],
+    "admin/src/components/SettingsView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useSettingsStore.ts"
+    ],
+    "admin/src/components/Sidebar.tsx": [
+      "admin/src/components/StudioNavigation.tsx"
+    ],
+    "admin/src/components/StartDashboard.tsx": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/StudioHeader.tsx": [
+      "admin/src/stores/useStudioStore.ts"
+    ],
+    "admin/src/components/StudioNavigation.tsx": [
+      "admin/src/navigation.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/StudioNavigationPanel.tsx": [
+      "admin/src/i18n/messages.fr.ts"
+    ],
+    "admin/src/components/TaxonomiesView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/stores/useTaxonomiesStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/ToolsView.tsx": [
+      "admin/src/components/CapsulesView.tsx",
+      "admin/src/components/MigrationView.tsx",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/TranslationsView.tsx": [
+      "admin/src/api.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/UsersView.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useStudioStore.ts",
+      "admin/src/stores/useUsersStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/editor/EditorContentTab.tsx": [
+      "admin/src/components/NativeBlockEditor.tsx",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useEditorStore.ts"
+    ],
+    "admin/src/components/editor/EditorDocumentTab.tsx": [
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/editor/EditorHeaderBar.tsx": [
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/editor/EditorMetaTabs.tsx": [
+      "admin/src/stores/useEditorStore.ts"
+    ],
+    "admin/src/components/editor/EditorTitleSlugBar.tsx": [
+      "admin/src/stores/useEditorStore.ts"
+    ],
+    "admin/src/components/editor/GutenbergCanvas.tsx": [
+      "admin/src/editor/document.ts",
+      "admin/src/stores/useEditorStore.ts"
+    ],
+    "admin/src/components/editor/GutenbergInserterDrawer.tsx": [
+      "admin/src/editor/document.ts",
+      "admin/src/editor/patterns.ts",
+      "admin/src/stores/useEditorStore.ts"
+    ],
+    "admin/src/components/editor/GutenbergInspectorSidebar.tsx": [
+      "admin/src/editor/document.ts",
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/editor/GutenbergTopBar.tsx": [
+      "admin/src/editor/wasmKernel.ts",
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/entries/EntriesFilterBar.tsx": [
+      "admin/src/stores/useColumnSettingsStore.ts",
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/entries/EntriesKanban.tsx": [
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/components/entries/EntriesTable.tsx": [
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/stores/useStudioStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/editor/document.ts": [],
+    "admin/src/editor/messages.fr.ts": [
+      "admin/src/i18n/messages.fr.ts"
+    ],
+    "admin/src/editor/patterns.ts": [
+      "admin/src/editor/document.ts"
+    ],
+    "admin/src/editor/wasmKernel.ts": [
+      "admin/src/editor/document.ts"
+    ],
+    "admin/src/i18n/messages.fr.ts": [],
+    "admin/src/main.tsx": [
+      "admin/src/App.tsx"
+    ],
+    "admin/src/navigation.ts": [
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/columnPreferences.ts": [],
+    "admin/src/stores/index.ts": [
+      "admin/src/stores/useAppearanceStore.ts",
+      "admin/src/stores/useCommentsStore.ts",
+      "admin/src/stores/useEditorStore.ts",
+      "admin/src/stores/useEntriesListStore.ts",
+      "admin/src/stores/useMediaStore.ts",
+      "admin/src/stores/useSettingsStore.ts",
+      "admin/src/stores/useStudioStore.ts",
+      "admin/src/stores/useTaxonomiesStore.ts",
+      "admin/src/stores/useUsersStore.ts"
+    ],
+    "admin/src/stores/useAppearanceStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useColumnSettingsStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/stores/columnPreferences.ts",
+      "admin/src/stores/useStudioStore.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useCommentsStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useEditorStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/editor/document.ts",
+      "admin/src/editor/wasmKernel.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useEntriesListStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useMediaStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useSettingsStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useStudioStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/i18n/messages.fr.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useTaxonomiesStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/stores/useUsersStore.ts": [
+      "admin/src/api.ts",
+      "admin/src/types.ts"
+    ],
+    "admin/src/types.ts": []
+  }
+}

@@ -30,6 +30,10 @@ if (Test-Path $StageDir) {
 New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $WorkspaceRoot $OutputDir) | Out-Null
 
+# Le ZIP doit inclure les fichiers WASM produits, pas dépendre des outils du serveur cible.
+& (Join-Path $PSScriptRoot 'build-document-wasm.ps1') -Release
+if ($LASTEXITCODE -ne 0) { throw 'Build documentaire WASM échoué' }
+
 # 2. Compilation du Studio Web d'administration
 Write-Host "[BUILD] Compilation du Studio Web (admin/dist)..." -ForegroundColor Yellow
 Push-Location (Join-Path $WorkspaceRoot "admin")

@@ -1,0 +1,7 @@
+{% if previous_url or next_url %}
+<nav aria-label="Pagination" class="rf-pagination">
+{% if previous_url %}<a href="{{ previous_url }}" rel="prev">← Page précédente</a>{% endif %}
+<span>Page {{ page }} sur {{ total_pages }}</span>
+{% if next_url %}<a href="{{ next_url }}" rel="next">Page suivante →</a>{% endif %}
+</nav>
+{% endif %}

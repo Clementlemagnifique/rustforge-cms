@@ -1,0 +1,14 @@
+{
+  "results": [
+    "Droits : anonyme 401, réglages auteur/abonné et activation auteur 403",
+    "Module LMS : masqué et 404 quand Off, menu et endpoint disponibles quand On",
+    "Sauvegarde auteur : rendu WASM/serveur identique, blocs voisins conservés",
+    "Conflit 409 et document invalide 422 sans écrasement ; révisions présentes",
+    "Auteur refusé sur une entrée appartenant à un autre compte"
+  ],
+  "entry_ids": [
+    "efffd2cc-b524-4439-9625-1ecf675202b6",
+    "8b4a44a4-6865-4429-a844-4573f094e000"
+  ],
+  "browser_tested": false
+}

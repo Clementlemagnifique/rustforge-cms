@@ -1,0 +1,28 @@
+Lot coquille Rust — 30 octobre 2026
+Projet du Bureau uniquement, sans commit ni push. Serveur et PostgreSQL de recette restés actifs, aucun redémarrage nécessaire.
+
+Livré :
+- session.rs : génération de requête invalidée sur changement de session ; réponse obsolète rejetée avant mise à jour des menus ; comparaison du jeton courant après attente réseau ; aucune écriture de jeton ni duplication de droits ;
+- écoute storage (changement rustforge_token ou clear) et focus ; retrait immédiat des menus et possibilité de reprendre explicitement la session ; échec de refresh vide aussi les anciens menus ;
+- messages de la coquille regroupés dans locales/fr.json avec clés stables et test de couverture des clés utilisées ; français uniquement ; labels de menus restent ceux du serveur ;
+- accès direct au contenu sans modification du hash métier, Échap ferme Options/Aide et menu mobile ;
+- bouton mobile explicite sous 650px, fermeture à la navigation ; état aria-expanded des boutons ;
+- groupes ouverts en mode réduit pour exposer les flyouts au focus ; correction de spécificité CSS des liens parents.
+
+Recette navigateur intégré réelle :
+- connexion wasm-admin existante réutilisée ;
+- groupe Articles ouvert par Entrée, lien Tous les articles activé par Entrée ;
+- Options et Aide ouverts au clavier, fermés par Échap ;
+- lien Aller au contenu activé par Entrée : focus rf-main, hash entries:post conservé ;
+- second onglet Studio actuel créé, déconnexion fictive par UI ; premier onglet Rust affiche Session modifiée et ses menus disparaissent ;
+- reconnexion fictive dans le second onglet, Reprendre ma session dans le premier : menus autorisés rechargés ; second onglet temporaire fermé ;
+- largeur temporaire 390px, bouton Menu ouvre la navigation, lien Ajouter un article change le hash vers new:post et referme le menu ; scrollWidth=390 pour innerWidth=390 ; dimensions réinitialisées ensuite ;
+- mode réduit puis Tab depuis Articles : flyout visible, focus Tous les articles ;
+- aucune publication ou suppression de contenu pendant ce lot.
+
+Contrôles : 7 tests unitaires rustforge-studio réussis (dont 2 nouveaux : réponse de session périmée et clés de messages) ; Clippy strict WASM --all-targets réussi après correction d'un avertissement de formatage ; compilation Trunk et build Vite réussis ; recette sécurité HTTP réussie. Suite workspace complète et scénario jobs non rejoués. Avertissements transitoires proc-macro-error2 et bundle Vite >500Ko existants.
+
+Limites : multi-onglets validé pour déconnexion/reconnexion du même compte ; échange admin/auteur, expiration sans activité, panne réseau et course réseau réelle restent à recetter (garde de génération testée nativement). Ce n'est pas une nouvelle couche de révocation serveur. Mobile vérifié sur une seule largeur ; menus métier Options/Aide et composants non transposés inchangés. Aucun test général lecteur d'écran ni qualification de tous les niveaux/modules. La session React des autres onglets ne reçoit pas encore cette synchronisation : lot limité à la coquille Rust.
+
+Suite : première tranche phase 2, tableau de bord Rust réutilisant les API et widgets existants. Vérifier les compteurs et filtrer Récemment publié par statut ; distinguer brouillons récents, données publiées et métriques réellement mesurées. Puis tables avec filtres, colonnes, pagination, Quick Edit et droits. Préserver moteur SSR, données et Studio actuel.
+Références consultées : https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event ; code installé Leptos 0.7.8 ; Context7 indisponible dans cette session.

@@ -121,3 +121,15 @@ pub async fn merge_term(
     let merged = terms::merge_terms(&state.db, id, payload.target_id).await?;
     Ok(Json(merged))
 }
+
+pub async fn rename_taxonomy(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(input): Json<terms::TaxonomyRename>,
+) -> ApiResult<Json<Taxonomy>> {
+    if !auth.user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(Json(terms::rename_taxonomy(&state.db, id, input).await?))
+}

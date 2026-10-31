@@ -123,7 +123,6 @@ pub fn site_icon_variant_specs() -> Vec<VariantSpec> {
     ]
 }
 
-
 /// Désinfecte un contenu SVG en supprimant tout script ou gestionnaire d'événement suspect.
 pub fn sanitize_svg(bytes: &[u8]) -> CoreResult<Vec<u8>> {
     let content = std::str::from_utf8(bytes)
@@ -140,32 +139,67 @@ pub fn sanitize_svg(bytes: &[u8]) -> CoreResult<Vec<u8>> {
         );
     }
 
-    // Filtre Ammonia adapté pour le XML/SVG
+    // SVG statique : conserver la géométrie sans styles, liens ni ressources externes.
     let clean = ammonia::Builder::new()
         .tags(std::collections::HashSet::from([
-            "svg",
-            "path",
-            "g",
-            "defs",
-            "clippath",
-            "circle",
-            "rect",
-            "line",
-            "polyline",
-            "polygon",
-            "text",
-            "tspan",
-            "use",
-            "symbol",
-            "lineargradient",
-            "radialgradient",
-            "stop",
-            "mask",
-            "filter",
-            "feGaussianBlur",
+            "svg", "path", "g", "circle", "rect", "line", "polyline", "polygon", "text", "tspan",
         ]))
+        .tag_attributes(std::collections::HashMap::new())
+        .generic_attributes(std::collections::HashSet::from([
+            "xmlns",
+            "viewBox",
+            "width",
+            "height",
+            "x",
+            "y",
+            "cx",
+            "cy",
+            "r",
+            "rx",
+            "ry",
+            "x1",
+            "x2",
+            "y1",
+            "y2",
+            "d",
+            "points",
+            "fill",
+            "stroke",
+            "stroke-width",
+            "opacity",
+            "fill-opacity",
+            "stroke-opacity",
+            "font-size",
+            "text-anchor",
+        ]))
+        .attribute_filter(|element, attribute, value| {
+            let safe = match attribute {
+                "xmlns" => element == "svg" && value == "http://www.w3.org/2000/svg",
+                "fill" | "stroke" => {
+                    !value.is_empty()
+                        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '#')
+                }
+                "text-anchor" => matches!(value, "start" | "middle" | "end"),
+                "d" => value
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || "MmZzLlHhVvCcSsQqTtAaEe.,+- \t\r\n".contains(c)),
+                _ => {
+                    !value.is_empty()
+                        && value
+                            .chars()
+                            .all(|c| c.is_ascii_digit() || ".,+-%eE \t\r\n".contains(c))
+                }
+            };
+            safe.then_some(std::borrow::Cow::Borrowed(value))
+        })
         .clean(content)
         .to_string();
+    // Le parseur HTML peut recevoir un SVG sans namespace, requis en tant qu'image autonome.
+    let clean = if clean.starts_with("<svg") && !clean.contains("xmlns=") {
+        clean.replacen("<svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"", 1)
+    } else {
+        clean
+    };
 
     Ok(clean.into_bytes())
 }
@@ -267,9 +301,7 @@ pub fn generate_variants_from_bytes(
 }
 
 /// Génère les variantes d'icône de site carrées (favicon 32px, apple touch 180px, pwa 192px/512px) (WP-74).
-pub fn generate_site_icon_variants(
-    bytes: &[u8],
-) -> CoreResult<(Vec<ProcessedVariant>, i32, i32)> {
+pub fn generate_site_icon_variants(bytes: &[u8]) -> CoreResult<(Vec<ProcessedVariant>, i32, i32)> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| CoreError::validation(e.to_string()))?;
@@ -303,7 +335,6 @@ pub fn generate_site_icon_variants(
     let variants = generate_variants_for_image(&square_img, &specs, 90.0);
     Ok((variants, min_dim as i32, min_dim as i32))
 }
-
 
 /// Applique une rotation à une image en mémoire (WP-39).
 pub fn rotate_image_bytes(
@@ -548,6 +579,32 @@ mod tests {
         let cleaned_str = String::from_utf8(cleaned).unwrap();
         assert!(!cleaned_str.contains("<script"));
         assert!(cleaned_str.contains("<circle"));
+    }
+
+    #[test]
+    fn svg_preserves_static_image_and_blocks_active_resources() {
+        let dirty = br##"<svg width="960" height="360" viewBox="0 0 960 360" onload="alert(1)"><rect width="960" height="360" fill="#2271b1"/><text x="20" y="40" font-size="24">Bonjour</text><path d="M0 0 L10 20" stroke="url(https://evil.invalid/a)"/><use href="https://evil.invalid/a"/><foreignObject><div>unsafe</div></foreignObject></svg>"##;
+        let clean = String::from_utf8(sanitize_svg(dirty).unwrap()).unwrap();
+        for expected in [
+            "xmlns=\"http://www.w3.org/2000/svg\"",
+            "width=\"960\"",
+            "viewBox=\"0 0 960 360\"",
+            "fill=\"#2271b1\"",
+            "font-size=\"24\"",
+            "d=\"M0 0 L10 20\"",
+        ] {
+            assert!(clean.contains(expected), "missing {expected}: {clean}");
+        }
+        for forbidden in [
+            "onload",
+            "evil.invalid",
+            "href=",
+            "foreignObject",
+            "<use",
+            "url(",
+        ] {
+            assert!(!clean.contains(forbidden), "retained {forbidden}: {clean}");
+        }
     }
 
     #[test]

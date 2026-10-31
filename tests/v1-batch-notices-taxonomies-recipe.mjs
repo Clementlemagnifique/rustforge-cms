@@ -1,0 +1,44 @@
+// Guarded fake-data-only workflow on the named Mac fixture.
+import assert from 'node:assert/strict';import {readFileSync,writeFileSync} from 'node:fs';
+const rt=JSON.parse(readFileSync('scratch/wasm-auth-recipe/runtime.json'));assert.match(rt.database,/^rf_wasm_browser_[a-f0-9]{32}$/);assert.equal(rt.port,55499);assert.equal(rt.closed,false);
+const base='http://127.0.0.1:55499';let checks=0;
+async function api(path,token,method='GET',body,status=200){const r=await fetch(base+'/api/v1'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();let data;try{data=JSON.parse(raw)}catch{data=raw}assert.equal(r.status,status,`${method} ${path}: ${JSON.stringify(data)}`);checks++;return data;}
+assert.equal((await api('/public/settings')).title,'Recette WASM isolee');
+const tokens={};for(const role of ['admin','author','subscriber'])tokens[role]=(await api('/auth/login',null,'POST',{login:'wasm-'+role,password:'Recipe-only-password-2026!'})).token;
+const a=tokens.admin;const suffix=Date.now();await api('/admin/modules',a,'PUT',{forms:true});
+const form=await api('/forms',a,'POST',{name:'Lot V1 formulaires '+suffix,is_active:true,fields:{type:'object',properties:{message:{type:'string'}}},settings:{notify_email:'legacy@example.invalid',notifications:{capture_owner:true}}});
+await api('/forms',a,'POST',{name:'Notification invalide '+suffix,fields:form.fields,settings:{notifications:{capture_owner:true,smtp:true}}},422);
+const submit=async(message,spam=false)=>api('/public/forms/'+form.id+'/submit',null,'POST',{data:{message},_website:spam?'bot':''});
+await submit('Réponse privée A '+suffix);await submit('Réponse privée B '+suffix);await submit('Signalement à ignorer',true);
+let jobs=await api('/jobs',a);let notices=jobs.items.filter(j=>j.kind==='rf.mail.form_capture');assert.equal(notices.length,2);
+await api('/jobs/capture',a,'POST',{limit:10});
+for(const job of notices){const capture=await api('/jobs/'+job.id+'/capture',a);assert.equal(capture.subject,'Nouvelle réponse — '+form.name);assert.ok(!capture.text.includes('Réponse privée'));}
+const list=async(trash=false)=>api('/forms/'+form.id+'/submissions?trash='+trash,a);
+const exp=row=>({id:row.id,expected_is_read:row.is_read,expected_deleted_at:row.deleted_at});
+const batch=(action,rows,confirm_delete=false,token=a,status=200)=>api('/forms/'+form.id+'/submissions/batch',token,'POST',{action,items:rows.map(exp),confirm_delete},status);
+let rows=(await list()).items.filter(r=>!r.is_spam);
+await batch('read',rows,false,tokens.author,403);await batch('read',rows,false,tokens.subscriber,403);
+await batch('read',[rows[0],rows[0]],false,a,422);
+await batch('read',Array.from({length:101},()=>rows[0]),false,a,422);
+await api('/forms/submissions/'+rows[0].id,a,'PUT',{action:'read',expected_is_read:false,expected_deleted_at:null});
+await batch('read',rows,false,a,409);assert.equal((await list()).items.find(r=>r.id===rows[1].id).is_read,false);
+rows=(await list()).items.filter(r=>!r.is_spam);assert.equal((await batch('read',rows)).affected,2);
+rows=(await list()).items.filter(r=>!r.is_spam);await batch('trash',rows);assert.equal((await list(true)).total,2);
+rows=(await list(true)).items;await batch('delete',rows,false,a,422);assert.equal((await list(true)).total,2);
+await batch('restore',rows);rows=(await list()).items.filter(r=>!r.is_spam);await batch('trash',rows);rows=(await list(true)).items;
+await batch('delete',[rows[0]],true);await batch('restore',[rows[1]]);assert.equal((await list(true)).total,0);
+const obsolete=await submit('Avis devenu obsolète');let ob=(await list()).items.find(r=>r.id===obsolete.submission_id);await api('/forms/submissions/'+ob.id,a,'PUT',{action:'trash',expected_is_read:ob.is_read,expected_deleted_at:null});await api('/jobs/capture',a,'POST',{limit:10});jobs=await api('/jobs',a);assert.ok(jobs.items.some(j=>j.kind==='rf.mail.form_capture'&&j.error_code==='form_notice_obsolete'));
+for(const message of ['Sélection visuelle A','Sélection visuelle B','Sélection visuelle C'])await submit(message+' '+suffix);
+const tx=await api('/taxonomies',a,'POST',{name:'Publics V1 '+suffix,slug:'publics-v1-'+suffix,hierarchical:true});
+await api('/taxonomies',tokens.author,'POST',{name:'Interdit'},403);
+await api('/taxonomies',a,'POST',{name:' '.repeat(4)},422);
+const term=await api('/terms',a,'POST',{taxonomy:tx.slug,name:'Partenaires '+suffix});
+await api('/taxonomies/'+tx.id,a,'DELETE',undefined,409);
+await api('/taxonomies/'+tx.id,tokens.author,'PUT',{name:'Interdit',expected_name:tx.name},403);
+const renamed=await api('/taxonomies/'+tx.id,a,'PUT',{name:'Publics renommés '+suffix,expected_name:tx.name});assert.equal(renamed.slug,tx.slug);
+await api('/taxonomies/'+tx.id,a,'PUT',{name:'Conflit',expected_name:tx.name},409);
+const page=await api('/entries?content_type=page',a,'POST',{title:'Page classée V1 '+suffix,term_ids:[term.id],status:'draft'});assert.equal(page.terms[0].id,term.id);
+const empty=await api('/taxonomies',a,'POST',{name:'Vide jetable '+suffix});await api('/taxonomies/'+empty.id,a,'DELETE');
+const system=(await api('/taxonomies',a)).find(t=>t.is_system);await api('/taxonomies/'+system.id,a,'DELETE',undefined,409);
+writeFileSync('docs/validations/lot-v1-batch-notifications-taxonomies-2026-10-31/fixture.json',JSON.stringify({form_id:form.id,form_name:form.name,taxonomy:renamed,term_id:term.id,page_id:page.id,checks},null,2)+'\n');
+console.log(`PASS ${checks} contrôles HTTP : lots atomiques et bornés, droits, suppression/restauration, captures sans réponses, avis obsolètes, taxonomies/termes/classement et protections système.`);

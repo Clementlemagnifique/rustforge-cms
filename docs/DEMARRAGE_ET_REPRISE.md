@@ -1,25 +1,37 @@
-# RustForge CMS — démarrage et reprise après consolidation
+# RustForge CMS — démarrage et reprise
 
-**Mise à jour du 28 octobre :** commencer par [V1_TESTABLE.md](V1_TESTABLE.md). La version courante est `1.0.0-alpha.1`, avec `init`, des lanceurs et un ZIP Windows autonome. Le détail ci-dessous conserve les procédures et limites de la consolidation du 27.
+## Reprise sur Mac — 31 octobre 2026
 
-Produit actuel : **RustForge CMS**, binaire et crates `rustforge`; version déclarée `1.0.0-alpha.1`. Guide actualisé le 28 octobre 2026; consulter le [plan global](PLAN_ACTION_GLOBAL.md) et le [tableau de l’existant](pilotage/07_ETAT_EXISTANT.md).
+Le dossier actif est désormais `/Users/admin/Desktop/CMS Rust`. Les consignes
+Windows des anciennes sessions restent historiques. La branche de consolidation
+`codex/reprise-macos-leptos-rustemberg` est autorisée pour publication ; aucune fusion
+vers `main` dans ce jalon. Préserver les données et le moteur HTML SSR.
 
-## Retrouver le travail
+Lire la première entrée du [journal](pilotage/08_JOURNAL_REPRISE.md), le
+[guide Mac et plan de continuation](DEVELOPPEMENT_MACOS.md), le
+[registre du menu](pilotage/10_MENU_ADMIN.md) et la matrice du
+[plan Full Rust/WASM](PLAN_MIGRATION_FULL_RUST_WASM.md).
 
-Les modifications sont dans le dossier du projet, avec les nouvelles migrations et les tests. Aucun commit, push, déploiement, changement de la configuration personnelle ou migration de la base du site n'a été effectué par ce lot. Le rapport initial reste un état historique, antérieur aux corrections.
+```text
+Reprends RustForge CMS dans /Users/admin/Desktop/CMS Rust. Lis l’autorisation Git
+la plus récente dans le journal ; pas de nouvelle publication ni fusion implicite.
+Lis d'abord la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis
+les commandes et le plan dans docs/DEVELOPPEMENT_MACOS.md.
+Préserve CMS, SSR MiniJinja, rf.document/1, changements locaux et données Windows.
+Prépare le terminal avec source scripts/env-macos.sh. La recette Mac utilise
+scripts/wasm-recipe-runtime.sh et un cluster séparé scratch/macos-postgres.
+Ne réutilise pas les PID ni les exécutables Windows, et ne touche pas au port 8080.
+Le menu comporte 172 entrées ; les rubriques prévues ne sont pas des fonctions livrées.
+La priorité active est Rustemberg selon les conventions Gutenberg/WordPress.
+Lire le plan admin Rust et la matrice 172 entrées ; garder les écarts de transition visibles.
+Les nouveaux écrans sont en Rust/WASM, sans prolonger la cible React.
+Le ZIP final, la parité globale et la restauration des données personnelles restent
+à qualifier. Ne pas réactiver les anciens lots sur leur seule présence dans l'historique.
+```
 
-Pour reprendre le développement actuel, lire dans cet ordre :
-
-1. [Journal de reprise](pilotage/08_JOURNAL_REPRISE.md) : première entrée, état courant et limites.
-2. [Plan global](PLAN_ACTION_GLOBAL.md) : section « Reprise préparée pour GPT-6.1 Sol », étapes et message de transmission.
-3. [Contrats transverses](pilotage/04_CONTRATS_TRANSVERSES.md) et [existant](pilotage/07_ETAT_EXISTANT.md).
-4. [Tests de régression](../crates/rustforge-api/tests/consolidation.rs) et [rapport de recette](validations/reprise-g1-g2-2026-10-28/RAPPORT.md).
-
-Les procédures ci-dessous et l'[audit initial](AUDIT_RUSTFORGE_V0.1.0_2026-10-27.md) décrivent aussi des états historiques : le journal et le plan priment pour décider du prochain lot.
-
-Pour reprendre avec un autre assistant :
-
-> Reprends dans le checkout courant `C:\Users\cleme\.codex\worktrees\audit-reprise-29-oct\CMS Rust`. Lis la première entrée de docs/pilotage/08_JOURNAL_REPRISE.md puis la section de reprise Sol de docs/PLAN_ACTION_GLOBAL.md ; vérifie git status et préserve le travail non commité. M1-E diagnostic Studio est livré dans son périmètre capture : ne pas le recréer. Poursuis M1-C (transport de production configurable et testable avec un faux fournisseur), puis M1-F (pannes, rétention et invalidation du cache de commentaires entre instances). La configuration du transport et les diagnostics généraux restent ouverts. La file, la capture et les notifications transactionnelles sont déjà présentes. Aucun e-mail réel sans autorisation. Les lots de lecture publique et de consolidation Discussion sont déjà présents ; ne les redémarre pas. Les références ignorées au Bureau peuvent être consultées de façon ciblée, sans modification ni rescan général. Ne touche pas aux configurations personnelles ni aux bases existantes. Actualise le journal et les tableaux à la fin de chaque lot.
+Les procédures ci-dessous restent utiles pour l'installation et les formats de
+sauvegarde. Leurs exemples PowerShell concernent Windows ; sur Mac, utiliser les
+commandes du guide dédié et le binaire `target/debug/rustforge`, sans `.exe`.
 
 ## Préparer une installation
 

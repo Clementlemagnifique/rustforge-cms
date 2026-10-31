@@ -1,0 +1,31 @@
+Harmonisation admin — 30 octobre 2026
+
+Périmètre : coquille Rust/Leptos, CSS commun avec le Studio de transition,
+menu complet et cinq séparateurs serveur. Aucune suppression d’entrée, aucun
+module métier activé. 170 entrées, 438 tâches, 38 composants, 17 lots conservés.
+
+Vérifications réussies :
+- Workspace Rust : 136 tests réussis ; 3 scénarios PostgreSQL ignorés par cette commande.
+- Studio : 10 tests ; Clippy strict workspace et cible WASM.
+- Builds document WASM, Studio Trunk, serveur Rust et Studio de transition Vite.
+- Lint admin et 21 tests Node.
+- HTTP : menu par rôle admin/auteur/abonné, séparation préparation/métier,
+  cinq séparateurs et CSS commun réellement servis.
+- CSP/bootstrap/MIME WASM ; 6 fixtures identiques Rust natif/WASM.
+- Navigateur : tableau de bord Rust et fiche Créer un événement avec fonctions
+  et tâche ; menu replié 36 px, barre 32 px, aucun débordement horizontal.
+- Mobile 390 px : menu ouvert puis fermé avec Échap, aucun débordement horizontal.
+  Taille du navigateur rétablie.
+- Transition : écran Utilisateurs clair et lisible, options de l’écran en panneau
+  de contenu ; captures conservées. Recette de présentation sans mutation métier.
+
+Captures : dashboard-rust.png, fiche-prevue-rust.png, menu-mobile-rust.png,
+utilisateurs-transition.png.
+
+Limites : recette ciblée, tous les écrans/thèmes/rôles et parcours clavier restent
+à qualifier ; R00 non clos, WP-08/09/10/13 EN_COURS seulement, WP-14 reste EN_COURS.
+R01-D widgets organisables et R02 tables restent à développer. React reste la
+transition pour les écrans non remplacés. Figma non créé. Meow Apps enregistré
+comme inspiration différée après les bases des modules.
+Avertissements préexistants Vite taille et proc-macro-error2 conservés.
+Aucun commit ni push ; fixture Mac seule redémarrée, bases Windows et 8080 préservés.

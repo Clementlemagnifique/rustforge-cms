@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<section class="container rf-public-list" style="padding-top:3rem;padding-bottom:3rem">
+<h1>{{ title }}</h1>
+<form action="/{{ locale }}/search" method="get" role="search">
+<label for="rf-query">Rechercher sur le site</label>
+<div class="rf-search-controls"><input id="rf-query" name="q" type="search" value="{{ search_query | default('') }}" maxlength="200"><button type="submit" class="btn-primary">Rechercher</button></div>
+</form>
+{% if not is_search or search_query %}<p>{{ total }} résultat(s)</p>{% endif %}
+{% for entry in entries %}
+<article><h2><a href="/{{ locale }}/{{ entry.content_type }}/{{ entry.slug }}">{{ entry.title }}</a></h2><p>{{ entry.excerpt }}</p>
+{% for term in entry.terms %}{% if term.taxonomy == 'category' or term.taxonomy == 'tag' %}<a href="/{{ locale }}/archive/{{ term.taxonomy }}/{{ term.slug }}">{{ term.name }}</a> {% endif %}{% endfor %}</article>
+{% else %}<p>{% if is_search and not search_query %}Saisissez votre recherche.{% else %}Aucun résultat pour le moment.{% endif %}</p>{% endfor %}
+{% include "pagination.html" %}
+</section>
+{% endblock %}

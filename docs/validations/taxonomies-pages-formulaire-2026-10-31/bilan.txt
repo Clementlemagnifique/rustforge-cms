@@ -1,0 +1,88 @@
+31 octobre 2026 — Taxonomies, hiérarchie des pages et premier bloc métier Rust
+
+Périmètre réalisé sur l'existant
+- Gestion Leptos des catégories et étiquettes : recherche, création, nom, slug,
+  description, parent, édition et suppression avec confirmation/réaffectation.
+  Les taxonomies déjà définies sont sélectionnables. Les définitions personnalisées
+  et l'outil de fusion dédié conservent leur transition explicite.
+- Inspecteur de l'éditeur : termes associés et page parente. Les pages proposées
+  sont celles autorisées au compte, avec exclusion de soi et des descendantes.
+  L'API existante vérifie les cycles et le type de contenu. Parent et termes sont
+  conservés si non modifiés, effaçables explicitement et inclus dans la copie locale.
+- Arbre alphabétique des pages accessibles, chargé depuis la liste Pages, avec liens
+  d'édition. Aucun déplacement manuel ni nouveau champ d'ordre n'est simulé.
+- Premier bloc métier : form_embed dans rf.document/1, insérable en page/article.
+  Sélection d'un formulaire actif, référence UUID et aperçu public. L'insertion
+  est désactivée dans l'éditeur lorsque le module n'est pas accessible.
+- Contrat documentaire partagé Rust/WASM, conversion Markdown et validation stricte :
+  pas d'URL externe/HTML libre dans ce bloc et huit formulaires maximum par document.
+- Le rendu public réutilise les champs, validations et traitement déjà existants.
+  Les marqueurs de référence sont résolus APRES le cache de page, avec contrôle de
+  l'activation et jetons frais. Les pages et réponses JSON contenant les formulaires
+  sont no-store. Plusieurs occurrences ont des identifiants de champs distincts.
+  Un formulaire désactivé ou supprimé n'affiche plus ses champs, même après cache.
+- Soumission HTML native vers /forms/<UUID> : erreurs et valeurs conservées,
+  confirmation réelle de stockage. Aucun JavaScript métier, iframe ou second schéma.
+  L'envoi ouvre la page du formulaire ; la confirmation dans la page hôte reste à faire.
+
+Références et options
+WordPress local pour termes et pages ; WPForms Lite local pour l'intégration de formulaire.
+Les sources de référence n'ont pas été exécutées ni modifiées. Le catalogue conserve
+ses dix blocs métier : un en première version et neuf à préparer. Styles avancés,
+conditions, étapes, fichiers/paiements et autres options restent explicitement futurs.
+Le manifeste Forms distingue maintenant form_embed parmi les capacités disponibles.
+Menu : toujours 170 entrées, 23 familles et cinq séparateurs ; 32 ready, 50 partial,
+88 planned. Fonctions et rattachements WP-19/WP-20/MOD-FORM-09 complétés. Les fonctions
+Recherche/Slug/Fusion historiques n'ont pas été retirées. Aucun statut ready ajouté.
+
+Preuves exécutées
+- workspace-tests.txt : 149 tests passent ; trois tests PostgreSQL restent ignorés
+  dans cette commande. Les essais HTTP ci-dessous utilisent la vraie fixture PostgreSQL.
+- unit.txt : 19 tests documentaire + 20 Studio, comprenant références de formulaire,
+  conversion inverse, limite et données interdites, exclusions de cycles/orphelins,
+  conservation et effacement explicite du parent et des termes.
+- clippy.txt et ui-clippy.txt : workspace et cible WASM/UI avec -D warnings.
+- document-build.txt, studio-build.txt, admin-build.txt, server-build.txt : builds.
+- parity.txt : sept fixtures identiques entre moteur Rust natif et WASM, dont form_embed.
+- http.txt : 37 contrôles sur comptes et contenus fictifs uniquement. Cycles de termes,
+  pages et mauvais type refusés ; réaffectation sans perte de contenu ; métadonnées
+  opaques préservées ; détachement explicite ; deux embeds du même formulaire ; HTML
+  échappé ; erreur de soumission conservant les champs ; stockage effectif ; refus
+  pour auteur tiers/abonné ; désactivation/réactivation après cache ; contenu existant
+  conservé quand le module est fermé. Rendu public SSR et JSON du contenu vérifiés.
+- menu-http.txt : navigation et séparation des fiches prévues, admin/auteur/abonné.
+- security-http.txt : bootstrap externe, signature/MIME WASM, CSP Studio restrictive.
+- Navigateur : catégorie enfant créée et relue ; nouvelle page, parent/catégorie/
+  étiquette sélectionnés ; bloc inséré et formulaire choisi ; sauvegarde, réouverture,
+  publication confirmée et affichage public. Envoi fictif depuis le bloc confirmé.
+  Valeurs parent, termes et référence vérifiées aussi côté API. Arbre Pages ouvert
+  avec la page enfant visible sous son parent. Aucune erreur console relevée.
+- Captures : taxonomies.png, hierarchie-pages.png, editeur-classement-formulaire.png,
+  formulaire-public.png, page-publiee.png, editeur-mobile.png. Mobile éditeur 390x844 :
+  document et body 390 px ; dimensions rétablies ensuite.
+
+Corrections révélées par la recette
+Le nettoyage HTML de lecture retirait le marqueur du bloc : seul son attribut est
+maintenant préservé avant résolution contrôlée. Les sélecteurs chargés de façon
+asynchrone pouvaient afficher le premier choix alors que la valeur était correctement
+enregistrée : sélection des options liée à la valeur pour parent, formulaire, taxonomie
+et état éditorial. Valeurs relues après réouverture, y compris état publié.
+
+Limites et continuation
+WP-19, WP-20, R02/R03 et MOD-FORM-09 restent ouverts : pas de parité exhaustive.
+Ordre manuel et URLs imbriquées des pages, fusion dédiée, définitions personnalisées,
+concurrence des modifications de termes, grand volume et parcours clavier complets
+restent à approfondir. Arbre limité aux 10 000 pages autorisées, avec erreur explicite
+au-delà. La catégorie/étiquette peut être associée à une page selon le contrat actuel.
+Le bloc prend en charge le sous-ensemble simple des formulaires publics existants ;
+les schémas avancés sont refusés explicitement. L'aperçu structurel de l'éditeur reste
+un marqueur ; le bouton d'aperçu du formulaire ouvre le rendu public effectif.
+Le Studio React de transition ne sait pas éditer ce nouveau type natif ; conserver
+son refus de format inconnu, utiliser le Studio Rust. Pas de suppression de React.
+Suite : consolider l'ordre/filiation et les outils de termes, puis enrichir l'aperçu
+et les variantes du bloc Formulaire avant le prochain bloc métier (galerie ou cours).
+
+Exécution
+Aucune migration ajoutée. Fixture Mac 55499 / PostgreSQL 55496 seule reconstruite et
+redémarrée ; données Windows et serveur personnel 8080 préservés. Aucun commit/push.
+Suivi : toujours 438 tâches, 38 composants et 17 lots ; aucune clôture globale.

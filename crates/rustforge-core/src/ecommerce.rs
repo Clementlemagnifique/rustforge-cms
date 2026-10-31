@@ -421,6 +421,22 @@ pub async fn get_order(db: &PgPool, id: Uuid) -> CoreResult<OrderWithItems> {
 }
 
 pub async fn checkout(db: &PgPool, payload: CheckoutPayload) -> CoreResult<OrderWithItems> {
+    let email = payload.customer_email.trim();
+    if email.len() > 254
+        || !email.split_once('@').is_some_and(|(local, domain)| {
+            !local.is_empty()
+                && domain.contains('.')
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
+        })
+        || payload
+            .customer_name
+            .as_ref()
+            .is_some_and(|value| value.chars().count() > 200)
+    {
+        return Err(CoreError::validation("Nom ou adresse e-mail invalide"));
+    }
+
     if !matches!(payload.gateway.as_deref(), None | Some("manual")) {
         return Err(CoreError::validation(
             "passerelle non autorisée ; les paiements de test ne sont pas publics",

@@ -44,6 +44,88 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  analytics: {
+    summary: (period: string = '7d') =>
+      request<import('./types').AnalyticsSummary>(`/analytics/summary?period=${encodeURIComponent(period)}`),
+    settings: () =>
+      request<import('./types').AnalyticsSettings>('/analytics/settings'),
+    updateSettings: (settings: import('./types').AnalyticsSettings) =>
+      request<import('./types').AnalyticsSettings>('/analytics/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      }),
+    purge: (retentionDays?: number) =>
+      request<{ deleted: number; message: string }>('/analytics/purge', {
+        method: 'POST',
+        body: JSON.stringify({ retention_days: retentionDays }),
+      }),
+    clearData: () =>
+      request<{ deleted: number; message: string }>('/analytics/data', {
+        method: 'DELETE',
+      }),
+    exportUrl: (period: string = '30d') =>
+      `/api/v1/analytics/export?period=${encodeURIComponent(period)}`,
+  },
+  translations: {
+    getLanguages: () =>
+      request<import('./types').LanguagesConfig>('/translations/languages'),
+    updateLanguages: (payload: { active: string[]; default: string }) =>
+      request<import('./types').LanguagesConfig>('/translations/languages', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    getMatrix: (params?: { content_type?: string; q?: string; page?: number; per_page?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.content_type) q.set('content_type', params.content_type);
+      if (params?.q) q.set('q', params.q);
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.per_page) q.set('per_page', String(params.per_page));
+      const qs = q.toString();
+      return request<import('./types').TranslationMatrixResponse>(`/translations/matrix${qs ? `?${qs}` : ''}`);
+    },
+    getSiblings: (id: string) =>
+      request<import('./types').TranslationSibling[]>(`/translations/entries/${id}/siblings`),
+    createTranslation: (id: string, target_locale: string) =>
+      request<import('./types').Entry>(`/translations/entries/${id}/translate`, {
+        method: 'POST',
+        body: JSON.stringify({ target_locale }),
+      }),
+    link: (id: string, target_id: string) =>
+      request<{ success: boolean }>(`/translations/entries/${id}/link`, {
+        method: 'POST',
+        body: JSON.stringify({ target_id }),
+      }),
+    unlink: (id: string) =>
+      request<{ success: boolean }>(`/translations/entries/${id}/unlink`, {
+        method: 'POST',
+      }),
+    getCatalog: (locale: string) =>
+      request<import('./types').TranslationCatalog>(`/translations/catalogs/${encodeURIComponent(locale)}`),
+    updateCatalog: (locale: string, items: import('./types').CatalogItem[]) =>
+      request<import('./types').TranslationCatalog>(`/translations/catalogs/${encodeURIComponent(locale)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ items }),
+      }),
+    exportPoUrl: (locale: string) =>
+      `/api/v1/translations/catalogs/${encodeURIComponent(locale)}/export`,
+    importCatalog: (locale: string, content: string, format: string = 'po') =>
+      request<import('./types').TranslationCatalog>(`/translations/catalogs/${encodeURIComponent(locale)}/import`, {
+        method: 'POST',
+        body: JSON.stringify({ content, format }),
+      }),
+    syncCatalog: (locale: string) =>
+      request<import('./types').TranslationCatalog>(`/translations/catalogs/${encodeURIComponent(locale)}/sync`, {
+        method: 'POST',
+      }),
+  },
+  themes: {
+    list: () =>
+      request<import('./types').ThemeSummary[]>('/themes'),
+    activate: (slug: string) =>
+      request<{ success: boolean; active_theme: string }>(`/themes/${encodeURIComponent(slug)}/activate`, {
+        method: 'POST',
+      }),
+  },
   jobs: {
     list: (state: string, page: number) => request<import('./types').JobsPage>(`/jobs?page=${page}&per_page=20${state ? `&state=${encodeURIComponent(state)}` : ''}`),
     action: (job: import('./types').JobSummary, action: 'cancel' | 'retry' | 'resume-restored') => request<{ok: boolean}>(`/jobs/${job.id}/${action}`, {method: 'POST', body: JSON.stringify({expected_updated_at: job.updated_at})}),
@@ -51,6 +133,7 @@ export const api = {
     captureBatch: () => request<{handled: number; mail_mode: string}>('/jobs/capture', {method: 'POST', body: JSON.stringify({limit: 10})}),
   },
   admin: {
+    columns: () => request<Record<string, unknown>>('/admin/columns'),
     navigation: () => request<import('./types').AdminNavigation>('/admin/navigation'),
     updateModules: (patch: Record<string, boolean>) => request<import('./types').AdminNavigation>('/admin/modules', { method: 'PUT', body: JSON.stringify(patch) }),
   },

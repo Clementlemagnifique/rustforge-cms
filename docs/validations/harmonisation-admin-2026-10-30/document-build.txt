@@ -1,0 +1,2 @@
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.94s

@@ -1,0 +1,1 @@
+PASS: menu complet, cinq séparateurs, fiches prévues et socle CSS partagé servis sur les deux administrations.

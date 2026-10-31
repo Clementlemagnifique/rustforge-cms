@@ -1,0 +1,60 @@
+RustForge CMS — préparation Mac du 30 octobre 2026
+Dossier : /Users/admin/Desktop/CMS Rust ; macOS ARM64.
+Aucun commit ni push ; données Windows, .env et changements transférés préservés.
+
+OUTILS
+Rust/Cargo 1.97.0, Clippy/rustfmt ; wasm32-unknown-unknown et wasm32-wasip2.
+Node 24.22.2, npm 11.19.1, PostgreSQL 18.6.
+wasm-bindgen-cli 0.2.129 et Trunk 0.22.1 natifs ARM64 sous .tools/bin.
+PATH préparé par source scripts/env-macos.sh, sans modification permanente.
+
+RÉSULTATS
+- cargo build --locked --bin rustforge : réussi, binaire Mach-O ARM64.
+- cargo test --locked --workspace : 133 réussis, 3 ignorés explicitement.
+- cargo clippy --locked --workspace --all-targets -- -D warnings : réussi.
+- consolidation --include-ignored : 4 réussis, dont le scénario PostgreSQL.
+- jobs_postgres --include-ignored : 2 réussis.
+- npm ci, lint, TypeScript et Vite : réussis.
+- Tests Node : 21 réussis, 0 échec.
+- Pont WASM, build UI Cargo et build Trunk avec publication locale : réussis.
+- Six fixtures : résultats Rust natif et WASM identiques.
+- Recette HTTP : autorisations, LMS Off/On, sauvegarde auteur, blocs préservés,
+  conflit 409, invalidité 422, révisions et isolement entre auteurs réussis.
+- Menu : 170 entrées, séparation admin/auteur/abonné réussie, y compris après redémarrage.
+- CSP : bootstrap externe, MIME et signature WASM corrects ; inline JS/eval refusés.
+- Pilotage : 438 tâches, 38 composants, 170 entrées ; documentation sans erreur.
+- Syntaxe shell et Python des nouveaux scripts : contrôlée.
+
+VÉRIFICATION NAVIGATEUR
+Connexion du compte fictif, ordre principal du menu et fiche Événements inactifs
+vérifiés dans le Studio actuel. Après redémarrage et renouvellement de session,
+Studio Rust reconstruit chargé depuis /admin/rust/, laboratoire documentaire actif,
+reprise de session et menu autorisé affichés ; aucun warn/error dans les logs de
+cette page lors du contrôle final. Les brouillons créés par la recette HTTP sont
+visibles dans le Studio : la chaîne API/PostgreSQL/interface est raccordée.
+
+CORRECTIONS DE PRÉPARATION
+- Dépendances natives Node remplacées via npm ci, sans changer le verrouillage.
+- Contrôle de port adapté à TIME_WAIT pour redémarrage Mac immédiat.
+- Trunk nécessite des dépendances de métadonnées supplémentaires : cargo fetch
+  --locked préalable, puis CARGO_NET_OFFLINE=true dans le script de build.
+- Bootstrap Trunk externalisé avec empreinte comme dans le contrat CSP Windows.
+- Packaging shell adapté au nom natif macOS/Linux + ARM64/x64, checksum portable,
+  et construction des deux assets WASM avant Vite. Archive release non produite.
+
+ÉTAT LAISSÉ
+Fixture Mac active : http://127.0.0.1:55499/admin/ ; aperçu Rust : /admin/rust/.
+PostgreSQL jetable sur 127.0.0.1:55496, cluster scratch/macos-postgres.
+Arrêt/redémarrage immédiat vérifiés. Secrets JWT éphémères, pas de secret dans ces preuves.
+État Windows sauvegardé sous scratch/wasm-auth-recipe/runtime.windows.json.
+Aucune intervention sur .pgsql/data, scratch/consolidation-db ni le port 8080.
+
+LIMITES ET SUITE
+Données personnelles Windows non restaurées : prévoir dump logique ou capsule compatible.
+Recette responsive/accessibilité complète du menu, autres scénarios de session et
+éditeur restent ouverts ; pas de certification, parité générale ni ZIP final revendiqués.
+Avertissements de taille Vite et future incompatibilité proc-macro-error2 présents.
+Défauts existants retrouvés : compteur Articles à 0 malgré les brouillons fictifs,
+présence de ces brouillons sous Récemment publié, libellés RustForge 0.1.0/PostgreSQL 17.
+Les traiter dans le lot tableau de bord, puis listes, après qualification des références
+utilisateur à venir. Aucun changement métier engagé dans ce lot de préparation.

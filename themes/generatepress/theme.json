@@ -1,0 +1,15 @@
+{
+  "name": "Generate Sovereign",
+  "version": "1.0.0",
+  "author": "RustForge Studio",
+  "description": "Thème ultra-léger et minimaliste inspiré de GeneratePress. Sobriété absolue, typographie lisible et chargement instantané sans surcharge.",
+  "tokens": {
+    "primary_color": "#059669",
+    "accent_color": "#34d399",
+    "radius": "6px",
+    "font_heading": "'Inter', system-ui, -apple-system, sans-serif",
+    "font_body": "'Inter', system-ui, -apple-system, sans-serif",
+    "bg_color": "#111827",
+    "text_color": "#f3f4f6"
+  }
+}

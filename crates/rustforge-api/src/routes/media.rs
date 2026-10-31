@@ -33,6 +33,14 @@ pub async fn list(
     Ok(Json(page))
 }
 
+pub async fn get(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Media>> {
+    Ok(Json(media::get(&state.db, id).await?))
+}
+
 pub async fn list_folders(
     State(state): State<AppState>,
     _auth: AuthUser,
@@ -260,17 +268,9 @@ pub async fn rotate(
     // Sauvegarde de l'original souverain si pas encore archivé (WP-39)
     let mut metadata = current.metadata.clone();
     if metadata.get("original_path").is_none() {
-        let ext = current
-            .path
-            .rsplit('.')
-            .next()
-            .unwrap_or("bin");
+        let ext = current.path.rsplit('.').next().unwrap_or("bin");
         let orig_filename = format!("{}-original.{}", current.id, ext);
-        let sub_dir = current
-            .path
-            .rsplit_once('/')
-            .map(|(d, _)| d)
-            .unwrap_or("");
+        let sub_dir = current.path.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
         let orig_rel = if sub_dir.is_empty() {
             orig_filename
         } else {
@@ -296,11 +296,7 @@ pub async fn rotate(
         80.0,
     )?;
 
-    let sub_dir = current
-        .path
-        .rsplit_once('/')
-        .map(|(d, _)| d)
-        .unwrap_or("");
+    let sub_dir = current.path.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
     let base_id = current.id.to_string();
     let mut variants_json = serde_json::Map::new();
     for var in &new_variants {
@@ -328,15 +324,9 @@ pub async fn rotate(
     }
     metadata["variants"] = serde_json::Value::Object(variants_json);
 
-    let updated = media::update_transformed(
-        &state.db,
-        id,
-        w,
-        h,
-        rotated_bytes.len() as i64,
-        metadata,
-    )
-    .await?;
+    let updated =
+        media::update_transformed(&state.db, id, w, h, rotated_bytes.len() as i64, metadata)
+            .await?;
 
     Ok(Json(updated))
 }
@@ -381,11 +371,7 @@ pub async fn restore(
         80.0,
     )?;
 
-    let sub_dir = current
-        .path
-        .rsplit_once('/')
-        .map(|(d, _)| d)
-        .unwrap_or("");
+    let sub_dir = current.path.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
     let base_id = current.id.to_string();
     let mut variants_json = serde_json::Map::new();
     for var in &new_variants {

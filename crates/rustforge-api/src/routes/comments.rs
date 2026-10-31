@@ -1,23 +1,21 @@
 //! Routes HTTP pour la gestion et la modération des commentaires (WP-42 à WP-45, WP-82 à WP-87).
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::HeaderMap,
-    Json,
 };
 use rustforge_core::{
-    comments::{
-        self, CommentCounts, CommentFilter, CreateCommentParams,
-    },
+    comments::{self, CommentCounts, CommentFilter, CreateCommentParams},
     models::{Comment, CommentStatus, PublicCommentView},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     auth::AuthUser,
     error::{ApiError, ApiResult},
-    AppState,
 };
 
 /// Payload public de soumission d'un commentaire.
@@ -95,7 +93,9 @@ pub async fn public_submit(
     let policy = comments::DiscussionPolicy::from_settings(&all_settings);
     let identity = if headers.contains_key(axum::http::header::AUTHORIZATION) {
         Some(crate::auth::bearer_identity(&headers, &state, true).await?)
-    } else { None };
+    } else {
+        None
+    };
     if policy.require_registration && identity.is_none() {
         return Err(ApiError::Unauthorized);
     }
@@ -116,8 +116,14 @@ pub async fn public_submit(
         entry_id,
         parent_id: payload.parent_id,
         author_id: identity.as_ref().map(|u| u.id),
-        author_name: identity.as_ref().map(|u| u.display_name.clone()).unwrap_or(payload.author_name),
-        author_email: identity.as_ref().map(|u| u.email.clone()).unwrap_or(payload.author_email),
+        author_name: identity
+            .as_ref()
+            .map(|u| u.display_name.clone())
+            .unwrap_or(payload.author_name),
+        author_email: identity
+            .as_ref()
+            .map(|u| u.email.clone())
+            .unwrap_or(payload.author_email),
         author_url: payload.author_url,
         author_ip: ip,
         author_user_agent: user_agent,
@@ -147,11 +153,15 @@ pub async fn public_list(
     Path(entry_id): Path<Uuid>,
     Query(params): Query<super::public_lists::ListParams>,
 ) -> ApiResult<(HeaderMap, Json<Vec<PublicCommentView>>)> {
-    let page = comments::get_entry_comment_page(&state.db, entry_id, params.comment_page()?).await?;
+    let page =
+        comments::get_entry_comment_page(&state.db, entry_id, params.comment_page()?).await?;
     let mut headers = HeaderMap::new();
     headers.insert("x-comment-total", page.total.to_string().parse().unwrap());
     headers.insert("x-comment-page", page.page.to_string().parse().unwrap());
-    headers.insert("x-comment-pages", page.total_pages.to_string().parse().unwrap());
+    headers.insert(
+        "x-comment-pages",
+        page.total_pages.to_string().parse().unwrap(),
+    );
     Ok((headers, Json(page.items)))
 }
 
@@ -215,7 +225,9 @@ pub async fn update_status(
         return Err(ApiError::Forbidden);
     }
 
-    let comment = comments::update_comment_status_as(&state.db, id, payload.status, Some(auth.user.id)).await?;
+    let comment =
+        comments::update_comment_status_as(&state.db, id, payload.status, Some(auth.user.id))
+            .await?;
     state.ssr.invalidate_all().await;
     Ok(Json(comment))
 }
@@ -230,7 +242,13 @@ pub async fn batch_update(
         return Err(ApiError::Forbidden);
     }
 
-    let count = comments::batch_update_status_as(&state.db, &payload.ids, payload.status, Some(auth.user.id)).await?;
+    let count = comments::batch_update_status_as(
+        &state.db,
+        &payload.ids,
+        payload.status,
+        Some(auth.user.id),
+    )
+    .await?;
     state.ssr.invalidate_all().await;
     Ok(Json(serde_json::json!({ "updated": count })))
 }

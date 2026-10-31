@@ -1,0 +1,36 @@
+31 octobre 2026 — Discussion par publication dans l’éditeur Rust
+
+Référence de reprise : EntryEditorView/useEditorStore (fields préservés), services
+entries/fields/révisions, comments::DiscussionPolicy, SSR public et formulaire existant.
+Ancien éditeur conservé ; aucun second moteur de commentaires ni nouvelle migration.
+
+Livré : choix Hériter/Autoriser/Fermer pour articles et pages dans l’inspecteur Leptos.
+Champ réservé fields._rf_comment_status : null = héritage, open/closed explicites.
+Validation du type et des valeurs dans le service d’écriture partagé. Fusion existante
+conserve coffre et autres champs. Payload et sauvegarde locale limités à cette clé,
+sans copier de métadonnées privées. Historique annuler/rétablir et révisions réutilisés.
+La politique locale remplace uniquement l’ouverture par défaut : connexion, identité,
+modération et fermeture des publications anciennes restent générales. Service de création
+et SSR utilisent la même règle. Commentaires approuvés toujours visibles après fermeture.
+
+Contrôles : 162 tests Rust passés ; cinq intégrations ignorées par défaut.
+Clippy strict API/Studio WASM, build serveur et Studio publié avec archive SHA256
+archives/leptos-assets/20261031T093155Z-47d3fa4f. 34 contrôles HTTP dans
+ tests/editor-discussion-recipe.mjs : droits, valeurs, concurrence, héritage, cache SSR,
+soumission fermée/ouverture locale, connexion obligatoire, restauration de révision,
+préservation du coffre et absence de fields publics. Dix tests JS de compatibilité du
+formulaire public passent ; navigation trois rôles et protections CSP/bootstrap vérifiées.
+Navigateur : choix ouvert enregistré, formulaire public présent ; fermeture, annuler/
+rétablir, sauvegarde, message fermé public et deux commentaires existants conservés.
+Captures editeur.png et public-ferme.png ; aucune campagne mobile complète revendiquée.
+Les réglages globaux modifiés par la recette sont restaurés dans finally.
+
+Menu172 entrées/23familles/5séparateurs conservé ; fiches éditeur enrichies. Auteur/modèle,
+compositions et réglages avancés du thème restent ouverts. Seule fixture55499 redémarrée.
+Aucune suppression de source/écran, aucun commit/push. Branche locale main ; nombreux
+changements cumulés à examiner avant le push main demandé pour la prochaine étape.
+
+Orientation utilisateur consignée dans 04_CONTRATS_TRANSVERSES.md : ZIP léger,
+installation/chargement sélectif des modules à concevoir au lot distribution ; Candle
+à évaluer avec le futur module IA pour comprendre/piloter les capacités autorisées.
+Aucun téléchargement ni intégration IA ou changement d’installation livré aujourd’hui.

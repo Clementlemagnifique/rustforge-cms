@@ -1,0 +1,56 @@
+// Only fake records in the explicitly identified local recipe runtime.
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {randomUUID} from 'node:crypto';
+const rt=JSON.parse(readFileSync('scratch/wasm-auth-recipe/runtime.json'));assert.match(rt.database,/^rf_wasm_browser_[a-f0-9]{32}$/);assert.equal(rt.port,55499);assert.equal(rt.closed,false);
+const base='http://127.0.0.1:55499';let checks=0;
+async function api(path,token,method='GET',body,status=200){const r=await fetch(base+'/api/v1'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body)});let data;const raw=await r.text();try{data=JSON.parse(raw)}catch{data=raw}assert.equal(r.status,status,`${method} ${path}: ${JSON.stringify(data)}`);checks++;return data;}
+assert.equal((await api('/public/settings')).title,'Recette WASM isolee');
+const tokens={};for(const role of ['admin','author','subscriber'])tokens[role]=(await api('/auth/login',null,'POST',{login:'wasm-'+role,password:'Recipe-only-password-2026!'})).token;
+const a=tokens.admin;const suffix=Date.now();const admin=await api('/auth/me',a);const user=admin.user??admin;
+const initial=(await api('/settings',a))['forms.retention'];assert.ok(initial==null||initial==='none','Fixture must keep automatic deletion disabled');
+await api('/admin/modules',a,'PUT',{forms:true});
+const form=await api('/forms',a,'POST',{name:'Boîte de réception Rust '+suffix,is_active:true,fields:{type:'object',properties:{message:{type:'string'}}}});
+const own=await api('/forms',tokens.author,'POST',{name:'Formulaire auteur recette '+suffix,is_active:true,fields:{type:'object',properties:{message:{type:'string'}}}});
+const job=randomUUID(),uiJob=randomUUID();for(const id of [form.id,own.id,user.id,job,uiJob])assert.match(id,/^[a-f0-9-]{36}$/);
+function sql(statement){return execFileSync('psql',[`postgres://rustforge_test@127.0.0.1:55496/${rt.database}`,'-v','ON_ERROR_STOP=1','-At','-c',statement],{encoding:'utf8'});}
+sql(`INSERT INTO form_submissions(form_id,data,ip_hash,is_spam) SELECT '${form.id}',jsonb_build_object('message',CASE WHEN n=1 THEN 'Élodie 50%_ <script>alerte</script>' ELSE 'Réponse de recette '||n END,'index',n),'',n%2=0 FROM generate_series(1,25) n;
+INSERT INTO form_submissions(form_id,data,ip_hash) VALUES('${own.id}','{"message":"Privé auteur"}','');
+INSERT INTO rf_jobs(id,kind,payload_version,payload,dedup_key) VALUES('${job}','rf.mail.transactional',1,jsonb_build_object('recipient_id','${user.id}','subject','Capture HTTP ${suffix}','text','Message fictif local uniquement'),'${job}');`);
+let list=await api('/forms/'+form.id+'/submissions',a);assert.equal(list.total,25);assert.equal(list.counts.unread,25);assert.equal(list.counts.spam,12);assert.equal(list.total_pages,2);
+const page2=await api('/forms/'+form.id+'/submissions?page=2',a);assert.equal(page2.items.length,5);assert.equal(new Set([...list.items,...page2.items].map(x=>x.id)).size,25);
+let filtered=await api('/forms/'+form.id+'/submissions?q='+encodeURIComponent('50%_'),a);assert.equal(filtered.total,1);let row=filtered.items[0];
+assert.equal((await api('/forms/'+form.id+'/submissions?q='+encodeURIComponent('50_'),a)).total,0);
+assert.equal((await api('/forms/'+form.id+'/submissions?is_spam=true',a)).total,12);
+const body=(action,row)=>({action,expected_is_read:row.is_read,expected_deleted_at:row.deleted_at});
+await api('/forms/'+form.id+'/submissions',tokens.author,'GET',undefined,403);
+await api('/forms/submissions/'+row.id,tokens.author,'PUT',body('read',row),403);
+await api('/forms/submissions/'+row.id,tokens.subscriber,'PUT',body('read',row),403);
+const stale=row;row=await api('/forms/submissions/'+row.id,a,'PUT',body('read',row));assert.equal(row.is_read,true);
+await api('/forms/submissions/'+row.id,a,'PUT',body('trash',stale),409);
+assert.equal((await api('/forms/'+form.id+'/submissions?is_read=true',a)).total,1);
+row=await api('/forms/submissions/'+row.id,a,'PUT',body('unread',row));assert.equal(row.is_read,false);
+row=await api('/forms/submissions/'+row.id,a,'PUT',body('trash',row));assert.ok(row.deleted_at);
+assert.equal((await api('/forms/'+form.id+'/submissions',a)).total,24);
+const trash=await api('/forms/'+form.id+'/submissions?trash=true',a);assert.equal(trash.total,1);assert.equal(trash.counts.trash,1);
+await api('/forms/submissions/'+row.id,a,'PUT',body('read',row),422);
+const trashed=row;row=await api('/forms/submissions/'+row.id,a,'PUT',body('restore',row));assert.equal(row.data.message,stale.data.message);assert.equal(row.deleted_at,null);
+await api('/forms/submissions/'+row.id,a,'PUT',body('restore',trashed),409);
+await api('/forms/'+form.id+'/submissions?page=0',a,'GET',undefined,422);
+await api('/forms/'+form.id+'/submissions?per_page=101',a,'GET',undefined,422);
+await api('/forms/'+form.id+'/submissions?q='+'x'.repeat(201),a,'GET',undefined,422);
+const authorList=await api('/forms/'+own.id+'/submissions',tokens.author);assert.equal(authorList.total,1);
+await api('/forms/submissions/'+authorList.items[0].id,tokens.author,'PUT',body('read',authorList.items[0]));
+await api('/settings',a,'PUT',{'forms.retention':'60_days'},422);
+await api('/settings',tokens.author,'PUT',{'forms.retention':'30_days'},403);
+assert.equal((await api('/settings',a))['forms.retention'],initial);
+await api('/jobs/capture',tokens.author,'POST',{limit:1},403);
+await api('/jobs/capture',a,'POST',{limit:11},400);
+let jobs=await api('/jobs',a);assert.ok(jobs.counts.queued>=1);assert.ok(['capture','simulated','smtp','unconfigured'].includes(jobs.mail_mode));
+const batch=await api('/jobs/capture',a,'POST',{limit:10});assert.equal(batch.mail_mode,'capture');assert.ok(batch.handled>=1&&batch.handled<=10);
+jobs=await api('/jobs?state=succeeded',a);const captured=jobs.items.find(j=>j.id===job);assert.ok(captured?.capture_available);
+const capture=await api('/jobs/'+job+'/capture',a);assert.equal(capture.subject,'Capture HTTP '+suffix);assert.ok(capture.text.includes('fictif'));
+// Ready job left for the visible native batch workflow; no remote transport.
+sql(`INSERT INTO rf_jobs(id,kind,payload_version,payload,dedup_key) VALUES('${uiJob}','rf.mail.transactional',1,jsonb_build_object('recipient_id','${user.id}','subject','Capture visuelle ${suffix}','text','Message fictif local uniquement'),'${uiJob}');`);
+const response=await fetch(base+'/api/v1/forms/'+form.id+'/submissions',{headers:{Authorization:'Bearer '+a}});assert.equal(response.headers.get('cache-control'),'no-store');checks++;
+writeFileSync('docs/validations/inbox-conservation-captures-2026-10-31/fixture.json',JSON.stringify({form_id:form.id,form_name:form.name,submission_id:row.id,ui_job:uiJob,capture_subject:'Capture visuelle '+suffix,checks},null,2)+'\n');
+console.log(`PASS ${checks} contrôles HTTP : réception, filtres littéraux, droits, lecture, corbeille/restauration, conflits, conservation validée, captures bornées privées et sans envoi.`);

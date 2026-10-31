@@ -3,6 +3,7 @@
 //! Exécute périodiquement :
 //! 1. La publication programmée des articles / pages dont la date de publication est échue.
 //! 2. La dépublication automatique (PublishPress Expiration style) des contenus dont `scheduled_unpublish_at` est dépassé.
+//! 3. La conservation bornée des soumissions, uniquement si une politique 30/90 jours est activée.
 
 use chrono::Utc;
 use sqlx::PgPool;
@@ -13,10 +14,11 @@ use tracing::{info, warn};
 pub struct SchedulerTickReport {
     pub auto_published_count: usize,
     pub auto_unpublished_count: usize,
+    pub purged_submissions_count: u64,
 }
 
 /// Exécute un cycle de vérification et d'application du planning éditorial.
-pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx::Error> {
+pub async fn run_scheduler_tick(db: &PgPool) -> crate::CoreResult<SchedulerTickReport> {
     let now = Utc::now();
     let mut report = SchedulerTickReport::default();
 
@@ -60,6 +62,13 @@ pub async fn run_scheduler_tick(db: &PgPool) -> Result<SchedulerTickReport, sqlx
         );
     }
 
+    report.purged_submissions_count = crate::forms::purge_expired_submissions(db).await?;
+    if report.purged_submissions_count > 0 {
+        info!(
+            "Conservation formulaires : {} soumissions expirées supprimées",
+            report.purged_submissions_count
+        );
+    }
     Ok(report)
 }
 

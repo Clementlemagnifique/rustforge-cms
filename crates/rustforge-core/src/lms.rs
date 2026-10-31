@@ -125,7 +125,41 @@ pub async fn get_course_by_slug(db: &PgPool, slug: &str) -> CoreResult<Course> {
         .ok_or(CoreError::NotFound)
 }
 
+fn title_valid(title: &str) -> CoreResult<()> {
+    if title.trim().is_empty() || title.chars().count() > 300 {
+        return Err(CoreError::validation(
+            "Le titre doit contenir de 1 à 300 caractères",
+        ));
+    }
+    Ok(())
+}
+fn course_valid(input: &CourseInput) -> CoreResult<()> {
+    title_valid(&input.title)?;
+    if input.price_cents.is_some_and(|price| price < 0)
+        || input
+            .content
+            .as_ref()
+            .is_some_and(|body| body.len() > 512 * 1024)
+    {
+        return Err(CoreError::validation("Prix ou contenu de cours invalide"));
+    }
+    Ok(())
+}
+fn lesson_valid(input: &LessonInput) -> CoreResult<()> {
+    title_valid(&input.title)?;
+    if input.duration_min.is_some_and(|value| value < 0)
+        || input
+            .content
+            .as_ref()
+            .is_some_and(|body| body.len() > 512 * 1024)
+    {
+        return Err(CoreError::validation("Durée ou contenu de leçon invalide"));
+    }
+    Ok(())
+}
+
 pub async fn create_course(db: &PgPool, input: CourseInput) -> CoreResult<Course> {
+    course_valid(&input)?;
     let slug = input
         .slug
         .filter(|s| !s.trim().is_empty())
@@ -158,6 +192,7 @@ pub async fn create_course(db: &PgPool, input: CourseInput) -> CoreResult<Course
 }
 
 pub async fn update_course(db: &PgPool, id: Uuid, input: CourseInput) -> CoreResult<Course> {
+    course_valid(&input)?;
     let current = get_course(db, id).await?;
     let slug = input
         .slug
@@ -259,6 +294,7 @@ pub async fn list_course_lessons(db: &PgPool, course_id: Uuid) -> CoreResult<Vec
 }
 
 pub async fn create_lesson(db: &PgPool, course_id: Uuid, input: LessonInput) -> CoreResult<Lesson> {
+    lesson_valid(&input)?;
     let slug = input
         .slug
         .filter(|s| !s.trim().is_empty())
@@ -290,11 +326,8 @@ pub async fn create_lesson(db: &PgPool, course_id: Uuid, input: LessonInput) -> 
     Ok(lesson)
 }
 
-pub async fn update_lesson(
-    db: &PgPool,
-    id: Uuid,
-    input: LessonInput,
-) -> CoreResult<Lesson> {
+pub async fn update_lesson(db: &PgPool, id: Uuid, input: LessonInput) -> CoreResult<Lesson> {
+    lesson_valid(&input)?;
     let current = sqlx::query_as::<_, Lesson>("SELECT * FROM lms_lessons WHERE id = $1")
         .bind(id)
         .fetch_optional(db)
@@ -397,14 +430,17 @@ pub async fn update_progress(
     user_id: Uuid,
     progress_pct: i32,
 ) -> CoreResult<()> {
-    let progress = progress_pct.clamp(0, 100);
+    if !(0..=100).contains(&progress_pct) {
+        return Err(CoreError::validation("Progression comprise entre 0 et 100"));
+    }
+    let progress = progress_pct;
     let completed = if progress >= 100 {
         Some(Utc::now())
     } else {
         None
     };
 
-    sqlx::query(
+    let result = sqlx::query(
         r#"
         UPDATE lms_enrollments
         SET progress_pct = $3, completed_at = COALESCE($4, completed_at)
@@ -418,6 +454,9 @@ pub async fn update_progress(
     .execute(db)
     .await?;
 
+    if result.rows_affected() == 0 {
+        return Err(CoreError::NotFound);
+    }
     Ok(())
 }
 
@@ -453,10 +492,7 @@ pub async fn list_course_enrollments(
     .await?)
 }
 
-pub async fn list_all_enrollments(
-    db: &PgPool,
-    limit: i64,
-) -> CoreResult<Vec<EnrollmentDetails>> {
+pub async fn list_all_enrollments(db: &PgPool, limit: i64) -> CoreResult<Vec<EnrollmentDetails>> {
     Ok(sqlx::query_as::<_, EnrollmentDetails>(
         r#"
         SELECT e.id, e.course_id, e.user_id, u.username, u.email, u.display_name,

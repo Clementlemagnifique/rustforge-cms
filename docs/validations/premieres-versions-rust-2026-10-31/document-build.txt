@@ -1,0 +1,8 @@
+    Blocking waiting for file lock on build directory
+   Compiling futures-core v0.3.34
+   Compiling uuid v1.29.0
+   Compiling futures-util v0.3.34
+   Compiling rustforge-document v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-document)
+   Compiling js-sys v0.3.106
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.99s

@@ -1,0 +1,54 @@
+31 octobre 2026 — Audit de migration Leptos et archivage des builds cumulés
+
+Constats
+La migration est partielle : écrans Rust/Leptos réécrits sur les API, services,
+données et noyau documentaire existants. Pas de conversion automatique de tout
+le TypeScript. La matrice 15 recense 29 vues/composants avec cibles et écarts.
+Les vues React encore nécessaires, tests, outils Node et références sont conservés.
+L'inventaire statique trouve 73 sources TS/TSX, 59 atteignables depuis main.tsx,
+14 hors du graphe. Ce n'est pas une preuve suffisante de code supprimable.
+Aucune source applicative retirée. Anciennes façades et anciens éditeurs conservés.
+
+Rendu HTML
+SSR MiniJinja et rustforge-document sont les chemins actifs. Le serveur et Leptos
+partagent le noyau documentaire via les adaptateurs core. Le registre historique
+core/blocks.rs existe toujours, avec format id/type/data et tests. Aucun appel
+hors de son fichier/tests trouvé dans le workspace ; consommateurs externes non
+vérifiés. Module public préservé et annoté. Correspondances et lacunes documentées
+avant adaptation/retrait (FAQ/details, conteneurs métier, HTML libre).
+
+Archivage effectif
+176 anciens fichiers générés déplacés depuis les deux sorties rust/ vers
+archives/leptos-assets/20261031T074334Z-c5983c62/files/ ; manifeste SHA-256 conservé.
+Total logique : 1 911 112 672 octets. Les six fichiers actifs dans chaque sortie
+correspondent exactement au build courant : 77 878 032 octets par sortie.
+L'archive conserve les octets ; aucun gain de place totale ni purge annoncé.
+Les sources React, données, node_modules, target, références et outils Windows
+n'ont pas été supprimés ou déplacés.
+
+Correction de pipeline
+build-rust-studio.sh appelle maintenant publish-rust-studio.py. Publication directe
+Mac/Linux des assets Rust dans admin/public/rust et admin/dist/rust, dépendances
+avant index, archivage des éléments remplacés/obsolètes, empreintes vérifiées.
+La mise à jour du Studio Rust n'impose plus Vite ; React et le paquet complet ont
+encore besoin de leur build. PowerShell reste inchangé, alignement Windows à recetter.
+Restauration disponible et gardée contre l'écrasement d'un index ultérieur.
+
+Preuves
+- publication-tests.txt : quatre tests de publication/restauration/idempotence,
+  dépendance manquante, symlink et refus d'un index ultérieur ; dossiers temporaires.
+- publication.json et verification-archive.json : manifestes et tailles réelles.
+- build-sans-vite.txt : build/publication Rust sans invocation Node/Vite.
+- transition-build.txt : build React de transition toujours fonctionnel.
+- publication-repeat.json : répétition sans nouvel archivage, sorties déjà exactes.
+- http.txt : React /admin/, Leptos /admin/rust/ et page HTML de recette accessibles.
+- security-http.txt : bootstrap/CSP/WASM toujours valides après archivage.
+- parity.txt : sept fixtures documentaires identiques natif/WASM.
+Pas de nouvelle recette exhaustive des écrans ; dernier bilan métier conservé.
+
+Suivi
+Matrice de transition et audit 15 ajoutés, README Studio actualisé, règles de
+comparaison avant portage inscrites dans AGENTS.md, temporaires actualisés.
+170 entrées et cinq séparateurs, 438 tâches et 38 composants conservés ; aucune
+progression métier fictive ni nouvelle clôture. Aucun commit/push et aucun
+redémarrage serveur : fichiers servis seuls, code serveur exécutable inchangé.

@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
         working-directory: admin
       - run: node --test tests/public-comments.test.mjs
+      - run: node --experimental-strip-types --test tests/column-preferences.test.mjs
       - run: npm run lint
         working-directory: admin
       - run: npm run build
@@ -52,3 +53,21 @@ jobs:
       - run: cargo test --locked -p rustforge-core --test jobs_postgres -- --include-ignored
         env:
           RUSTFORGE_TEST_DATABASE_URL: postgres://postgres:regression-only@localhost:5432/postgres
+
+  wasm-document:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo test --locked -p rustforge-document -p rustforge-studio
+      - run: cargo build --locked -p rustforge-studio --lib --target wasm32-unknown-unknown
+      - run: cargo check --locked -p rustforge-studio --target wasm32-unknown-unknown --features ui --bin rustforge-studio-ui
+      - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - run: wasm-bindgen target/wasm32-unknown-unknown/debug/rustforge_studio.wasm --target web --out-dir admin/public/wasm --out-name rustforge_studio
+      - run: cargo build --locked -p rustforge-studio --example conformance
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node tests/document-wasm-parity.mjs

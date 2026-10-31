@@ -1,0 +1,47 @@
+Écrans admin Rust — deuxième passage WordPress — 30 octobre 2026
+
+Livré : listes Articles, Pages, Médias et Utilisateurs en Leptos sur les API Rust
+existantes, en lecture. Recherche soumise, pagination de 20 éléments, états vides,
+chargement/refus/erreur, dates avec décalage, distinction programmé/publié/sans date.
+Liens vers l'éditeur existant seulement pour les types article/page attendus et
+identifiants locaux. Aucun HTML issu des données injecté. Requêtes encodées, aucun
+paramètre de recherche ne remplace le type ; réponses obsolètes ignorées après
+changement de requête, session ou démontage.
+
+Présentation : titres et boutons sobres, tableaux rayés et bordures WordPress,
+Options avec densité temporaire, aide adaptée et retour du focus avec Échap.
+Cadre commun pour les autres écrans encore en transition : rubriques, périmètre
+et accès explicite au Studio actuel. Fiches futures conservées ; laboratoire
+technique retiré des pages de travail, moteur documentaire conservé.
+
+Vérifications :
+- 13 tests Studio réussis (requêtes, projection, dates/statuts, navigation/session,
+  catalogue de messages et pont documentaire).
+- Clippy strict cible wasm32/ui et builds Trunk/Vite réussis.
+- HTTP lecture seule sur la fixture : admin/auteur/abonné, restrictions contenus
+  et comptes, filtrage auteur effectif, types article/page, liste vide ; pagination
+  utilisateurs sur deux pages à un élément et totaux cohérents.
+- Recette coquille : 170 entrées, cinq séparateurs et CSS commun servis.
+- Recette WASM : bootstrap externe, MIME et CSP conformes au contrat existant.
+- Navigateur : les quatre listes chargées, recherche vide articles, statuts
+  programmé/publié distincts ; cadre Réglages ; densité compacte effective (6 px),
+  Échap depuis la case rend le focus à Options de l'écran.
+- Mobile 390 px : largeur du document 390, tableau dans sa propre zone défilante.
+  Taille du navigateur rétablie. Captures dans ce dossier.
+
+Limites : les données médias/pages de la fixture sont vides ; pas de recette d'un
+catalogue médias rempli. Navigation sur plusieurs pages prouvée au contrat HTTP,
+non via une liste de plus de 20 éléments dans le navigateur. Erreurs réseau/courses
+non réinjectées dans le navigateur pour ce lot ; gardes existantes réutilisées.
+Toutes les variantes/rôles au navigateur et l'accessibilité exhaustive restent ouverts.
+Les réglages/profils et autres écrans ont un cadre, pas des formulaires métier natifs.
+R02 reste partiel : filtres avancés, tri, colonnes, actions, retours et préférences
+persistées à poursuivre. Les alias Dossiers/Ajouter un média → media n'annoncent
+pas un portage de leurs commandes. Aucun nouveau module métier livré.
+
+Menu/plan : 170 entrées, 23 familles, 438 tâches, 38 composants, 17 lots conservés.
+Huit entrées de liste seulement reçoivent une preuve Rust partielle dans la matrice.
+Aucune tâche déclarée VALIDE. Meow Apps reste différé après les bases des modules.
+Aucune API/migration serveur modifiée ; pas de redémarrage requis. Fixture Mac,
+serveur personnel et bases Windows préservés. Aucun commit ni push.
+Avertissements préexistants proc-macro-error2 et taille Vite conservés.

@@ -1,0 +1,10 @@
+    Blocking waiting for file lock on build directory
+   Compiling rustforge-api v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.79s
+     Running tests/consolidation.rs (target/debug/deps/consolidation-77d58fb1e4bafad0)
+
+running 1 test
+test postgres_http_and_native_backup_regressions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 9.30s
+

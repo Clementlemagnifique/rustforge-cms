@@ -1,0 +1,156 @@
+   Compiling rustforge-document v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-document)
+   Compiling rustforge-core v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-core)
+   Compiling rustforge-studio v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-studio)
+   Compiling rustforge-plugins v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-plugins)
+   Compiling rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.38s
+     Running unittests src\lib.rs (target\debug\deps\rustforge_api-be086420b038ed46.exe)
+
+running 23 tests
+test routes::analytics::tests::test_public_hit_payload_deserialization ... ok
+test routes::feeds::tests::test_cdata_split_injection_prevention ... ok
+test auth::tests::expired_public_session_is_rejected ... ok
+test auth::tests::public_session_is_short_and_scoped ... ok
+test routes::feeds::tests::test_atom_xml_structure_and_excerpt ... ok
+test routes::feeds::tests::test_rss_excerpt_only_omits_content_encoded ... ok
+test routes::analytics::tests::test_staff_token_detection ... ok
+test routes::feeds::tests::test_rss_xml_structure_and_escaping ... ok
+test routes::migration::tests::confirmation_binds_file_source_and_expiry ... ok
+test routes::permalinks::tests::test_compute_entry_permalink_structures ... ok
+test routes::public::tests::test_site_icon_extraction_logic ... ok
+test routes::public::tests::test_resolve_menus_structure_and_fallback ... ok
+test routes::permalinks::tests::test_page_permalink_always_retains_page_structure ... ok
+test routes::permalinks::tests::test_compute_term_permalink_with_custom_bases ... ok
+test routes::public_lists::tests::bounded_search_and_pages ... ok
+test routes::seo::tests::test_robots_txt_when_blog_public_false ... ok
+test routes::public::tests::test_transform_menus_to_tree ... ok
+test routes::seo::tests::test_robots_txt_when_blog_public_true ... ok
+test routes::seo::tests::test_sitemap_xml_generation_and_escaping ... ok
+test routes::translations::tests::test_import_catalog_payload_default_format ... ok
+test routes::translations::tests::test_set_languages_payload_deserialization ... ok
+test routes::admin::tests::catalog_is_a_three_level_tree_with_real_routes_only_when_available ... ok
+test routes::admin::tests::module_lifecycle_and_roles_filter_navigation ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\rustforge_core-10987cded3b7ad61.exe)
+
+running 77 tests
+test ai::tests::test_ai_settings_default ... ok
+test analytics::tests::test_bot_detection ... ok
+test analytics::tests::test_daily_salt_hash_rotation ... ok
+test analytics::tests::test_referrer_sanitization ... ok
+test analytics::tests::test_path_exclusions ... ok
+test analytics::tests::test_csv_formula_neutralization ... ok
+test analytics::tests::test_path_sanitization ... ok
+test analytics::tests::test_device_detection ... ok
+test comments::tests::author_links_reject_unsafe_schemes ... ok
+test comments::tests::discussion_policy_applies_switches_and_legacy_closed ... ok
+test comments::tests::test_contains_term ... ok
+test comments::tests::test_count_links ... ok
+test ai::editor_tests::patch_rejects_legacy_invalid_targets_and_duplicate_ids ... ok
+test ai::tests::test_get_available_tools_includes_editor_tools ... ok
+test ai::editor_tests::generated_blocks_use_the_renderer_contract ... ok
+test ai::editor_tests::patch_preserves_neighbors_and_all_replacement_blocks ... ok
+test comments::tests::native_avatars_are_local_deterministic_and_non_personal ... ok
+test comments::tests::test_format_comment_html_escapes_xss ... ok
+test blocks::tests::block_html_escapes_injections_and_rejects_unsafe_urls ... ok
+test converter::scanner::tests::test_extract_header ... ok
+test archive::tests::conversion_cannot_bypass_zip_path_checks ... ok
+test converter::scanner::tests::test_extract_php_variable ... ok
+test converter::tests::test_micro_plugin_builder_and_validation_engine ... ok
+test converter::tests::test_gap_analysis_and_capability_composer ... ok
+test date_utils::tests::test_format_wp_datetime_french_and_english ... ok
+test entries::tests::test_merge_fields_preserves_legacy_vault ... ok
+test entries::tests::test_merge_fields_preserves_rf_vault ... ok
+test converter::tests::test_multi_provider_analysis_including_rea ... ok
+test entries::tests::test_record_slug_history_prevents_loops_and_tracks_chains ... ok
+test entries::tests::test_prepare_resets_published_at_when_reverted_to_draft ... ok
+test fields::tests::rejects_missing_required_and_bad_types ... ok
+test converter::tests::test_security_rejection_directory_traversal ... ok
+test fields::tests::validates_and_normalizes ... ok
+test fields::tests::schema_rules ... ok
+test i18n::tests::test_negotiate_language_direct_match ... ok
+test converter::tests::test_case_b_forms_plugin_analysis_and_native_reuse ... ok
+test i18n::tests::test_negotiate_language_empty_header ... ok
+test i18n::tests::test_negotiate_language_fallback_when_no_match ... ok
+test i18n::tests::test_negotiate_language_prefers_higher_q ... ok
+test i18n::tests::test_po_export_and_parse_roundtrip ... ok
+test i18n::tests::test_po_parser_multiline ... ok
+test jobs::tests::rejects_unbounded_or_unversioned_payloads ... ok
+test converter::tests::test_case_a_fse_theme_analysis_and_transmutation ... ok
+test mail::tests::prune_captures_validation ... ok
+test mail::tests::at_least_once_idempotency_key_preservation ... ok
+test mail::tests::smtp_config_validation ... ok
+test mail::tests::simulated_transport_outcomes ... ok
+test mail::tests::rejects_header_injection_and_large_messages ... ok
+test mail::tests::smtp_transport_rejects_header_injection_in_recipient ... ok
+test mail::tests::unconfigured_transport_returns_explicit_failure ... ok
+test media_processor::tests::test_sanitize_svg_removes_scripts ... ok
+test migration::php_serializer::tests::test_deserialize_associative_array ... ok
+test migration::php_serializer::tests::test_deserialize_indexed_array ... ok
+test migration::php_serializer::tests::test_deserialize_nested_structures ... ok
+test migration::php_serializer::tests::test_deserialize_php_object ... ok
+test migration::php_serializer::tests::test_deserialize_primitives ... ok
+test migration::php_serializer::tests::test_maybe_deserialize_fallback ... ok
+test pagination::tests::pagination_math ... ok
+test patterns::tests::validates_slugs_and_titles ... ok
+test migration::tests::test_wxr_xml_parsing_with_php_serialized_meta ... ok
+test security::tests::storage_rejects_traversal_and_platform_prefixes ... ok
+test migration::tests::test_sovereign_rf_xml_and_rfir_json_export ... ok
+test patterns::tests::validates_pattern_document_schema ... ok
+test security::tests::subscribers_cannot_write_and_authors_cannot_manage_sales ... ok
+test settings::tests::test_validate_discussion_settings ... ok
+test settings::tests::test_validate_general_and_writing_settings ... ok
+test settings::tests::test_validate_reading_rss_settings ... ok
+test settings::tests::test_validate_permalink_settings ... ok
+test tests::slugify_handles_accents ... ok
+test users::tests::input_validation ... ok
+test settings::tests::test_validate_hierarchical_menus ... ok
+test migration::tests::test_capsule_manifest_and_zip_structure ... ok
+test converter::scanner::tests::test_scan_wordpress_directory_if_present ... ok
+test media_processor::tests::test_rotate_and_crop_image ... ok
+test users::tests::password_roundtrip ... ok
+test media_processor::tests::test_generate_site_icon_variants ... ok
+test media_processor::tests::test_generate_image_variants ... ok
+
+test result: ok. 77 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running unittests src\lib.rs (target\debug\deps\rustforge_document-1510d41ede76d498.exe)
+
+running 18 tests
+test document::tests::text_only_clients_must_not_silently_overwrite_native_documents ... ok
+test markdown::tests::builds_excerpt ... ok
+test markdown::tests::strips_untrusted_styles_but_preserves_block_classes ... ok
+test document::tests::unknown_source_blocks_remain_opaque_and_native_errors_do_not_silently_drop_data ... ok
+test document::tests::literal_entities_are_not_interpreted_and_irrelevant_data_is_not_hidden ... ok
+test document::tests::image_and_button_blocks_validate_urls_and_render_safely ... ok
+test markdown::tests::test_responsive_images_lazy_loading_and_srcset ... ok
+test markdown::tests::renders_and_sanitizes ... ok
+test tests::unicode_metrics ... ok
+test document::tests::test_course_block ... ok
+test document::tests::markdown_converts_into_validated_native_document ... ok
+test document::tests::native_document_uses_the_existing_safe_renderer ... ok
+test visible_tests::markup_is_not_words ... ok
+test document::tests::test_product_block ... ok
+test document::tests::test_phase1_structural_blocks ... ok
+test document::tests::test_quote_citation_and_button_styles ... ok
+test document::tests::rich_blocks_render_and_validate_correctly ... ok
+test document::tests::test_multimedia_blocks ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\rustforge_plugins-763f5512ce86cb8a.exe)
+
+running 2 tests
+test tests::plugin_ids ... ok
+test tests::runtime_builds ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\rustforge_studio-b620671be27d3d98.exe)
+
+running 1 test
+test tests::shares_native_validation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

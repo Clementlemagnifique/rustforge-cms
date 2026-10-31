@@ -16,9 +16,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use rustforge_core::{HookRunner, hooks::names};
 use serde::Serialize;
 use sqlx::PgPool;
-use rustforge_core::{HookRunner, hooks::names};
 use wasmtime::{
     Config, Engine, Store, StoreLimits, StoreLimitsBuilder,
     component::{Component, HasSelf, Linker, ResourceTable},
@@ -64,7 +64,10 @@ pub struct HostState {
 
 impl WasiView for HostState {
     fn ctx(&mut self) -> WasiCtxView<'_> {
-        WasiCtxView { ctx: &mut self.wasi, table: &mut self.table }
+        WasiCtxView {
+            ctx: &mut self.wasi,
+            table: &mut self.table,
+        }
     }
 }
 
@@ -94,7 +97,9 @@ impl host::Host for HostState {
             return Err(format!("clé invalide (1 à {KV_MAX_KEY_LEN} octets)"));
         }
         if value.len() > KV_MAX_VALUE_LEN {
-            return Err(format!("valeur trop grande (max {KV_MAX_VALUE_LEN} octets)"));
+            return Err(format!(
+                "valeur trop grande (max {KV_MAX_VALUE_LEN} octets)"
+            ));
         }
         let mut map = kv.lock().map_err(|_| "stockage indisponible".to_string())?;
         if !map.contains_key(&key) && map.len() >= KV_MAX_KEYS {
@@ -136,7 +141,9 @@ fn capability_name(c: types::Capability) -> &'static str {
 
 fn valid_plugin_id(id: &str) -> bool {
     (2..=64).contains(&id.len())
-        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !id.starts_with('-')
         && !id.ends_with('-')
 }
@@ -179,7 +186,10 @@ impl Runtime {
         let state = HostState {
             wasi: WasiCtxBuilder::new().build(),
             table: ResourceTable::new(),
-            limits: StoreLimitsBuilder::new().memory_size(MAX_MEMORY).instances(16).build(),
+            limits: StoreLimitsBuilder::new()
+                .memory_size(MAX_MEMORY)
+                .instances(16)
+                .build(),
             plugin_id: plugin_id.to_string(),
             kv,
             kv_dirty: false,
@@ -194,14 +204,17 @@ impl Runtime {
     fn load(&self, path: &Path) -> Result<(PluginPre<HostState>, types::Manifest)> {
         let component = Component::from_file(&self.engine, path)
             .map_err(|e| anyhow::anyhow!("compilation de {}: {e}", path.display()))?;
-        let instance_pre = self.linker.instantiate_pre(&component)
+        let instance_pre = self
+            .linker
+            .instantiate_pre(&component)
             .map_err(|e| anyhow::anyhow!("liaison des imports: {e}"))?;
-        let pre = PluginPre::new(instance_pre)
-            .map_err(|e| anyhow::anyhow!("PluginPre: {e}"))?;
+        let pre = PluginPre::new(instance_pre).map_err(|e| anyhow::anyhow!("PluginPre: {e}"))?;
         let mut store = self.new_store("<chargement>", None)?;
-        let instance = pre.instantiate(&mut store)
+        let instance = pre
+            .instantiate(&mut store)
             .map_err(|e| anyhow::anyhow!("instanciation: {e}"))?;
-        let manifest = instance.call_manifest(&mut store)
+        let manifest = instance
+            .call_manifest(&mut store)
             .map_err(|e| anyhow::anyhow!("appel de manifest(): {e}"))?;
         Ok((pre, manifest))
     }
@@ -215,9 +228,15 @@ fn invoke<R>(
 ) -> Result<(R, bool)> {
     let info = plugin.snapshot();
     let pre = plugin.pre.as_ref().context("plugin non chargé")?;
-    let kv = info.granted.iter().any(|c| c == "storage").then(|| plugin.kv.clone());
+    let kv = info
+        .granted
+        .iter()
+        .any(|c| c == "storage")
+        .then(|| plugin.kv.clone());
     let mut store = rt.new_store(&info.id, kv)?;
-    let instance = pre.instantiate(&mut store).map_err(|e| anyhow::anyhow!("instanciation: {e}"))?;
+    let instance = pre
+        .instantiate(&mut store)
+        .map_err(|e| anyhow::anyhow!("instanciation: {e}"))?;
     let out = f(&instance, &mut store).map_err(|e| anyhow::anyhow!("appel: {e}"))?;
     Ok((out, store.data().kv_dirty))
 }
@@ -262,14 +281,22 @@ impl PluginManager {
 
         let mut loaded = Vec::new();
         for path in files {
-            let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let file = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             let rt = self.rt.clone();
             let p = path.clone();
             let result = tokio::task::spawn_blocking(move || rt.load(&p)).await?;
 
             let plugin = match result {
                 Ok((pre, manifest)) => match self.register(&file, manifest).await {
-                    Ok((info, kv)) => LoadedPlugin { info: Mutex::new(info), pre: Some(pre), kv: Arc::new(Mutex::new(kv)) },
+                    Ok((info, kv)) => LoadedPlugin {
+                        info: Mutex::new(info),
+                        pre: Some(pre),
+                        kv: Arc::new(Mutex::new(kv)),
+                    },
                     Err(err) => broken(&file, err),
                 },
                 Err(err) => broken(&file, err),
@@ -290,8 +317,16 @@ impl PluginManager {
     }
 
     /// Enregistre le manifeste en base et renvoie l'état persistant.
-    async fn register(&self, file: &str, m: types::Manifest) -> Result<(PluginInfo, HashMap<String, String>)> {
-        anyhow::ensure!(valid_plugin_id(&m.id), "identifiant de plugin invalide « {} »", m.id);
+    async fn register(
+        &self,
+        file: &str,
+        m: types::Manifest,
+    ) -> Result<(PluginInfo, HashMap<String, String>)> {
+        anyhow::ensure!(
+            valid_plugin_id(&m.id),
+            "identifiant de plugin invalide « {} »",
+            m.id
+        );
         if self.list().iter().any(|p| p.id == m.id) {
             anyhow::bail!("identifiant « {} » déjà utilisé par un autre fichier", m.id);
         }
@@ -300,7 +335,11 @@ impl PluginManager {
                 tracing::warn!(plugin = %m.id, hook, "hook inconnu");
             }
         }
-        let capabilities: Vec<String> = m.capabilities.iter().map(|c| capability_name(*c).to_string()).collect();
+        let capabilities: Vec<String> = m
+            .capabilities
+            .iter()
+            .map(|c| capability_name(*c).to_string())
+            .collect();
 
         let (enabled, granted, kv): (bool, serde_json::Value, serde_json::Value) = sqlx::query_as(
             "INSERT INTO plugins (id, name, version, description, hooks, capabilities)
@@ -345,23 +384,37 @@ impl PluginManager {
     }
 
     pub fn list(&self) -> Vec<PluginInfo> {
-        self.plugins.read().expect("plugins lock").iter().map(|p| p.snapshot()).collect()
+        self.plugins
+            .read()
+            .expect("plugins lock")
+            .iter()
+            .map(|p| p.snapshot())
+            .collect()
     }
 
     fn find(&self, id: &str) -> Option<Arc<LoadedPlugin>> {
-        self.plugins.read().expect("plugins lock").iter().find(|p| p.snapshot().id == id).cloned()
+        self.plugins
+            .read()
+            .expect("plugins lock")
+            .iter()
+            .find(|p| p.snapshot().id == id)
+            .cloned()
     }
 
     /// Active un plugin en lui accordant les capacités demandées.
     pub async fn enable(&self, id: &str) -> Result<Option<PluginInfo>> {
-        let Some(plugin) = self.find(id) else { return Ok(None) };
+        let Some(plugin) = self.find(id) else {
+            return Ok(None);
+        };
         let info = plugin.snapshot();
         anyhow::ensure!(info.error.is_none(), "ce plugin n'a pas pu être chargé");
-        sqlx::query("UPDATE plugins SET enabled = true, granted = $2, updated_at = now() WHERE id = $1")
-            .bind(id)
-            .bind(serde_json::json!(info.capabilities))
-            .execute(&self.db)
-            .await?;
+        sqlx::query(
+            "UPDATE plugins SET enabled = true, granted = $2, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(serde_json::json!(info.capabilities))
+        .execute(&self.db)
+        .await?;
         let mut guard = plugin.info.lock().expect("plugin info lock");
         guard.enabled = true;
         guard.granted = guard.capabilities.clone();
@@ -369,7 +422,9 @@ impl PluginManager {
     }
 
     pub async fn disable(&self, id: &str) -> Result<Option<PluginInfo>> {
-        let Some(plugin) = self.find(id) else { return Ok(None) };
+        let Some(plugin) = self.find(id) else {
+            return Ok(None);
+        };
         sqlx::query("UPDATE plugins SET enabled = false, updated_at = now() WHERE id = $1")
             .bind(id)
             .execute(&self.db)
@@ -439,7 +494,9 @@ impl HookRunner for PluginManager {
             let h = hook.to_string();
             let input = payload.clone();
             let result = tokio::task::spawn_blocking(move || {
-                invoke(&rt, &p, |instance, store| instance.call_filter(store, &h, &input))
+                invoke(&rt, &p, |instance, store| {
+                    instance.call_filter(store, &h, &input)
+                })
             })
             .await;
 
@@ -451,7 +508,9 @@ impl HookRunner for PluginManager {
                         self.persist_kv(&plugin).await;
                     }
                 }
-                Ok(Ok((Err(msg), _))) => tracing::warn!(plugin = %id, hook, "filtre refusé : {msg}"),
+                Ok(Ok((Err(msg), _))) => {
+                    tracing::warn!(plugin = %id, hook, "filtre refusé : {msg}")
+                }
                 Ok(Err(err)) => tracing::error!(plugin = %id, hook, "échec du plugin : {err:#}"),
                 Err(err) => tracing::error!(plugin = %id, hook, "tâche interrompue : {err}"),
             }
@@ -466,7 +525,9 @@ impl HookRunner for PluginManager {
             let h = hook.to_string();
             let input = payload.clone();
             let result = tokio::task::spawn_blocking(move || {
-                invoke(&rt, &p, |instance, store| instance.call_on_action(store, &h, &input))
+                invoke(&rt, &p, |instance, store| {
+                    instance.call_on_action(store, &h, &input)
+                })
             })
             .await;
 

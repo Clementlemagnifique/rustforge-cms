@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/rustforge-document",
+    "crates/rustforge-studio",
     "crates/rustforge-core",
     "crates/rustforge-plugins",
     "crates/rustforge-api",

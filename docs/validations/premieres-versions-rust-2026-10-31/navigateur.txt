@@ -1,0 +1,2 @@
+Recette navigateur : connexion native ; formulaire créé et relu ; deux paragraphes ajoutés dans un article ; sauvegarde et relecture de l’extrait ; navigation éditeur/formulaires/réglages/modules ; slogan enregistré ; catalogue futur ouvert et insertions désactivées. Mobile modules : viewport 390, body/page 390.
+Après correction : nouvelle page créée, route stable editor:…:page, titre et identifiant relus immédiatement après POST. Dialogue de modifications non enregistrées observé ; choix Annuler non vérifié par cet essai automatisé.

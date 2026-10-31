@@ -1,0 +1,59 @@
+31 octobre 2026 — lot V1 : actions en masse, premier avis local, taxonomies personnalisées
+
+Réalisé :
+- Lots de 1..100 soumissions explicites d’un même formulaire ; verrouillage ordonné et
+  vérification de chaque état avant toute mutation. Lu/non lu, corbeille/restauration,
+  suppression définitive confirmée depuis la corbeille. Aucune sélection globale implicite.
+- Premier avis de formulaire au propriétaire, opt-in capture_owner dans les réglages du
+  formulaire. Création de la soumission et de sa référence de notification en transaction.
+  Pas de réponses copiées dans la file ni l’avis ; spam ignoré. Module/configuration,
+  propriétaire/droits et corbeille revérifiés au traitement. Capture locale forcée même
+  lorsqu’un transport distant est fourni au moteur mail partagé.
+- Conservation du notify_email historique ; React modifié uniquement pour préserver les
+  réglages inconnus en éditant un formulaire. Pas d’envoi à cette adresse historique.
+- Taxonomies personnalisées : création hiérarchique/plate, renommage avec nom attendu,
+  termes et association dans l’éditeur. Système protégé et suppression de taxonomie non
+  vide refusée désormais, y compris pour l’ancienne interface, pour éviter une cascade.
+- Menu 172 entrées, 23 familles et cinq séparateurs ; une entrée admin Taxonomies
+  personnalisées ajoutée sous Articles. Tâche MOD-FORM-05 EN_COURS, aucune clôture globale.
+- Estimation V1 : docs/pilotage/16_ESTIMATION_V1.md, 40–70 journées d’effort / 8–14 semaines
+  équivalent temps plein selon périmètre de premières versions utilisables par module.
+  Pas de pourcentage ni promesse de parité intégrale des 438 tâches/extensions Pro.
+
+Vérifications déjà réussies :
+- 155 tests workspace réussis, 5 PostgreSQL ignorés par défaut (journal tests-rust.txt).
+- Deux tests PostgreSQL ciblés exécutés sur bases rf_inbox_test_* jetables puis retirées :
+  atomicité/conflits, doublons et périmètre, suppressions/restaurations, absence d’appel au
+  transport fourni (mock qui échouerait), références sans réponses, obsolescence et
+  taxonomies ; régression conservation 30/90/restauration ancienne incluse.
+- 58 contrôles HTTP sur fixture identifiée : droits, lots/limites, notification capturée,
+  avis obsolète, taxonomies/renommage/classement, protections système/non-vide.
+- Builds Rust serveur/Studio et React de compatibilité ; Clippy strict API/WASM ; menu
+  selon rôles et CSP/bootstrap/MIME/magic WASM vérifiés.
+
+Limites :
+- Les notifications sont locales au propriétaire, sans SMTP, destinataires personnalisés,
+  variables ou règles conditionnelles. Ne pas présenter ce premier avis comme un envoi réel.
+- Slug et mode hiérarchique de la taxonomie fixes après création ; archives publiques,
+  affectation par type, champs et conversions de hiérarchie restent ouverts.
+- Les états attendus des soumissions portent sur lecture/corbeille (pas une révision des
+  réponses, qui ne sont pas modifiables ici). Sélection UI limitée à la page affichée.
+- Suppression définitive ne purge pas les sauvegardes ; avis génériques/références de jobs
+  suivent la conservation du moteur mail partagé, aucune réponse privée n’y est copiée.
+- Anciens écrans/sources conservés. Aucun nouveau schéma/migration, pas de second moteur.
+- Fixture 55499 seule redémarrée ; 8080/Windows préservés, aucun commit/push.
+
+Recette visuelle réussie :
+- Cinq soumissions sélectionnées sur la page, confirmation puis cinq marquées lues ;
+  compteur non lues à zéro, sélection réinitialisée, résultat affiché.
+- Option capture propriétaire décochée/enregistrée puis recochée/enregistrée, retour
+  Modifications enregistrées ; ancienne adresse notify_email vérifiée conservée.
+- Taxonomie publics-visuels-rust créée hiérarchique, terme Partenaires Rust ajouté,
+  renommage Publics du site — Rust ; slug et terme conservés, suppression désactivée
+  car non vide. Protections système visibles.
+- Mobile390 : scrollWidth=390, table défilante intérieure. Captures bureau/mobile et
+  notification-formulaire enregistrées. Aucun effacement irréversible effectué via UI
+  sur les données de l’utilisateur ; suppressions testées par HTTP/PG en données fictives.
+- Estimation liée depuis l’index, journal/plan/matrices régénérés et contrôlés.
+
+Présentation finale : champs de taxonomie empilés, actions non cassées, titre adapté ; bureau1280/mobile390 relus après publication finale.

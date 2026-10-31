@@ -1,0 +1,23 @@
+   Compiling rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.81s
+     Running unittests src/lib.rs (target/debug/deps/rustforge_studio-ee7003d1823799a3)
+
+running 9 tests
+test session::tests::logout_and_new_login_reject_both_older_responses ... ok
+test dashboard::tests::activity_links_cannot_escape_the_local_editor ... ok
+test navigation::tests::parses_history_hashes_without_accepting_script_or_query ... ok
+test navigation::tests::keeps_groups_and_three_levels_in_server_order ... ok
+test navigation::tests::refuses_cycles_orphans_and_external_routes ... ok
+test messages::tests::shell_message_keys_are_complete ... ok
+test dashboard::tests::quick_draft_preserves_unicode_and_uses_the_shared_document ... ok
+test tests::shares_native_validation ... ok
+test navigation::registry_contract_tests::accepts_the_real_server_registry_without_dropping_groups ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rustforge_studio
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

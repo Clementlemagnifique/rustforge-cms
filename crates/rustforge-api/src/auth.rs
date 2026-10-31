@@ -30,11 +30,21 @@ pub fn create_token(
     issue_token(user_id, role, secret, None, JWT_EXPIRATION_MINUTES)
 }
 
-pub fn create_comment_token(user_id: Uuid, role: Role, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn create_comment_token(
+    user_id: Uuid,
+    role: Role,
+    secret: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
     issue_token(user_id, role, secret, Some("comments".into()), 30)
 }
 
-fn issue_token(user_id: Uuid, role: Role, secret: &str, scope: Option<String>, minutes: i64) -> Result<String, jsonwebtoken::errors::Error> {
+fn issue_token(
+    user_id: Uuid,
+    role: Role,
+    secret: &str,
+    scope: Option<String>,
+    minutes: i64,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
     let exp = (now + Duration::minutes(minutes)).timestamp() as usize;
     let iat = now.timestamp() as usize;
@@ -88,14 +98,27 @@ where
 }
 
 /// Relit toujours le compte ; un jeton public ne peut servir d'identité au Studio.
-pub async fn bearer_identity(headers: &axum::http::HeaderMap, state: &AppState, comments: bool) -> Result<User, ApiError> {
-    let token = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer ")).ok_or(ApiError::Unauthorized)?;
+pub async fn bearer_identity(
+    headers: &axum::http::HeaderMap,
+    state: &AppState,
+    comments: bool,
+) -> Result<User, ApiError> {
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(ApiError::Unauthorized)?;
     let claims = verify_token(token, &state.jwt_secret).map_err(|_| ApiError::Unauthorized)?;
-    if claims.scope.as_deref().is_some_and(|scope| !comments || scope != "comments") {
+    if claims
+        .scope
+        .as_deref()
+        .is_some_and(|scope| !comments || scope != "comments")
+    {
         return Err(ApiError::Unauthorized);
     }
-    rustforge_core::users::get(&state.db, claims.sub).await.map_err(|_| ApiError::Unauthorized)
+    rustforge_core::users::get(&state.db, claims.sub)
+        .await
+        .map_err(|_| ApiError::Unauthorized)
 }
 
 #[cfg(test)]
@@ -114,8 +137,19 @@ mod tests {
     #[test]
     fn expired_public_session_is_rejected() {
         let secret = "scoped-test-secret-long-enough";
-        let claims = Claims { scope: Some("comments".into()), sub: Uuid::nil(), role: Role::Subscriber, exp:1, iat:0 };
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes())).unwrap();
+        let claims = Claims {
+            scope: Some("comments".into()),
+            sub: Uuid::nil(),
+            role: Role::Subscriber,
+            exp: 1,
+            iat: 0,
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .unwrap();
         assert!(verify_token(&token, secret).is_err());
     }
 }

@@ -1,0 +1,1 @@
+PASS: deployed bootstrap external, WASM MIME/magic valid; WASM allowed only in admin, inline JS/eval blocked.

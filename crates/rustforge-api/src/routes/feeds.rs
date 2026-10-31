@@ -14,7 +14,7 @@ use crate::{
 use axum::{
     body::Body,
     extract::{OriginalUri, Path, Query, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::Response,
 };
 use chrono::Utc;
@@ -89,7 +89,9 @@ pub fn generate_rss(
         .first()
         .and_then(|e| e.published_at.map(|d| d.to_rfc2822()))
         .unwrap_or_else(|| now_rfc2822.clone());
-    xml.push_str(&format!("    <lastBuildDate>{last_build}</lastBuildDate>\n"));
+    xml.push_str(&format!(
+        "    <lastBuildDate>{last_build}</lastBuildDate>\n"
+    ));
     xml.push_str(&format!(
         "    <language>{}</language>\n",
         xml_escape(locale)
@@ -309,8 +311,7 @@ async fn handle_feed(
         format!("{base_url}{path_uri}")
     };
 
-    let (permalink_structure, _, _) =
-        super::permalinks::load_permalink_settings(&state.db).await;
+    let (permalink_structure, _, _) = super::permalinks::load_permalink_settings(&state.db).await;
 
     let (content_type, xml) = match format {
         FeedFormat::Rss => (
@@ -419,8 +420,12 @@ mod tests {
             fields: json!({}),
             featured_media_id: None,
             featured_media_url: None,
+            featured_media_alt: None,
+            featured_media_caption: None,
             published_at: Some(Utc.with_ymd_and_hms(2026, 10, 28, 12, 0, 0).unwrap()),
             scheduled_unpublish_at: None,
+            locale: "fr".into(),
+            translation_group_id: None,
             created_at: Utc.with_ymd_and_hms(2026, 10, 28, 10, 0, 0).unwrap(),
             updated_at: Utc.with_ymd_and_hms(2026, 10, 28, 12, 0, 0).unwrap(),
             terms: Vec::new(),
@@ -429,10 +434,22 @@ mod tests {
 
     #[test]
     fn test_rss_xml_structure_and_escaping() {
-        let entries = vec![
-            sample_entry("Titre <Test> & \"Guillemets\"", "article-1", "Contenu de l'article", "Court résumé"),
-        ];
-        let xml = generate_rss("Site & Blog", "Mon Slogan <Super>", "https://example.com", "fr", "https://example.com/fr/feed", &entries, false, "plain");
+        let entries = vec![sample_entry(
+            "Titre <Test> & \"Guillemets\"",
+            "article-1",
+            "Contenu de l'article",
+            "Court résumé",
+        )];
+        let xml = generate_rss(
+            "Site & Blog",
+            "Mon Slogan <Super>",
+            "https://example.com",
+            "fr",
+            "https://example.com/fr/feed",
+            &entries,
+            false,
+            "plain",
+        );
 
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         assert!(xml.contains("<rss version=\"2.0\""));
@@ -442,15 +459,29 @@ mod tests {
         assert!(xml.contains("<link>https://example.com/fr/post/article-1</link>"));
         assert!(xml.contains("<dc:creator>Jean Auteur &amp; Cie</dc:creator>"));
         assert!(xml.contains("<description><![CDATA[Court résumé]]></description>"));
-        assert!(xml.contains("<content:encoded><![CDATA[<p>Contenu de l'article</p>]]></content:encoded>"));
+        assert!(xml.contains(
+            "<content:encoded><![CDATA[<p>Contenu de l'article</p>]]></content:encoded>"
+        ));
     }
 
     #[test]
     fn test_rss_excerpt_only_omits_content_encoded() {
-        let entries = vec![
-            sample_entry("Article", "slug", "Grand contenu secret", "Court résumé"),
-        ];
-        let xml = generate_rss("Site", "", "https://example.com", "fr", "https://example.com/feed", &entries, true, "plain");
+        let entries = vec![sample_entry(
+            "Article",
+            "slug",
+            "Grand contenu secret",
+            "Court résumé",
+        )];
+        let xml = generate_rss(
+            "Site",
+            "",
+            "https://example.com",
+            "fr",
+            "https://example.com/feed",
+            &entries,
+            true,
+            "plain",
+        );
 
         assert!(xml.contains("<description><![CDATA[Court résumé]]></description>"));
         assert!(!xml.contains("<content:encoded>"));
@@ -459,10 +490,22 @@ mod tests {
 
     #[test]
     fn test_atom_xml_structure_and_excerpt() {
-        let entries = vec![
-            sample_entry("Titre Atom", "atom-slug", "Corps Atom", "Résumé Atom"),
-        ];
-        let xml = generate_atom("Site Atom", "Sous-titre", "https://example.com", "fr", "https://example.com/feed/atom", &entries, false, "plain");
+        let entries = vec![sample_entry(
+            "Titre Atom",
+            "atom-slug",
+            "Corps Atom",
+            "Résumé Atom",
+        )];
+        let xml = generate_atom(
+            "Site Atom",
+            "Sous-titre",
+            "https://example.com",
+            "fr",
+            "https://example.com/feed/atom",
+            &entries,
+            false,
+            "plain",
+        );
 
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>"));
         assert!(xml.contains("<feed xmlns=\"http://www.w3.org/2005/Atom\">"));
@@ -476,6 +519,9 @@ mod tests {
     fn test_cdata_split_injection_prevention() {
         let dangerous = "Ceci contient ]]> un piège XML";
         let cdata = xml_cdata(dangerous);
-        assert_eq!(cdata, "<![CDATA[Ceci contient ]]]]><![CDATA[> un piège XML]]>");
+        assert_eq!(
+            cdata,
+            "<![CDATA[Ceci contient ]]]]><![CDATA[> un piège XML]]>"
+        );
     }
 }

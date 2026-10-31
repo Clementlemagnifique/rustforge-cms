@@ -1,3 +1,4 @@
+import { useStudioStore } from '../stores/useStudioStore';
 /**
  * ============================================================================
  * ÉCRAN DE CONFIGURATION DES COLONNES & VUES (`ColumnSettingsView`)
@@ -29,7 +30,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
-  useColumnSettingsStore,
+  useColumnSettingsStore, useColumns,
 } from '../stores/useColumnSettingsStore';
 
 interface ColumnSettingsViewProps {
@@ -40,7 +41,6 @@ export const ColumnSettingsView: React.FC<ColumnSettingsViewProps> = ({ onNaviga
   const [activeType, setActiveType] = useState<string>('post');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-  const getColumns = useColumnSettingsStore((s) => s.getColumns);
   const toggleColumn = useColumnSettingsStore((s) => s.toggleColumn);
   const moveColumn = useColumnSettingsStore((s) => s.moveColumn);
   const updateColumnLabel = useColumnSettingsStore((s) => s.updateColumnLabel);
@@ -48,10 +48,10 @@ export const ColumnSettingsView: React.FC<ColumnSettingsViewProps> = ({ onNaviga
   const resetToDefault = useColumnSettingsStore((s) => s.resetToDefault);
   const saveGlobalPreferences = useColumnSettingsStore((s) => s.saveGlobalPreferences);
   const saving = useColumnSettingsStore((s) => s.saving);
-  const density = useColumnSettingsStore((s) => s.density);
-  const setDensity = useColumnSettingsStore((s) => s.setDensity);
+  const density = useStudioStore((s) => s.studioDensity);
+  const setDensity = useStudioStore((s) => s.setStudioDensity);
 
-  const columns = getColumns(activeType);
+  const columns = useColumns(activeType);
   const visibleColumns = columns.filter((c) => c.visible);
 
   const handleSaveGlobal = async () => {

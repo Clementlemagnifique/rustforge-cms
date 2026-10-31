@@ -1,5 +1,21 @@
 # RustForge CMS — audit des références locales
 
+## Point de situation local du 30 octobre — confirmation de la base
+
+Le dossier actuellement fourni contient WordPress déclarant 7.1.3, trois thèmes
+(Astra, GeneratePress, Twenty Twenty-Five) et **22 dossiers d'extensions**. Le JSON
+conserve 18 entrées kind=module et quatre ajouts kind=plugin : GT3, wpDiscuz,
+Admin Menu Editor et Max Mega Menu. Les titres « 17 extensions » et chiffres de
+collecte ci-dessous décrivent l'audit initial, pas un nouvel inventaire exhaustif.
+Les ajouts restent ceux des revues incrémentales existantes ; pas de nouveau scan global.
+La copie locale n'est pas attestée comme la dernière version publique d'aujourd'hui.
+
+L'utilisateur confirme ces sources pour continuer RustForge, avec le Design System
+Figma indiqué dans le plan admin Rust. Lecture de sa structure effectuée le 30/10 :
+fondations, composants, DataViews/DataForm et éditeurs présents. Aucun actif incorporé,
+aucun fichier Figma créé et aucune fonction Pro déclarée livrée par cette confirmation.
+
+
 ## Complément du 28 octobre : AutomatorWP, référence web
 
 La [page AutomatorWP](https://automatorwp.com/) présente des déclencheurs et actions combinés dans des automatisations, un assistant IA et des offres gratuite/Pro. Elle est retenue comme inspiration du futur éditeur de recettes. Le code du plugin n’a pas été téléchargé ni audité; plusieurs pages de documentation liées renvoyaient une boucle de redirection lors de cette lecture.

@@ -248,6 +248,9 @@ fn validate_menu_items(arr: &[Value]) -> CoreResult<()> {
 
 /// Valide les réglages structurés critiques (`site.menus` `WP-46` et `site.design_tokens` `WP-48`/`WP-50`).
 fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
+    if key == "forms.retention" {
+        crate::forms::retention_days(Some(value))?;
+    }
     if value.is_null() {
         return Ok(());
     }
@@ -395,8 +398,16 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
             ));
         }
         const ALLOWED_TOKENS: &[&str] = &[
-            "%year%", "%monthnum%", "%day%", "%hour%", "%minute%", "%second%",
-            "%post_id%", "%postname%", "%category%", "%author%",
+            "%year%",
+            "%monthnum%",
+            "%day%",
+            "%hour%",
+            "%minute%",
+            "%second%",
+            "%post_id%",
+            "%postname%",
+            "%category%",
+            "%author%",
         ];
         let mut rest = trimmed;
         while let Some(start) = rest.find('%') {
@@ -415,7 +426,10 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 ));
             }
         }
-        if trimmed.chars().any(|c| c.is_control() || matches!(c, '<' | '>' | '"' | '\'' | '\\' | '?' | '#')) {
+        if trimmed
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '<' | '>' | '"' | '\'' | '\\' | '?' | '#'))
+        {
             return Err(CoreError::validation(
                 "La structure de permalien contient des caractères interdits.",
             ));
@@ -439,7 +453,8 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 )
             })?;
             const RESERVED: &[&str] = &[
-                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives", "zen", "post", "page",
+                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives",
+                "zen", "post", "page",
             ];
             if RESERVED.contains(&trimmed) && trimmed != "category" {
                 return Err(CoreError::validation(format!(
@@ -466,7 +481,8 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
                 )
             })?;
             const RESERVED: &[&str] = &[
-                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives", "zen", "post", "page",
+                "api", "admin", "uploads", "public", "feed", "search", "archive", "archives",
+                "zen", "post", "page",
             ];
             if RESERVED.contains(&trimmed) && trimmed != "tag" {
                 return Err(CoreError::validation(format!(
@@ -476,131 +492,226 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         }
     } else if key == "discussion.default_comment_status"
         && !value.is_boolean()
-        && !value.as_str().is_some_and(|s| matches!(s, "open" | "closed"))
+        && !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "open" | "closed"))
     {
         return Err(CoreError::validation(
             "discussion.default_comment_status doit être un booléen ou 'open'/'closed'.",
         ));
     } else if key == "discussion.default_comments_page"
-        && !value.as_str().is_some_and(|s| matches!(s, "oldest" | "newest")) {
-        return Err(CoreError::validation("Page par défaut invalide : oldest ou newest attendu."));
-    } else if matches!(key,"discussion.comments_notify"|"discussion.moderation_notify") && !value.is_boolean() {
-        return Err(CoreError::validation("Une préférence de notification doit être un booléen."));
+        && !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "oldest" | "newest"))
+    {
+        return Err(CoreError::validation(
+            "Page par défaut invalide : oldest ou newest attendu.",
+        ));
+    } else if matches!(
+        key,
+        "discussion.comments_notify" | "discussion.moderation_notify"
+    ) && !value.is_boolean()
+    {
+        return Err(CoreError::validation(
+            "Une préférence de notification doit être un booléen.",
+        ));
     } else if key == "discussion.require_name_email" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.require_name_email doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.require_name_email doit être un booléen.",
+        ));
     } else if key == "discussion.comment_registration" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.comment_registration doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.comment_registration doit être un booléen.",
+        ));
     } else if key == "discussion.close_comments_for_old_posts" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.close_comments_for_old_posts doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.close_comments_for_old_posts doit être un booléen.",
+        ));
     } else if key == "discussion.close_comments_days" {
         let Some(n) = value.as_i64() else {
-            return Err(CoreError::validation("discussion.close_comments_days doit être un entier positif."));
+            return Err(CoreError::validation(
+                "discussion.close_comments_days doit être un entier positif.",
+            ));
         };
         if !(1..=3650).contains(&n) {
-            return Err(CoreError::validation("discussion.close_comments_days doit être compris entre 1 et 3650 jours."));
+            return Err(CoreError::validation(
+                "discussion.close_comments_days doit être compris entre 1 et 3650 jours.",
+            ));
         }
     } else if key == "discussion.thread_comments" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.thread_comments doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.thread_comments doit être un booléen.",
+        ));
     } else if key == "discussion.thread_comments_depth" {
         let Some(n) = value.as_i64() else {
-            return Err(CoreError::validation("discussion.thread_comments_depth doit être un entier entre 1 et 5."));
+            return Err(CoreError::validation(
+                "discussion.thread_comments_depth doit être un entier entre 1 et 5.",
+            ));
         };
         if !(1..=5).contains(&n) {
-            return Err(CoreError::validation("discussion.thread_comments_depth doit être compris entre 1 et 5 niveaux."));
+            return Err(CoreError::validation(
+                "discussion.thread_comments_depth doit être compris entre 1 et 5 niveaux.",
+            ));
         }
     } else if key == "discussion.page_comments" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.page_comments doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.page_comments doit être un booléen.",
+        ));
     } else if key == "discussion.comments_per_page" {
         let Some(n) = value.as_i64() else {
-            return Err(CoreError::validation("discussion.comments_per_page doit être un entier entre 1 et 100."));
+            return Err(CoreError::validation(
+                "discussion.comments_per_page doit être un entier entre 1 et 100.",
+            ));
         };
         if !(1..=100).contains(&n) {
-            return Err(CoreError::validation("discussion.comments_per_page doit être compris entre 1 et 100."));
+            return Err(CoreError::validation(
+                "discussion.comments_per_page doit être compris entre 1 et 100.",
+            ));
         }
     } else if key == "discussion.comment_order" {
         let Some(order) = value.as_str() else {
-            return Err(CoreError::validation("discussion.comment_order doit être 'asc' ou 'desc'."));
+            return Err(CoreError::validation(
+                "discussion.comment_order doit être 'asc' ou 'desc'.",
+            ));
         };
         if !matches!(order, "asc" | "desc") {
-            return Err(CoreError::validation("discussion.comment_order doit être 'asc' ou 'desc'."));
+            return Err(CoreError::validation(
+                "discussion.comment_order doit être 'asc' ou 'desc'.",
+            ));
         }
     } else if key == "discussion.comment_moderation" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.comment_moderation doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.comment_moderation doit être un booléen.",
+        ));
     } else if key == "discussion.comment_previously_approved" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.comment_previously_approved doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.comment_previously_approved doit être un booléen.",
+        ));
     } else if key == "discussion.comment_max_links" {
         let Some(n) = value.as_i64() else {
-            return Err(CoreError::validation("discussion.comment_max_links doit être un entier positif ou nul."));
+            return Err(CoreError::validation(
+                "discussion.comment_max_links doit être un entier positif ou nul.",
+            ));
         };
         if !(0..=50).contains(&n) {
-            return Err(CoreError::validation("discussion.comment_max_links doit être compris entre 0 et 50."));
+            return Err(CoreError::validation(
+                "discussion.comment_max_links doit être compris entre 0 et 50.",
+            ));
         }
     } else if (key == "discussion.moderation_keys" || key == "discussion.disallowed_keys")
         && let Some(text) = value.as_str()
         && text.len() > 16 * 1024
     {
-        return Err(CoreError::validation("La liste de modération ou de mots interdits est limitée à 16 Kio."));
+        return Err(CoreError::validation(
+            "La liste de modération ou de mots interdits est limitée à 16 Kio.",
+        ));
     } else if key == "discussion.show_avatars" && !value.is_boolean() {
-        return Err(CoreError::validation("discussion.show_avatars doit être un booléen."));
+        return Err(CoreError::validation(
+            "discussion.show_avatars doit être un booléen.",
+        ));
     } else if key == "discussion.show_comments_cookies_opt_in" && !value.is_boolean() {
-        return Err(CoreError::validation("La mémorisation de l'identité doit être un booléen."));
-    } else if key == "discussion.avatar_default" && !value.as_str().is_some_and(|s| matches!(s, "mystery" | "blank" | "identicon" | "retro")) {
-        return Err(CoreError::validation("Avatar local inconnu : mystery, blank, identicon ou retro attendu."));
+        return Err(CoreError::validation(
+            "La mémorisation de l'identité doit être un booléen.",
+        ));
+    } else if key == "discussion.avatar_default"
+        && !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "mystery" | "blank" | "identicon" | "retro"))
+    {
+        return Err(CoreError::validation(
+            "Avatar local inconnu : mystery, blank, identicon ou retro attendu.",
+        ));
     } else if key == "mail.mode" {
-        if !value.as_str().is_some_and(|s| matches!(s, "capture" | "simulated" | "smtp")) {
-            return Err(CoreError::validation("Mode de messagerie invalide : capture, simulated ou smtp attendu."));
+        if !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "capture" | "simulated" | "smtp"))
+        {
+            return Err(CoreError::validation(
+                "Mode de messagerie invalide : capture, simulated ou smtp attendu.",
+            ));
         }
     } else if key == "mail.simulated_outcome" {
-        if !value.as_str().is_some_and(|s| matches!(s, "success" | "transient_error" | "permanent_error")) {
-            return Err(CoreError::validation("Résultat simulé invalide : success, transient_error ou permanent_error attendu."));
+        if !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "success" | "transient_error" | "permanent_error"))
+        {
+            return Err(CoreError::validation(
+                "Résultat simulé invalide : success, transient_error ou permanent_error attendu.",
+            ));
         }
     } else if key == "mail.from_address" {
         let Some(email) = value.as_str() else {
-            return Err(CoreError::validation("mail.from_address doit être une chaîne."));
+            return Err(CoreError::validation(
+                "mail.from_address doit être une chaîne.",
+            ));
         };
         let trimmed = email.trim();
-        if trimmed.is_empty() || trimmed.len() > 254 || !trimmed.contains('@') || trimmed.chars().any(|c| c.is_control() || c.is_whitespace()) {
-            return Err(CoreError::validation("Adresse d'expéditeur e-mail invalide."));
+        if trimmed.is_empty()
+            || trimmed.len() > 254
+            || !trimmed.contains('@')
+            || trimmed.chars().any(|c| c.is_control() || c.is_whitespace())
+        {
+            return Err(CoreError::validation(
+                "Adresse d'expéditeur e-mail invalide.",
+            ));
         }
     } else if key == "mail.from_name" {
         let Some(name) = value.as_str() else {
-            return Err(CoreError::validation("mail.from_name doit être une chaîne."));
+            return Err(CoreError::validation(
+                "mail.from_name doit être une chaîne.",
+            ));
         };
         if name.len() > 100 || name.chars().any(char::is_control) {
-            return Err(CoreError::validation("Nom d'expéditeur e-mail trop long ou invalide."));
+            return Err(CoreError::validation(
+                "Nom d'expéditeur e-mail trop long ou invalide.",
+            ));
         }
     } else if key == "mail.smtp_host" {
         let Some(host) = value.as_str() else {
-            return Err(CoreError::validation("mail.smtp_host doit être une chaîne."));
+            return Err(CoreError::validation(
+                "mail.smtp_host doit être une chaîne.",
+            ));
         };
         if host.len() > 255 || host.chars().any(|c| c.is_control() || c.is_whitespace()) {
             return Err(CoreError::validation("Hôte SMTP invalide."));
         }
     } else if key == "mail.smtp_port" {
         let Some(port) = value.as_i64() else {
-            return Err(CoreError::validation("mail.smtp_port doit être un entier entre 1 et 65535."));
+            return Err(CoreError::validation(
+                "mail.smtp_port doit être un entier entre 1 et 65535.",
+            ));
         };
         if !(1..=65535).contains(&port) {
-            return Err(CoreError::validation("mail.smtp_port doit être compris entre 1 et 65535."));
+            return Err(CoreError::validation(
+                "mail.smtp_port doit être compris entre 1 et 65535.",
+            ));
         }
     } else if key == "mail.smtp_username" {
         let Some(u) = value.as_str() else {
-            return Err(CoreError::validation("mail.smtp_username doit être une chaîne."));
+            return Err(CoreError::validation(
+                "mail.smtp_username doit être une chaîne.",
+            ));
         };
         if u.len() > 255 || u.chars().any(char::is_control) {
             return Err(CoreError::validation("Nom d'utilisateur SMTP invalide."));
         }
     } else if key == "mail.smtp_password" {
         let Some(p) = value.as_str() else {
-            return Err(CoreError::validation("mail.smtp_password doit être une chaîne."));
+            return Err(CoreError::validation(
+                "mail.smtp_password doit être une chaîne.",
+            ));
         };
         if p.len() > 255 {
             return Err(CoreError::validation("Mot de passe SMTP trop long."));
         }
     } else if key == "mail.smtp_encryption"
-        && !value.as_str().is_some_and(|s| matches!(s, "none" | "starttls" | "tls"))
+        && !value
+            .as_str()
+            .is_some_and(|s| matches!(s, "none" | "starttls" | "tls"))
     {
-        return Err(CoreError::validation("Chiffrement SMTP invalide : none, starttls ou tls attendu."));
+        return Err(CoreError::validation(
+            "Chiffrement SMTP invalide : none, starttls ou tls attendu.",
+        ));
     } else if key == "media.thumbnail_size_w"
         || key == "media.thumbnail_size_h"
         || key == "media.medium_size_w"
@@ -632,32 +743,49 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         };
         let trimmed = s.trim();
         if trimmed.is_empty() || trimmed.len() > 300 || trimmed.chars().any(char::is_control) {
-            return Err(CoreError::validation("Le titre du site doit contenir entre 1 et 300 caractères valides."));
+            return Err(CoreError::validation(
+                "Le titre du site doit contenir entre 1 et 300 caractères valides.",
+            ));
         }
     } else if key == "site.tagline" {
         let Some(s) = value.as_str() else {
             return Err(CoreError::validation("site.tagline doit être une chaîne."));
         };
         if s.len() > 500 || s.chars().any(char::is_control) {
-            return Err(CoreError::validation("Le slogan du site ne peut pas dépasser 500 caractères."));
+            return Err(CoreError::validation(
+                "Le slogan du site ne peut pas dépasser 500 caractères.",
+            ));
         }
     } else if key == "site.url" || key == "site.home_url" {
         let Some(s) = value.as_str() else {
-            return Err(CoreError::validation(format!("{key} doit être une chaîne.")));
+            return Err(CoreError::validation(format!(
+                "{key} doit être une chaîne."
+            )));
         };
         let trimmed = s.trim();
         if !trimmed.is_empty() {
             if trimmed.len() > 2048 {
-                return Err(CoreError::validation(format!("{key} ne peut pas dépasser 2048 caractères.")));
+                return Err(CoreError::validation(format!(
+                    "{key} ne peut pas dépasser 2048 caractères."
+                )));
             }
             if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
-                return Err(CoreError::validation(format!("{key} doit commencer par http:// ou https://.")));
+                return Err(CoreError::validation(format!(
+                    "{key} doit commencer par http:// ou https://."
+                )));
             }
             if trimmed.ends_with('/') {
-                return Err(CoreError::validation(format!("{key} ne doit pas se terminer par un slash « / ».")));
+                return Err(CoreError::validation(format!(
+                    "{key} ne doit pas se terminer par un slash « / »."
+                )));
             }
-            if trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
-                return Err(CoreError::validation(format!("{key} contient des caractères non autorisés.")));
+            if trimmed
+                .chars()
+                .any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>'))
+            {
+                return Err(CoreError::validation(format!(
+                    "{key} contient des caractères non autorisés."
+                )));
             }
         }
     } else if key == "site.language" {
@@ -665,57 +793,91 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
             return Err(CoreError::validation("site.language doit être une chaîne."));
         };
         let trimmed = s.trim();
-        if trimmed.len() < 2 || trimmed.len() > 10 || !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-            return Err(CoreError::validation("Code de langue invalide (attendu ex: fr, en, es)."));
+        if trimmed.len() < 2
+            || trimmed.len() > 10
+            || !trimmed
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(CoreError::validation(
+                "Code de langue invalide (attendu ex: fr, en, es).",
+            ));
         }
     } else if key == "site.timezone" {
         let Some(s) = value.as_str() else {
             return Err(CoreError::validation("site.timezone doit être une chaîne."));
         };
         let trimmed = s.trim();
-            if trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+        if trimmed
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>'))
+        {
             return Err(CoreError::validation("Fuseau horaire invalide."));
         }
     } else if key == "site.date_format" || key == "site.time_format" {
         let Some(s) = value.as_str() else {
-            return Err(CoreError::validation(format!("{key} doit être une chaîne.")));
+            return Err(CoreError::validation(format!(
+                "{key} doit être une chaîne."
+            )));
         };
         if s.len() > 64 || s.chars().any(char::is_control) {
-            return Err(CoreError::validation(format!("{key} est trop long ou contient des caractères de contrôle.")));
+            return Err(CoreError::validation(format!(
+                "{key} est trop long ou contient des caractères de contrôle."
+            )));
         }
     } else if key == "site.start_of_week" {
         let Some(n) = value.as_i64() else {
-            return Err(CoreError::validation("site.start_of_week doit être un entier entre 0 et 6."));
+            return Err(CoreError::validation(
+                "site.start_of_week doit être un entier entre 0 et 6.",
+            ));
         };
         if !(0..=6).contains(&n) {
-            return Err(CoreError::validation("site.start_of_week doit être compris entre 0 (dimanche) et 6 (samedi)."));
+            return Err(CoreError::validation(
+                "site.start_of_week doit être compris entre 0 (dimanche) et 6 (samedi).",
+            ));
         }
     } else if key == "site.icon" {
         if let Some(s) = value.as_str() {
             let trimmed = s.trim();
-            if trimmed.len() > 2048 || trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
+            if trimmed.len() > 2048
+                || trimmed
+                    .chars()
+                    .any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>'))
+            {
                 return Err(CoreError::validation("URL d'icône du site invalide."));
             }
         } else if let Some(obj) = value.as_object() {
             for (k, v) in obj {
                 if let Some(path) = v.as_str() {
                     let trimmed = path.trim();
-                    if trimmed.len() > 2048 || trimmed.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>')) {
-                        return Err(CoreError::validation(format!("Variante {k} d'icône du site invalide.")));
+                    if trimmed.len() > 2048
+                        || trimmed
+                            .chars()
+                            .any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>'))
+                    {
+                        return Err(CoreError::validation(format!(
+                            "Variante {k} d'icône du site invalide."
+                        )));
                     }
                 }
             }
         } else {
-            return Err(CoreError::validation("site.icon doit être une URL (chaîne) ou un objet de déclinaisons."));
+            return Err(CoreError::validation(
+                "site.icon doit être une URL (chaîne) ou un objet de déclinaisons.",
+            ));
         }
     } else if key == "writing.default_category" {
         let Some(s) = value.as_str() else {
-            return Err(CoreError::validation("writing.default_category doit être une chaîne."));
+            return Err(CoreError::validation(
+                "writing.default_category doit être une chaîne.",
+            ));
         };
         let trimmed = s.trim();
         if !trimmed.is_empty() {
             if trimmed.len() > 64 {
-                return Err(CoreError::validation("writing.default_category ne peut pas dépasser 64 caractères."));
+                return Err(CoreError::validation(
+                    "writing.default_category ne peut pas dépasser 64 caractères.",
+                ));
             }
             crate::security::safe_slug(trimmed).map_err(|_| {
                 CoreError::validation("writing.default_category doit être un slug valide.")
@@ -723,20 +885,29 @@ fn validate_setting_value(key: &str, value: &Value) -> CoreResult<()> {
         }
     } else if key == "writing.default_post_format" {
         let Some(f) = value.as_str() else {
-            return Err(CoreError::validation("writing.default_post_format doit être une chaîne."));
+            return Err(CoreError::validation(
+                "writing.default_post_format doit être une chaîne.",
+            ));
         };
         const FORMATS: &[&str] = &[
-            "standard", "aside", "gallery", "link", "image", "quote", "status", "video", "audio", "chat",
+            "standard", "aside", "gallery", "link", "image", "quote", "status", "video", "audio",
+            "chat",
         ];
         if !FORMATS.contains(&f) {
-            return Err(CoreError::validation("Format d'article inconnu (attendu : standard, aside, gallery, link, image, quote, status, video, audio ou chat)."));
+            return Err(CoreError::validation(
+                "Format d'article inconnu (attendu : standard, aside, gallery, link, image, quote, status, video, audio ou chat).",
+            ));
         }
     } else if key == "writing.default_editor_mode" {
         let Some(m) = value.as_str() else {
-            return Err(CoreError::validation("writing.default_editor_mode doit être une chaîne."));
+            return Err(CoreError::validation(
+                "writing.default_editor_mode doit être une chaîne.",
+            ));
         };
         if !matches!(m, "blocks" | "markdown") {
-            return Err(CoreError::validation("Mode d'éditeur invalide (attendu : blocks ou markdown)."));
+            return Err(CoreError::validation(
+                "Mode d'éditeur invalide (attendu : blocks ou markdown).",
+            ));
         }
     }
     Ok(())
@@ -756,7 +927,9 @@ pub async fn update(
         validate_setting_value(k, v)?;
     }
     if let (Some(cat), Some(tag)) = (
-        values.get("permalink.category_base").and_then(Value::as_str),
+        values
+            .get("permalink.category_base")
+            .and_then(Value::as_str),
         values.get("permalink.tag_base").and_then(Value::as_str),
     ) {
         let cat = cat.trim();
@@ -768,6 +941,11 @@ pub async fn update(
         }
     }
     let mut tx = db.begin().await?;
+    if values.contains_key("forms.retention") {
+        sqlx::query("SELECT pg_advisory_xact_lock(72430652)")
+            .execute(&mut *tx)
+            .await?;
+    }
     if values.keys().any(|k| {
         matches!(
             k.as_str(),
@@ -852,6 +1030,7 @@ pub async fn get_active_modules(db: &PgPool) -> CoreResult<BTreeMap<String, bool
     default_map.insert("zen_mode".to_string(), true);
     default_map.insert("ecommerce".to_string(), true);
     default_map.insert("lms".to_string(), true);
+    default_map.insert("analytics".to_string(), true);
     Ok(default_map)
 }
 
@@ -957,23 +1136,43 @@ mod tests {
     #[test]
     fn test_validate_permalink_settings() {
         // Standard presets
-        for preset in ["plain", "day_and_name", "month_and_name", "numeric", "post_name", ""] {
+        for preset in [
+            "plain",
+            "day_and_name",
+            "month_and_name",
+            "numeric",
+            "post_name",
+            "",
+        ] {
             assert!(validate_setting_value("permalink.structure", &json!(preset)).is_ok());
         }
 
         // Custom structure with valid tokens
-        assert!(validate_setting_value("permalink.structure", &json!("/%year%/%postname%/")).is_ok());
-        assert!(validate_setting_value("permalink.structure", &json!("/archives/%post_id%")).is_ok());
-        assert!(validate_setting_value("permalink.structure", &json!("/blog/%category%/%postname%")).is_ok());
+        assert!(
+            validate_setting_value("permalink.structure", &json!("/%year%/%postname%/")).is_ok()
+        );
+        assert!(
+            validate_setting_value("permalink.structure", &json!("/archives/%post_id%")).is_ok()
+        );
+        assert!(
+            validate_setting_value("permalink.structure", &json!("/blog/%category%/%postname%"))
+                .is_ok()
+        );
 
         // Custom structure missing required post identifier
-        assert!(validate_setting_value("permalink.structure", &json!("/%year%/%monthnum%/")).is_err());
+        assert!(
+            validate_setting_value("permalink.structure", &json!("/%year%/%monthnum%/")).is_err()
+        );
 
         // Custom structure without leading slash
-        assert!(validate_setting_value("permalink.structure", &json!("%year%/%postname%")).is_err());
+        assert!(
+            validate_setting_value("permalink.structure", &json!("%year%/%postname%")).is_err()
+        );
 
         // Custom structure with unknown token
-        assert!(validate_setting_value("permalink.structure", &json!("/%unknown%/%postname%")).is_err());
+        assert!(
+            validate_setting_value("permalink.structure", &json!("/%unknown%/%postname%")).is_err()
+        );
 
         // Category base
         assert!(validate_setting_value("permalink.category_base", &json!("rubrique")).is_ok());
@@ -1072,15 +1271,23 @@ mod tests {
 
     #[test]
     fn test_validate_discussion_settings() {
-        assert!(validate_setting_value("discussion.default_comment_status", &json!("open")).is_ok());
+        assert!(
+            validate_setting_value("discussion.default_comment_status", &json!("open")).is_ok()
+        );
         assert!(validate_setting_value("discussion.default_comment_status", &json!(true)).is_ok());
-        assert!(validate_setting_value("discussion.default_comment_status", &json!("invalid")).is_err());
+        assert!(
+            validate_setting_value("discussion.default_comment_status", &json!("invalid")).is_err()
+        );
 
         // WP-83 : Conditions de commentaire
         assert!(validate_setting_value("discussion.require_name_email", &json!(true)).is_ok());
-        assert!(validate_setting_value("discussion.require_name_email", &json!("not_bool")).is_err());
+        assert!(
+            validate_setting_value("discussion.require_name_email", &json!("not_bool")).is_err()
+        );
         assert!(validate_setting_value("discussion.comment_registration", &json!(true)).is_ok());
-        assert!(validate_setting_value("discussion.close_comments_for_old_posts", &json!(true)).is_ok());
+        assert!(
+            validate_setting_value("discussion.close_comments_for_old_posts", &json!(true)).is_ok()
+        );
         assert!(validate_setting_value("discussion.close_comments_days", &json!(14)).is_ok());
         assert!(validate_setting_value("discussion.close_comments_days", &json!(0)).is_err());
         assert!(validate_setting_value("discussion.close_comments_days", &json!(4000)).is_err());
@@ -1093,22 +1300,35 @@ mod tests {
         assert!(validate_setting_value("discussion.comments_per_page", &json!(50)).is_ok());
         assert!(validate_setting_value("discussion.comments_per_page", &json!(0)).is_err());
         assert!(validate_setting_value("discussion.comments_per_page", &json!(150)).is_err());
-        assert!(validate_setting_value("discussion.default_comments_page", &json!("oldest")).is_ok());
-        assert!(validate_setting_value("discussion.default_comments_page", &json!("newest")).is_ok());
-        assert!(validate_setting_value("discussion.default_comments_page", &json!("middle")).is_err());
+        assert!(
+            validate_setting_value("discussion.default_comments_page", &json!("oldest")).is_ok()
+        );
+        assert!(
+            validate_setting_value("discussion.default_comments_page", &json!("newest")).is_ok()
+        );
+        assert!(
+            validate_setting_value("discussion.default_comments_page", &json!("middle")).is_err()
+        );
         assert!(validate_setting_value("discussion.comment_order", &json!("asc")).is_ok());
         assert!(validate_setting_value("discussion.comment_order", &json!("desc")).is_ok());
         assert!(validate_setting_value("discussion.comment_order", &json!("random")).is_err());
 
         // WP-87 : Consentement cookies, avatars locaux et transport e-mail
-        assert!(validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(true)).is_ok());
-        assert!(validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(123)).is_err());
+        assert!(
+            validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(true)).is_ok()
+        );
+        assert!(
+            validate_setting_value("discussion.show_comments_cookies_opt_in", &json!(123)).is_err()
+        );
         assert!(validate_setting_value("discussion.show_avatars", &json!(true)).is_ok());
         assert!(validate_setting_value("discussion.avatar_default", &json!("mystery")).is_ok());
         assert!(validate_setting_value("discussion.avatar_default", &json!("identicon")).is_ok());
         assert!(validate_setting_value("discussion.avatar_default", &json!("retro")).is_ok());
         assert!(validate_setting_value("discussion.avatar_default", &json!("blank")).is_ok());
-        assert!(validate_setting_value("discussion.avatar_default", &json!("gravatar_thirdparty")).is_err());
+        assert!(
+            validate_setting_value("discussion.avatar_default", &json!("gravatar_thirdparty"))
+                .is_err()
+        );
 
         // WP-85 : Modération & antispam
         assert!(validate_setting_value("discussion.comment_max_links", &json!(2)).is_ok());
@@ -1148,7 +1368,9 @@ mod tests {
         assert!(validate_setting_value("site.url", &json!("http://localhost:3000")).is_ok());
         assert!(validate_setting_value("site.url", &json!("https://example.com/")).is_err());
         assert!(validate_setting_value("site.url", &json!("not-a-url")).is_err());
-        assert!(validate_setting_value("site.home_url", &json!("https://example.com/blog")).is_ok());
+        assert!(
+            validate_setting_value("site.home_url", &json!("https://example.com/blog")).is_ok()
+        );
 
         // Langue, fuseau et calendrier (WP-73)
         assert!(validate_setting_value("site.language", &json!("fr")).is_ok());
@@ -1162,14 +1384,23 @@ mod tests {
 
         // Icône du site (WP-74)
         assert!(validate_setting_value("site.icon", &json!("/uploads/favicon.png")).is_ok());
-        assert!(validate_setting_value("site.icon", &json!({"icon_32": "/uploads/icons/32.webp", "icon_512": "/uploads/icons/512.webp"})).is_ok());
+        assert!(
+            validate_setting_value(
+                "site.icon",
+                &json!({"icon_32": "/uploads/icons/32.webp", "icon_512": "/uploads/icons/512.webp"})
+            )
+            .is_ok()
+        );
 
         // Défauts d'écriture (WP-75)
         assert!(validate_setting_value("writing.default_category", &json!("actualites")).is_ok());
         assert!(validate_setting_value("writing.default_category", &json!("bad slug!")).is_err());
         assert!(validate_setting_value("writing.default_post_format", &json!("standard")).is_ok());
         assert!(validate_setting_value("writing.default_post_format", &json!("quote")).is_ok());
-        assert!(validate_setting_value("writing.default_post_format", &json!("custom_unknown")).is_err());
+        assert!(
+            validate_setting_value("writing.default_post_format", &json!("custom_unknown"))
+                .is_err()
+        );
         assert!(validate_setting_value("writing.default_editor_mode", &json!("blocks")).is_ok());
         assert!(validate_setting_value("writing.default_editor_mode", &json!("markdown")).is_ok());
         assert!(validate_setting_value("writing.default_editor_mode", &json!("wysiwyg")).is_err());

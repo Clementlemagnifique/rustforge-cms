@@ -1,0 +1,3 @@
+PASS admin: données paginées, droits serveur et liste vide
+PASS author: données paginées, droits serveur et liste vide
+PASS subscriber: données paginées, droits serveur et liste vide

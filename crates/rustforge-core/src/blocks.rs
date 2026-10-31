@@ -1,3 +1,9 @@
+//! Registre historique au format `id/type/data`, conservé comme référence et API publique.
+//! Le rendu courant utilise `rustforge-document` (`rf.document/1`) et le SSR MiniJinja.
+//! Audit du 31 octobre 2026 : aucun appel de production trouvé dans ce workspace,
+//! mais ne pas supprimer les capacités historiques sans correspondance/import validé.
+//! Voir `docs/pilotage/15_AUDIT_MIGRATION_LEPTOS.md`.
+//!
 //! # Registre Universel de Blocs Sémantiques (Universal Block Registry)
 //!
 //! Définit la structure centrale des blocs de contenu de RustForge.

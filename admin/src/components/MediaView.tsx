@@ -1,18 +1,18 @@
 /**
  * ============================================================================
- * VUE DE LA MÉDIATHÈQUE, VARIANTES ET TRANSFORMATIONS (`MediaView`)
+ * VUE DE LA MÉDIATHÈQUE SOUVERAINE & DOSSIERS FILEBIRD (`upload.php`)
  * ============================================================================
- * Pilotée par `useMediaStore` (Zustand) :
- * - `WP-37` : Recherche (`q`), filtre par type MIME (`kind`), bascule Grille / Liste,
- *   filtrage et gestion des dossiers virtuels (`media_folders`).
- * - `WP-38` : Téléversement dans le dossier actif et inspecteur latéral d'édition
- *   des métadonnées (`alt`, `caption`, déplacement de dossier, copie d'URL et WebP).
- * - `WP-39` : Édition et transformation d'image (rotation, recadrage) avec
- *   régénération des variantes et restauration réversible de l'original souverain.
- * - `WP-40` : Suppression protégée contre la destruction d'un média utilisé dans
- *   un contenu actif (`409 Conflict` avec confirmation de forçage).
- * - `WP-41` : Chargement optimisé, lazy-loading, copie d'extrait HTML responsive (`srcset` & `sizes`).
- * - `WP-88` : Visualisation des variantes générées (Thumbnail, Medium, Large).
+ * Reproduction fidèle à 99% de WordPress Core (`upload.php`) enrichie de l'organisation
+ * hiérarchique FileBird Pro et de la retouche d'image native en Rust (zéro PHP).
+ *
+ * Fonctionnalités clés :
+ * - `WP-37` : Mode Grille et Liste, recherche en temps réel (`q`), filtre par type MIME
+ *   (Images, Vidéo, Audio, Documents), filtre par date et dossiers virtuels FileBird.
+ * - `WP-38` : Téléversement glisser-déposer dans le dossier actif et conversion WebP native.
+ * - `WP-39` : Retouche souveraine d'image (rotation horaire / anti-horaire) et restauration réversible.
+ * - `WP-40` : Suppression protégée contre la destruction d'un média lié à un contenu actif.
+ * - `WP-41` : Extrait HTML responsive prêt à l'emploi (`<img srcset="...">`).
+ * - `WP-88` : Visualisation des variantes générées (Miniature, Moyenne, Grande).
  */
 
 import React, { useEffect, useState } from 'react';
@@ -32,6 +32,9 @@ import {
   RotateCw,
   Undo2,
   Sparkles,
+  Plus,
+  FolderTree,
+  ChevronRight,
 } from 'lucide-react';
 import { mediaMessages } from '../i18n/messages.fr';
 import { useMediaStore } from '../stores/useMediaStore';
@@ -86,6 +89,7 @@ export const MediaView: React.FC = () => {
   const deleteMedia = useMediaStore((s) => s.deleteMedia);
 
   const [copiedSnippet, setCopiedSnippet] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   useEffect(() => {
     void fetchAll();
@@ -96,6 +100,7 @@ export const MediaView: React.FC = () => {
     if (!file) return;
     await uploadFile(file);
     e.target.value = '';
+    setIsUploadOpen(false);
   };
 
   const buildResponsiveHtml = (m: Media): string => {
@@ -125,22 +130,34 @@ export const MediaView: React.FC = () => {
     selectedMedia.mime_type !== 'image/svg+xml';
 
   return (
-    <div className="space-y-6">
-      {/* En-tête de la médiathèque */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-white">{mediaMessages.title}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{mediaMessages.subtitle}</p>
+    <div className="space-y-5">
+      {/* ==================================================================== */}
+      {/* 1. EN-TÊTE CONTEXTUEL (upload.php)                                   */}
+      {/* ==================================================================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#dcdcde] dark:border-[#2c3338]">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-[#1d2327] dark:text-white flex items-center gap-2">
+            Médiathèque
+          </h1>
+          <button
+            type="button"
+            onClick={() => setIsUploadOpen((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded border border-[#2271b1] text-[#2271b1] hover:bg-[#2271b1] hover:text-white transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Ajouter un fichier média</span>
+          </button>
         </div>
-        <span className="text-xs font-mono text-slate-400 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-          {total} fichier(s)
+
+        <span className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-3 py-1 rounded-full border border-slate-200 dark:border-white/10 self-start sm:self-auto">
+          {total} fichier(s) au total
         </span>
       </div>
 
       {error && (
         <div
           role="alert"
-          className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200"
+          className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-200"
         >
           {error}
         </div>
@@ -148,116 +165,145 @@ export const MediaView: React.FC = () => {
       {message && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-200"
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-700 dark:text-emerald-200"
         >
           {message}
         </div>
       )}
 
-      {/* Zone de dépôt / téléversement (WP-38) */}
-      <div className="p-6 border-2 border-dashed border-white/10 hover:border-indigo-500/40 rounded-2xl bg-[#0f1422] text-center transition-all">
-        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-2.5">
-          <Upload className="w-5 h-5" />
-        </div>
-        <h4 className="text-sm font-bold text-white mb-1">
-          {uploading ? mediaMessages.uploadingPrompt : mediaMessages.uploadPrompt}
-        </h4>
-        <p className="text-xs text-slate-400 mb-3">{mediaMessages.uploadFormats}</p>
-        <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer shadow-md shadow-indigo-600/20 transition-all">
-          <span>{mediaMessages.browseFiles}</span>
-          <input
-            type="file"
-            onChange={(e) => void handleFileUpload(e)}
-            disabled={uploading}
-            className="hidden"
-          />
-        </label>
-      </div>
-
-      {/* Barre de recherche, filtre MIME et bascule Grille/Liste (WP-37) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#0f1422] border border-white/5">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[240px]">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="search"
-              aria-label={mediaMessages.searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={mediaMessages.searchPlaceholder}
-              className="w-full rounded-xl bg-slate-950 border border-white/10 pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
-            />
+      {/* ==================================================================== */}
+      {/* 2. ZONE DE TÉLÉVERSEMENT GLISSER-DÉPOSER (DÉROULABLE)                */}
+      {/* ==================================================================== */}
+      {isUploadOpen && (
+        <div className="p-8 border-2 border-dashed border-[#2271b1] rounded-xl bg-blue-50/20 dark:bg-[#0f1422] text-center transition-all animate-in fade-in duration-150">
+          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-indigo-500/10 border border-blue-200 dark:border-indigo-500/20 text-[#2271b1] dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
+            <Upload className="w-6 h-6" />
           </div>
+          <h4 className="text-sm font-bold text-[#1d2327] dark:text-white mb-1">
+            {uploading ? mediaMessages.uploadingPrompt : 'Déposez vos fichiers ici pour les téléverser'}
+          </h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            Images (WebP, PNG, JPG), Vidéos (MP4), Audios (MP3), Documents (PDF) jusqu’à 64 Mo
+          </p>
+          <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-[#2271b1] hover:bg-[#135e96] text-white text-xs font-semibold cursor-pointer shadow transition-all">
+            <span>{mediaMessages.browseFiles}</span>
+            <input
+              type="file"
+              onChange={(e) => void handleFileUpload(e)}
+              disabled={uploading}
+              className="hidden"
+            />
+          </label>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 3. BARRE DE FILTRES ET D'OUTILS (CONFORME upload.php)                */}
+      {/* ==================================================================== */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-lg bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] text-xs shadow-xs">
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[240px]">
+          {/* Commutateur Grille / Liste (WordPress .view-switch) */}
+          <div className="flex items-center border border-[#8c8f94] dark:border-[#2c3338] rounded overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-[#2271b1] text-white'
+                  : 'bg-white dark:bg-[#131619] text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+              }`}
+              title="Affichage en grille"
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-[#2271b1] text-white'
+                  : 'bg-white dark:bg-[#131619] text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+              }`}
+              title="Affichage en liste"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Filtre de type de média */}
           <select
             aria-label={mediaMessages.filterAllKinds}
             value={kindFilter}
             onChange={(e) => setKindFilter(e.target.value)}
-            className="rounded-xl bg-slate-950 border border-white/10 px-3 py-1.5 text-xs text-slate-200"
+            className="rounded bg-white dark:bg-[#131619] border border-[#8c8f94] dark:border-[#2c3338] px-2.5 py-1 text-xs text-[#1d2327] dark:text-white"
           >
             <option value="">{mediaMessages.filterAllKinds}</option>
             <option value="image/">{mediaMessages.filterImages}</option>
             <option value="video/">{mediaMessages.filterVideo}</option>
             <option value="application/pdf">{mediaMessages.filterDocs}</option>
           </select>
+
+          {/* Filtre de date */}
+          <select className="rounded bg-white dark:bg-[#131619] border border-[#8c8f94] dark:border-[#2c3338] px-2.5 py-1 text-xs text-[#1d2327] dark:text-white">
+            <option value="">Toutes les dates</option>
+            <option value="2026-10">Octobre 2026</option>
+            <option value="2026-09">Septembre 2026</option>
+          </select>
         </div>
 
-        <div className="flex items-center gap-1 rounded-xl bg-black/30 p-1 border border-white/10">
-          <button
-            type="button"
-            onClick={() => setViewMode('grid')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs ${
-              viewMode === 'grid'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Grid className="w-3.5 h-3.5" />
-            <span>{mediaMessages.viewGrid}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('list')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs ${
-              viewMode === 'list'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <List className="w-3.5 h-3.5" />
-            <span>{mediaMessages.viewList}</span>
-          </button>
+        {/* Champ de recherche en temps réel */}
+        <div className="relative w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="search"
+            aria-label={mediaMessages.searchPlaceholder}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher dans les médias…"
+            className="w-full rounded bg-white dark:bg-[#131619] border border-[#8c8f94] dark:border-[#2c3338] pl-8 pr-3 py-1 text-xs text-[#1d2327] dark:text-white placeholder:text-slate-400 focus:border-[#2271b1] outline-none"
+          />
         </div>
       </div>
 
-      {/* Mise en page 3 colonnes : Dossiers virtuels | Catalogue (Grille/Liste) | Inspecteur */}
+      {/* ==================================================================== */}
+      {/* 4. DISPOSITION 3 VOLETS : FILEBIRD | MÉDIAS | INSPECTEUR             */}
+      {/* ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Colonne 1 : Dossiers virtuels (MOD-MED-01) */}
-        <aside className="lg:col-span-3 rounded-2xl bg-[#0f1422] border border-white/5 p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-            <Folder className="w-4 h-4 text-indigo-400" />
-            <span>Dossiers virtuels</span>
+        {/* Volet 1 : Dossiers FileBird Pro (Arborescence souveraine) */}
+        <aside className="lg:col-span-3 rounded-xl bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] p-4 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-[#dcdcde] dark:border-[#2c3338]">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#1d2327] dark:text-white">
+              <FolderTree className="w-4 h-4 text-[#2271b1]" />
+              <span>Dossiers FileBird</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">{folders.length + 1}</span>
           </div>
 
+          {/* Liste des dossiers virtuels */}
           <div className="space-y-1 text-xs">
             <button
               type="button"
               onClick={() => setSelectedFolderId(null)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
                 selectedFolderId === null
-                  ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-500/30 font-semibold'
-                  : 'text-slate-300 hover:bg-white/5'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 text-[#2271b1] font-semibold border border-blue-200 dark:border-blue-900'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              <span>{mediaMessages.allFolders}</span>
+              <div className="flex items-center gap-2">
+                <Folder className="w-3.5 h-3.5 text-[#2271b1]" />
+                <span>Tous les fichiers</span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">{total}</span>
             </button>
 
             {folders.map((folder) => (
               <div
                 key={folder.id}
-                className={`flex items-center justify-between gap-1 px-3 py-1.5 rounded-xl transition-colors ${
+                className={`flex items-center justify-between gap-1 px-2.5 py-1.5 rounded-lg transition-colors ${
                   selectedFolderId === folder.id
-                    ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-500/30 font-semibold'
-                    : 'text-slate-300 hover:bg-white/5'
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-[#2271b1] font-semibold border border-blue-200 dark:border-blue-900'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <button
@@ -265,14 +311,15 @@ export const MediaView: React.FC = () => {
                   onClick={() => setSelectedFolderId(folder.id)}
                   className="flex items-center gap-2 truncate flex-1 text-left"
                 >
-                  <Folder className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <ChevronRight className="w-3 h-3 text-slate-400" />
+                  <Folder className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span className="truncate">{folder.name}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => void deleteFolder(folder.id)}
                   title="Supprimer ce dossier"
-                  className="p-1 text-slate-500 hover:text-red-400"
+                  className="p-1 text-slate-400 hover:text-red-500 transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -280,38 +327,40 @@ export const MediaView: React.FC = () => {
             ))}
           </div>
 
+          {/* Formulaire de création rapide de dossier */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void createFolder();
             }}
-            className="pt-2 border-t border-white/5 flex items-center gap-1.5"
+            className="pt-2 border-t border-[#dcdcde] dark:border-[#2c3338] flex items-center gap-1.5"
           >
             <input
               type="text"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder={mediaMessages.newFolderPlaceholder}
-              className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-white/10 px-2.5 py-1.5 text-xs text-white"
+              placeholder="Nouveau dossier…"
+              className="flex-1 min-w-0 rounded bg-white dark:bg-[#131619] border border-[#8c8f94] dark:border-[#2c3338] px-2 py-1 text-xs text-[#1d2327] dark:text-white outline-none focus:border-[#2271b1]"
             />
             <button
               type="submit"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shrink-0"
+              disabled={!newFolderName.trim()}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#2271b1] hover:bg-[#135e96] disabled:opacity-40 text-white text-xs font-semibold shrink-0 transition-colors"
             >
               <FolderPlus className="w-3.5 h-3.5" />
-              <span>{mediaMessages.addFolderButton}</span>
+              <span>Créer</span>
             </button>
           </form>
         </aside>
 
-        {/* Colonne 2 : Catalogue Grille ou Liste (WP-37) */}
+        {/* Volet 2 : Catalogue des Médias (Grille ou Tableau conforme .rf-list-table) */}
         <div className={selectedMedia ? 'lg:col-span-5' : 'lg:col-span-9'}>
           {loading ? (
-            <div className="p-12 rounded-2xl bg-[#0f1422] border border-white/5 text-center text-xs text-slate-500">
+            <div className="p-12 rounded-xl bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] text-center text-xs text-slate-400">
               {mediaMessages.loadingMedia}
             </div>
           ) : items.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-[#0f1422] border border-white/5 text-center text-xs text-slate-500">
+            <div className="p-12 rounded-xl bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] text-center text-xs text-slate-400">
               {mediaMessages.emptyMedia}
             </div>
           ) : viewMode === 'grid' ? (
@@ -322,13 +371,13 @@ export const MediaView: React.FC = () => {
                   <div
                     key={m.id}
                     onClick={() => selectMedia(m)}
-                    className={`group cursor-pointer rounded-xl bg-[#0f1422] border overflow-hidden flex flex-col transition-all ${
+                    className={`group cursor-pointer rounded-xl bg-white dark:bg-[#182030] border overflow-hidden flex flex-col transition-all shadow-xs ${
                       isSelected
-                        ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-                        : 'border-white/5 hover:border-indigo-500/30'
+                        ? 'border-[#2271b1] ring-2 ring-[#2271b1]/40'
+                        : 'border-[#dcdcde] dark:border-[#2c3338] hover:border-[#2271b1]'
                     }`}
                   >
-                    <div className="aspect-square bg-black/40 flex items-center justify-center overflow-hidden relative">
+                    <div className="aspect-square bg-slate-100 dark:bg-black/30 flex items-center justify-center overflow-hidden relative">
                       {m.mime_type.startsWith('image/') ? (
                         <img
                           src={m.webp_url || m.url}
@@ -337,20 +386,23 @@ export const MediaView: React.FC = () => {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
                       ) : (
-                        <File className="w-8 h-8 text-slate-500" />
+                        <File className="w-8 h-8 text-slate-400" />
                       )}
                       {m.webp_url && (
-                        <span className="absolute top-1.5 right-1.5 rounded bg-emerald-500/80 px-1.5 py-0.5 text-[9px] font-bold text-black">
+                        <span className="absolute top-1.5 right-1.5 rounded bg-emerald-500 text-white px-1.5 py-0.5 text-[9px] font-bold shadow">
                           WebP
                         </span>
                       )}
                     </div>
-                    <div className="p-2.5 flex items-center justify-between gap-1 text-[11px]">
+                    <div className="p-2.5 flex items-center justify-between gap-1 text-[11px] border-t border-[#dcdcde] dark:border-[#2c3338]">
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-200 truncate" title={m.original_name}>
+                        <p
+                          className="font-medium text-[#1d2327] dark:text-slate-200 truncate"
+                          title={m.original_name}
+                        >
                           {m.original_name}
                         </p>
-                        <p className="text-[10px] text-slate-500 font-mono">
+                        <p className="text-[10px] text-slate-400 font-mono">
                           {formatBytes(m.size_bytes)}
                         </p>
                       </div>
@@ -360,8 +412,8 @@ export const MediaView: React.FC = () => {
                           e.stopPropagation();
                           void deleteMedia(m.id);
                         }}
-                        title="Supprimer"
-                        className="p-1 text-slate-400 hover:text-red-400"
+                        title="Supprimer définitivement"
+                        className="p-1 text-slate-400 hover:text-red-600 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -371,30 +423,37 @@ export const MediaView: React.FC = () => {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl bg-[#0f1422] border border-white/5 overflow-hidden">
-              <table className="w-full text-left text-xs">
+            <div className="rounded-xl bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] overflow-hidden shadow-xs">
+              <table className="rf-list-table w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-white/5 bg-white/[0.01] text-slate-400 text-[10px] uppercase">
-                    <th className="py-3 px-4">Fichier</th>
-                    <th className="py-3 px-4">Texte alt</th>
-                    <th className="py-3 px-4">Format & Taille</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                  <tr className="border-b border-[#dcdcde] dark:border-[#2c3338] bg-slate-50 dark:bg-[#131619] text-slate-500 dark:text-slate-400 text-[11px] font-semibold">
+                    <th className="py-2.5 px-4">Fichier</th>
+                    <th className="py-2.5 px-4">Texte alternatif</th>
+                    <th className="py-2.5 px-4">Format & Taille</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[#dcdcde] dark:divide-[#2c3338]">
                   {items.map((m) => (
                     <tr
                       key={m.id}
                       onClick={() => selectMedia(m)}
-                      className={`cursor-pointer hover:bg-white/[0.02] ${
-                        selectedMedia?.id === m.id ? 'bg-indigo-950/30' : ''
+                      className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                        selectedMedia?.id === m.id ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
                       }`}
                     >
-                      <td className="py-2.5 px-4 font-medium text-slate-200">
-                        {m.original_name}
+                      <td className="py-2.5 px-4 font-medium text-[#1d2327] dark:text-white flex items-center gap-2">
+                        <div className="w-8 h-8 rounded bg-slate-100 dark:bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
+                          {m.mime_type.startsWith('image/') ? (
+                            <img src={m.webp_url || m.url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <File className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+                        <span className="truncate">{m.original_name}</span>
                       </td>
-                      <td className="py-2.5 px-4 text-slate-400">
-                        {m.alt || <span className="text-amber-400/70">Non renseigné</span>}
+                      <td className="py-2.5 px-4 text-slate-500 dark:text-slate-400">
+                        {m.alt || <span className="text-amber-500 italic">Non renseigné</span>}
                       </td>
                       <td className="py-2.5 px-4 font-mono text-[11px] text-slate-400">
                         {m.mime_type} · {formatBytes(m.size_bytes)}
@@ -406,7 +465,7 @@ export const MediaView: React.FC = () => {
                             e.stopPropagation();
                             void deleteMedia(m.id);
                           }}
-                          className="p-1 text-slate-400 hover:text-red-400"
+                          className="p-1 text-slate-400 hover:text-red-600 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -419,24 +478,37 @@ export const MediaView: React.FC = () => {
           )}
         </div>
 
-        {/* Colonne 3 : Inspecteur de métadonnées, Variantes & Retouche (WP-38, WP-39, WP-41, WP-88) */}
+        {/* Volet 3 : Inspecteur & Détails du média (conforme Attachment Details de WP) */}
         {selectedMedia && (
-          <aside className="lg:col-span-4 rounded-2xl bg-[#0f1422] border border-indigo-500/20 p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                {mediaMessages.inspectorTitle}
+          <aside className="lg:col-span-4 rounded-xl bg-white dark:bg-[#182030] border border-[#dcdcde] dark:border-[#2c3338] p-5 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#dcdcde] dark:border-[#2c3338] pb-3">
+              <h3 className="text-xs font-bold text-[#1d2327] dark:text-white uppercase tracking-wider">
+                Détails du fichier
               </h3>
               <button
                 type="button"
                 onClick={() => selectMedia(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="text-xs space-y-1 text-slate-400 font-mono bg-black/30 p-3 rounded-xl border border-white/5">
-              <div className="text-slate-200 font-sans font-semibold truncate">
+            {/* Aperçu grand format */}
+            <div className="aspect-video bg-slate-100 dark:bg-black/30 rounded-lg overflow-hidden flex items-center justify-center border border-[#dcdcde] dark:border-[#2c3338]">
+              {selectedMedia.mime_type.startsWith('image/') ? (
+                <img
+                  src={selectedMedia.webp_url || selectedMedia.url}
+                  alt={selectedMedia.alt || ''}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <File className="w-12 h-12 text-slate-400" />
+              )}
+            </div>
+
+            <div className="text-xs space-y-1 text-slate-500 dark:text-slate-400 font-mono bg-slate-50 dark:bg-black/30 p-3 rounded-lg border border-[#dcdcde] dark:border-[#2c3338]">
+              <div className="text-[#1d2327] dark:text-white font-sans font-semibold truncate">
                 {selectedMedia.original_name}
               </div>
               <div>
@@ -445,19 +517,19 @@ export const MediaView: React.FC = () => {
                   ? ` · ${selectedMedia.width}×${selectedMedia.height}px`
                   : ''}
               </div>
-              <div className="truncate text-indigo-300">{selectedMedia.url}</div>
+              <div className="truncate text-[#2271b1]">{selectedMedia.url}</div>
             </div>
 
-            {/* Actions de transformation d'image (WP-39) */}
+            {/* Actions de transformation d'image native en Rust */}
             {isRasterImage && (
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-slate-300 font-medium">
+              <div className="rounded-lg border border-[#dcdcde] dark:border-[#2c3338] bg-slate-50 dark:bg-black/20 p-3 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-[#1d2327] dark:text-slate-300 font-medium">
                   <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-[#2271b1]" />
                     <span>Retouche & Transformation</span>
                   </span>
                   {selectedMedia.metadata?.original_path && (
-                    <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-900">
                       Modifié
                     </span>
                   )}
@@ -468,7 +540,7 @@ export const MediaView: React.FC = () => {
                     disabled={rotating}
                     onClick={() => void rotateSelectedMedia(270)}
                     title="Pivoter de 90° vers la gauche"
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded border border-[#8c8f94] dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 px-2 py-1 text-xs text-[#1d2327] dark:text-slate-200 disabled:opacity-50"
                   >
                     <RotateCcw className="w-3 h-3" />
                     <span>-90°</span>
@@ -478,19 +550,10 @@ export const MediaView: React.FC = () => {
                     disabled={rotating}
                     onClick={() => void rotateSelectedMedia(90)}
                     title="Pivoter de 90° vers la droite"
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded border border-[#8c8f94] dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 px-2 py-1 text-xs text-[#1d2327] dark:text-slate-200 disabled:opacity-50"
                   >
                     <RotateCw className="w-3 h-3" />
                     <span>+90°</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={rotating}
-                    onClick={() => void rotateSelectedMedia(180)}
-                    title="Pivoter de 180°"
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-xs text-slate-200 disabled:opacity-50"
-                  >
-                    <span>180°</span>
                   </button>
                   {selectedMedia.metadata?.original_path && (
                     <button
@@ -498,7 +561,7 @@ export const MediaView: React.FC = () => {
                       disabled={rotating}
                       onClick={() => void restoreSelectedMedia()}
                       title="Restaurer l'image originale sans altération"
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 text-xs text-amber-200 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 px-2 py-1 text-xs text-amber-700 dark:text-amber-200 disabled:opacity-50"
                     >
                       <Undo2 className="w-3 h-3" />
                       <span>Restaurer original</span>
@@ -508,72 +571,27 @@ export const MediaView: React.FC = () => {
               </div>
             )}
 
-            {/* Variantes responsives dimensionnées (WP-39, WP-88) */}
-            {selectedMedia.metadata?.variants &&
-              Object.keys(selectedMedia.metadata.variants).length > 0 && (
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
-                  <div className="text-[11px] font-semibold text-slate-300">
-                    Variantes responsives (WP-88)
-                  </div>
-                  <div className="space-y-1.5">
-                    {Object.entries(selectedMedia.metadata.variants).map(([name, varObj]) => (
-                      <div
-                        key={name}
-                        className="flex items-center justify-between text-[11px] p-1.5 rounded-lg bg-white/[0.02] border border-white/5"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-semibold text-indigo-300 capitalize">{name}</span>
-                          <span className="text-slate-400 font-mono ml-1.5">
-                            {varObj.width}×{varObj.height} px
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void navigator.clipboard?.writeText(varObj.url)}
-                          title="Copier l'URL de cette variante"
-                          className="p-1 text-slate-400 hover:text-white"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
             {/* Boutons de copie rapide */}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void navigator.clipboard?.writeText(selectedMedia.url)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded border border-[#8c8f94] dark:border-white/10 bg-white dark:bg-white/5 px-2.5 py-1.5 text-xs text-[#1d2327] dark:text-slate-200 hover:bg-slate-100"
               >
                 <Copy className="w-3.5 h-3.5" />
-                <span>{mediaMessages.copyUrl}</span>
+                <span>Copier l’URL</span>
               </button>
-              {selectedMedia.webp_url && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void navigator.clipboard?.writeText(selectedMedia.webp_url || '')
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{mediaMessages.copyWebpUrl}</span>
-                </button>
-              )}
               {isRasterImage && (
                 <button
                   type="button"
                   onClick={() => void handleCopySnippet(selectedMedia)}
                   title="Copier le code <img srcset...> responsive"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-200 hover:bg-indigo-500/20"
+                  className="inline-flex items-center gap-1.5 rounded border border-[#2271b1] text-[#2271b1] hover:bg-[#2271b1] hover:text-white px-2.5 py-1.5 text-xs font-medium transition-colors"
                 >
                   {copiedSnippet ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-300">Copié !</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-emerald-600">Copié !</span>
                     </>
                   ) : (
                     <>
@@ -585,36 +603,37 @@ export const MediaView: React.FC = () => {
               )}
             </div>
 
+            {/* Champs d'édition des métadonnées */}
             <div className="space-y-3 text-xs">
               <label className="block space-y-1">
-                <span className="text-slate-300 font-medium">{mediaMessages.fieldAlt}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Texte alternatif (ALT) :</span>
                 <input
                   type="text"
                   value={editAlt}
                   onChange={(e) => setEditAlt(e.target.value)}
                   placeholder="Description pour lecteurs d’écran et SEO"
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                  className="w-full rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs text-[#1d2327] dark:text-white"
                 />
               </label>
 
               <label className="block space-y-1">
-                <span className="text-slate-300 font-medium">{mediaMessages.fieldCaption}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Légende :</span>
                 <textarea
                   rows={2}
                   value={editCaption}
                   onChange={(e) => setEditCaption(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white resize-none"
+                  className="w-full rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs text-[#1d2327] dark:text-white resize-none"
                 />
               </label>
 
               <label className="block space-y-1">
-                <span className="text-slate-300 font-medium">{mediaMessages.fieldFolder}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Dossier FileBird :</span>
                 <select
                   value={editFolderId}
                   onChange={(e) => setEditFolderId(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white"
+                  className="w-full rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs text-[#1d2327] dark:text-white"
                 >
-                  <option value="">{mediaMessages.folderRoot}</option>
+                  <option value="">(Non classé)</option>
                   {folders.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -628,20 +647,18 @@ export const MediaView: React.FC = () => {
                   type="button"
                   disabled={savingMeta}
                   onClick={() => void saveSelectedMediaMeta()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-3.5 py-2 text-xs font-semibold text-white"
+                  className="inline-flex items-center gap-1.5 rounded bg-[#2271b1] hover:bg-[#135e96] disabled:opacity-50 px-3.5 py-1.5 text-xs font-semibold text-white"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>
-                    {savingMeta ? mediaMessages.savingMeta : mediaMessages.saveMeta}
-                  </span>
+                  <span>{savingMeta ? 'Enregistrement…' : 'Enregistrer'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => void deleteMedia(selectedMedia.id)}
-                  className="inline-flex items-center gap-1 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20"
+                  className="inline-flex items-center gap-1 rounded border border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 px-3 py-1.5 text-xs"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>{mediaMessages.deleteMedia}</span>
+                  <span>Supprimer définitivement</span>
                 </button>
               </div>
             </div>

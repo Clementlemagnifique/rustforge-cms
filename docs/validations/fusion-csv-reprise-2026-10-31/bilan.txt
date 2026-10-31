@@ -1,0 +1,46 @@
+31 octobre 2026 — R02/R07/R08, interfaces Leptos Rust sur services existants.
+
+Livré :
+- Fusion dédiée des catégories/étiquettes, cible obligatoire hors descendants,
+  confirmation, réaffectation transactionnelle des contenus et enfants.
+- CSV Rust de toutes les pages (100/page), BOM UTF-8, séparateur ;, guillemets/retours
+  conservés, neutralisation des formules et en-têtes dangereux. Champs uniquement,
+  sans métadonnées réseau ; aucune sortie partielle sur erreur/incohérence/limite.
+- Reprise explicite de paused_restore avec expected_updated_at, confirmation UUID/version,
+  filtres et pagination. États en français, UUID affiché, actions inapplicables désactivées.
+- Raccordement jobs corrigé : le menu jobs ne rejoignait pas le composant tools:jobs.
+  Options présentes et futures conservées ; droits administrateur inchangés.
+- Tri serveur des soumissions stable par created_at DESC,id DESC.
+
+Vérifications réussies :
+- 23 tests Studio dont 3 tests CSV : >100 lignes, Unicode/multiligne/guillemets,
+  formules/en-têtes, vide, réponse invalide, doublons, fichier incomplet et plafond.
+- Clippy strict WASM UI et core ; builds Studio et binaire serveur hors ligne.
+- 28 contrôles HTTP (tests/fusion-csv-jobs-recipe.mjs) : source supprimée, enfants
+  réaffectés, associations dédoublonnées, refus auto-fusion/cycle/taxonomie distincte,
+  droits, 101 soumissions de même date sans doublon entre pages, reprise versionnée,
+  version périmée et double reprise refusées. Données fictives conservées en fixture.json.
+- Navigation selon rôles admin/auteur/abonné et séparation de l'arbre prévu.
+- Bootstrap externe, MIME/magic WASM et CSP contrôlés.
+- Navigateur réel : fusion de la paire ui_source/ui_target, confirmation puis succès ;
+  CSV téléchargé et relu avec parseur CSV : 101 UUID/index distincts, texte exact,
+  formule '=1+1 ; tâche ui_job confirmée puis visible en attente, reprise désactivée.
+- Captures bureau/mobile 390 px ; largeur globale 390 px, table défilante intérieure.
+- Menu, plan, tâches et liens de documentation régénérés/contrôlés.
+
+Conservation / limites :
+- 170 entrées, cinq séparateurs ; aucun nouveau ready ni clôture métier globale.
+- Interfaces React, sources historiques et routes conservées avant validation complète.
+- Aucun nouveau moteur métier, schéma de données ou migration ; aucune exécution worker
+  ni envoi distant. Seule la fixture 55499 a été reconstruite/redémarrée, pas le 8080.
+- CSV limité à 10 000 soumissions / 10 Mo ; pagination sans instantané transactionnel
+  global. Total/doublons incohérents refusés, mais modification à total constant non
+  forcément détectable : recommencer hors collecte active pour un instantané fiable.
+- Fusion sans contrôle de version (contrat existant). Champs des termes source non
+  concaténés ; cible conservée. Pas de fonction d'annulation de fusion.
+- Lu/non lu, recherche/suppression/rétention des soumissions ; compteurs et traitement
+  des captures en lot ; taxonomies personnalisées restent suivis dans la matrice 15.
+- Assets remplacés archivés par le publisher, pas de suppression de sources.
+- Le premier essai de peuplement SQL a omis ip_hash obligatoire ; aucune insertion
+  de soumission/job de cet essai. Fixture corrigée puis recette complète réussie.
+- Aucun commit/push. Avertissement futur proc-macro-error2 déjà présent, build réussi.

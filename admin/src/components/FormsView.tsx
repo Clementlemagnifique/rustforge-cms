@@ -188,6 +188,7 @@ export function FormsView() {
       is_active: builderActive,
       fields: schemaObj,
       settings: {
+        ...(editingForm?.settings ?? {}),
         success_message: builderSuccessMsg.trim(),
         notify_email: builderNotifyEmail.trim() || null,
         honeypot: builderHoneypot,

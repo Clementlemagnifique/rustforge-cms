@@ -14,10 +14,105 @@
 
 import { create } from 'zustand';
 import { api } from '../api';
-import type { Entry, PublicMenuItem, PublicMenus, TermRef } from '../types';
+import type { Entry, PublicMenuItem, PublicMenus, TermRef, ThemeSummary } from '../types';
 
-export type AppearanceTab = 'styles' | 'menus';
+export type AppearanceTab = 'themes' | 'site-editor' | 'styles' | 'menus';
 export type MenuLocation = 'header' | 'footer';
+export type ThemeFilter = 'all' | 'fse' | 'classic';
+
+export interface StyleVariation {
+  id: string;
+  name: string;
+  description: string;
+  base: string;
+  contrast: string;
+  accent: string;
+  font_heading: string;
+  font_body: string;
+}
+
+export const TWENTY_TWENTY_FIVE_VARIATIONS: StyleVariation[] = [
+  {
+    id: '01-evening',
+    name: 'Evening (Soir)',
+    description: 'Ambiance nocturne raffinée, tons sombres et chaleureux avec or discret.',
+    base: '#1B1B1B',
+    contrast: '#F0F0F0',
+    accent: '#786D0A',
+    font_heading: "'Playfair Display', Georgia, serif",
+    font_body: "'Merriweather', Georgia, serif",
+  },
+  {
+    id: '02-noon',
+    name: 'Noon (Midi)',
+    description: 'Clarté éclatante, contraste pur et touches pêche chaleureuses.',
+    base: '#F8F7F5',
+    contrast: '#191919',
+    accent: '#F5B684',
+    font_heading: "'Playfair Display', Georgia, serif",
+    font_body: "'Inter', sans-serif",
+  },
+  {
+    id: '03-dusk',
+    name: 'Dusk (Crépuscule)',
+    description: 'Nuances pourpres et violet royal dans la brume du couchant.',
+    base: '#E2E2E2',
+    contrast: '#3B3B3B',
+    accent: '#650DD4',
+    font_heading: "'Plus Jakarta Sans', sans-serif",
+    font_body: "'Inter', sans-serif",
+  },
+  {
+    id: '04-afternoon',
+    name: 'Afternoon (Après-midi)',
+    description: 'Teintes végétales et sauge douce, harmonie printanière.',
+    base: '#DAE7BD',
+    contrast: '#516028',
+    accent: '#C7F642',
+    font_heading: "'Playfair Display', Georgia, serif",
+    font_body: "'Merriweather', Georgia, serif",
+  },
+  {
+    id: '05-twilight',
+    name: 'Twilight (Pénombre)',
+    description: 'Sombre profond, bleu électrique et corail vibrant pour tech & créatifs.',
+    base: '#131313',
+    contrast: '#FFFFFF',
+    accent: '#4B52FF',
+    font_heading: "'Space Grotesk', monospace",
+    font_body: "'Inter', sans-serif",
+  },
+  {
+    id: '06-morning',
+    name: 'Morning (Matin)',
+    description: 'Fraîcheur matinale, bleu ciel doux et blanc cassé reposant.',
+    base: '#DFDCD7',
+    contrast: '#191919',
+    accent: '#7A9BDB',
+    font_heading: "'Playfair Display', Georgia, serif",
+    font_body: "'Inter', sans-serif",
+  },
+  {
+    id: '07-sunrise',
+    name: 'Sunrise (Aube)',
+    description: 'Bordeaux impérial, rose poudré et lumière citronnée.',
+    base: '#330616',
+    contrast: '#FFFFFF',
+    accent: '#F0FDA6',
+    font_heading: "'Playfair Display', Georgia, serif",
+    font_body: "'Merriweather', Georgia, serif",
+  },
+  {
+    id: '08-midnight',
+    name: 'Midnight (Minuit)',
+    description: 'Indigo cosmique et menthe néon, contraste futuriste saisissant.',
+    base: '#4433A6',
+    contrast: '#79F3B1',
+    accent: '#5644BC',
+    font_heading: "'Space Grotesk', monospace",
+    font_body: "'Inter', sans-serif",
+  },
+];
 
 export interface DesignTokensState {
   primary_color: string;
@@ -35,6 +130,20 @@ export interface AppearanceStoreState {
   saving: boolean;
   error: string;
   message: string;
+
+  // Thèmes souverains
+  themes: ThemeSummary[];
+  activeThemeSlug: string;
+  activatingThemeSlug: string | null;
+  themeFilter: ThemeFilter;
+  themeSearchQuery: string;
+  selectedThemeForDetails: ThemeSummary | null;
+
+  // Éditeur de site souverain (FSE)
+  selectedTemplate: string;
+  selectedTemplatePart: string | null;
+  selectedVariationId: string;
+  devicePreview: 'desktop' | 'tablet' | 'mobile';
 
   // Tokens de design & CSS personnalisé (WP-48 / WP-50)
   tokens: DesignTokensState;
@@ -54,6 +163,14 @@ export interface AppearanceStoreState {
 
   // Actions synchrones
   setActiveTab: (tab: AppearanceTab) => void;
+  setThemeFilter: (filter: ThemeFilter) => void;
+  setThemeSearchQuery: (query: string) => void;
+  setSelectedThemeForDetails: (theme: ThemeSummary | null) => void;
+  setSelectedTemplate: (template: string) => void;
+  setSelectedTemplatePart: (part: string | null) => void;
+  setSelectedVariationId: (id: string) => void;
+  setDevicePreview: (device: 'desktop' | 'tablet' | 'mobile') => void;
+  applyStyleVariation: (variationId: string) => Promise<void>;
   setToken: <K extends keyof DesignTokensState>(key: K, value: DesignTokensState[K]) => void;
   setActiveLocation: (loc: MenuLocation) => void;
   setNewLinkLabel: (label: string) => void;
@@ -78,6 +195,8 @@ export interface AppearanceStoreState {
   loadAppearance: (initialTab?: AppearanceTab) => Promise<void>;
   saveStyles: () => Promise<void>;
   saveMenus: () => Promise<void>;
+  activateTheme: (slug: string) => Promise<void>;
+  loadThemes: () => Promise<void>;
 }
 
 export const getItemDepth = (itemId: string, list: PublicMenuItem[]): number => {
@@ -103,11 +222,23 @@ const DEFAULT_TOKENS: DesignTokensState = {
 };
 
 export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
-  activeTab: 'styles',
+  activeTab: 'themes',
   loading: true,
   saving: false,
   error: '',
   message: '',
+
+  themes: [],
+  activeThemeSlug: 'rf-base',
+  activatingThemeSlug: null,
+  themeFilter: 'all',
+  themeSearchQuery: '',
+  selectedThemeForDetails: null,
+
+  selectedTemplate: 'home',
+  selectedTemplatePart: null,
+  selectedVariationId: '01-evening',
+  devicePreview: 'desktop',
 
   tokens: { ...DEFAULT_TOKENS },
   menus: { header: [], footer: [] },
@@ -122,6 +253,45 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
   categories: [],
 
   setActiveTab: (activeTab) => set({ activeTab, error: '', message: '' }),
+  setThemeFilter: (themeFilter) => set({ themeFilter }),
+  setThemeSearchQuery: (themeSearchQuery) => set({ themeSearchQuery }),
+  setSelectedThemeForDetails: (selectedThemeForDetails) => set({ selectedThemeForDetails }),
+  setSelectedTemplate: (selectedTemplate) => set({ selectedTemplate }),
+  setSelectedTemplatePart: (selectedTemplatePart) => set({ selectedTemplatePart }),
+  setSelectedVariationId: (selectedVariationId) => set({ selectedVariationId }),
+  setDevicePreview: (devicePreview) => set({ devicePreview }),
+
+  applyStyleVariation: async (variationId: string) => {
+    const variation = TWENTY_TWENTY_FIVE_VARIATIONS.find((v) => v.id === variationId);
+    if (!variation) return;
+    const { tokens } = get();
+    const updatedTokens: DesignTokensState = {
+      ...tokens,
+      primary_color: variation.accent,
+      accent_color: variation.contrast,
+      font_heading: variation.font_heading,
+      font_body: variation.font_body,
+    };
+    set({
+      selectedVariationId: variationId,
+      tokens: updatedTokens,
+      saving: true,
+      error: '',
+      message: '',
+    });
+    try {
+      await api.settings.update({ 'site.design_tokens': updatedTokens });
+      set({
+        saving: false,
+        message: `Variation « ${variation.name} » appliquée et enregistrée avec succès.`,
+      });
+    } catch (err) {
+      set({
+        saving: false,
+        error: err instanceof Error ? err.message : 'Erreur lors de l’application de la variation',
+      });
+    }
+  },
 
   setToken: (key, value) =>
     set((state) => ({
@@ -264,13 +434,19 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
       ...(initialTab ? { activeTab: initialTab } : {}),
     });
     try {
-      const [allSettings, pagesRes, catsRes] = await Promise.all([
+      const [allSettings, pagesRes, catsRes, themesRes] = await Promise.all([
         api.settings.getAll(),
         api.entries.list({ content_type: 'page', status: 'published', per_page: 50 }),
         api.terms.list('category'),
+        api.themes.list().catch(() => [] as ThemeSummary[]),
       ]);
       const rawTokens = allSettings['site.design_tokens'] || {};
       const rawMenus = allSettings['site.menus'] || {};
+      const activeThemeSlug =
+        typeof allSettings['site.active_theme'] === 'string'
+          ? (allSettings['site.active_theme'] as string)
+          : (themesRes.find((t) => t.is_active)?.slug || 'rf-base');
+
       set({
         tokens: {
           ...DEFAULT_TOKENS,
@@ -282,6 +458,8 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
         },
         publishedPages: pagesRes.items,
         categories: catsRes,
+        themes: themesRes,
+        activeThemeSlug,
         loading: false,
       });
     } catch (err) {
@@ -289,6 +467,42 @@ export const useAppearanceStore = create<AppearanceStoreState>((set, get) => ({
         loading: false,
         error: err instanceof Error ? err.message : 'Impossible de charger les réglages d’apparence',
       });
+    }
+  },
+
+  activateTheme: async (slug: string) => {
+    set({ activatingThemeSlug: slug, error: '', message: '' });
+    try {
+      await api.themes.activate(slug);
+      const [themesRes, allSettings] = await Promise.all([
+        api.themes.list().catch(() => [] as ThemeSummary[]),
+        api.settings.getAll(),
+      ]);
+      const rawTokens = allSettings['site.design_tokens'] || {};
+      set({
+        themes: themesRes,
+        activeThemeSlug: slug,
+        tokens: {
+          ...get().tokens,
+          ...rawTokens,
+        },
+        activatingThemeSlug: null,
+        message: 'Thème activé avec succès. Les tokens et le cache public ont été actualisés.',
+      });
+    } catch (err) {
+      set({
+        activatingThemeSlug: null,
+        error: err instanceof Error ? err.message : 'Impossible d’activer ce thème',
+      });
+    }
+  },
+
+  loadThemes: async () => {
+    try {
+      const themes = await api.themes.list();
+      set({ themes });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Impossible de lister les thèmes' });
     }
   },
 

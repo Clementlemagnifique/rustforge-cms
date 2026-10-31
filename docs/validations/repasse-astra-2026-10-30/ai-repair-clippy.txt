@@ -1,0 +1,4 @@
+    Checking rustforge-core v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-core)
+    Checking rustforge-api v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge-api)
+    Checking rustforge v1.0.0-alpha.1 (C:\Users\cleme\Desktop\CMS Rust\crates\rustforge)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.08s

@@ -179,13 +179,22 @@ export function moveBlock(doc: NativeDocument, id: string, direction: -1 | 1): N
   return { ...doc, rf_blocks: blocks };
 }
 
-export function insertBlockAfter(doc: NativeDocument, afterId: string, kind: BlockKind): NativeDocument {
+export function insertBlockAfter(doc: NativeDocument, afterId: string | undefined, kind: BlockKind): NativeDocument {
   if (doc.rf_blocks.length >= 256) return doc;
-  const index = doc.rf_blocks.findIndex(block => block.rf_id === afterId);
+  const index = afterId ? doc.rf_blocks.findIndex(block => block.rf_id === afterId) : -1;
   const created = newBlock(kind);
   if (index < 0) return { ...doc, rf_blocks: [...doc.rf_blocks, created] };
   const blocks = [...doc.rf_blocks];
   blocks.splice(index + 1, 0, created);
+  return { ...doc, rf_blocks: blocks };
+}
+
+export function insertCustomBlockAfter(doc: NativeDocument, afterId: string | undefined, block: NativeBlock): NativeDocument {
+  if (doc.rf_blocks.length >= 256) return doc;
+  const index = afterId ? doc.rf_blocks.findIndex(b => b.rf_id === afterId) : -1;
+  if (index < 0) return { ...doc, rf_blocks: [...doc.rf_blocks, block] };
+  const blocks = [...doc.rf_blocks];
+  blocks.splice(index + 1, 0, block);
   return { ...doc, rf_blocks: blocks };
 }
 

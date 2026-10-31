@@ -112,6 +112,13 @@ pub async fn create_gallery(
     author_id: Uuid,
     input: GalleryInput,
 ) -> CoreResult<Gallery> {
+    if input.name.trim().is_empty() || input.name.chars().count() > 200 {
+        return Err(crate::CoreError::validation("Nom de galerie invalide"));
+    }
+    if let Some(slug) = &input.slug {
+        crate::security::safe_slug(slug)?;
+    }
+
     let slug = input.slug.unwrap_or_else(|| crate::slugify(&input.name));
     let mut gallery: Gallery = sqlx::query_as(
         "INSERT INTO galleries (name, slug, description, layout, settings, created_by)
@@ -127,6 +134,20 @@ pub async fn create_gallery(
     .await?;
     gallery.items = vec![];
     Ok(gallery)
+}
+
+pub async fn update_gallery(db: &PgPool, id: Uuid, input: GalleryInput) -> CoreResult<Gallery> {
+    if input.name.trim().is_empty() || input.name.chars().count() > 200 {
+        return Err(crate::CoreError::validation("Nom de galerie invalide"));
+    }
+    let current = get_gallery(db, id).await?;
+    let slug = input
+        .slug
+        .filter(|value| !value.is_empty())
+        .unwrap_or(current.slug);
+    crate::security::safe_slug(&slug)?;
+    sqlx::query("UPDATE galleries SET name=$2,slug=$3,description=$4,layout=$5,settings=$6,updated_at=now() WHERE id=$1").bind(id).bind(input.name.trim()).bind(slug).bind(input.description.unwrap_or(current.description)).bind(input.layout.unwrap_or(current.layout)).bind(input.settings.unwrap_or(current.settings)).execute(db).await?;
+    get_gallery(db, id).await
 }
 
 pub async fn add_item(

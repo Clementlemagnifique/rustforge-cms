@@ -169,7 +169,10 @@ impl SmtpConfig {
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.host.trim().is_empty()
             || self.host.len() > 255
-            || self.host.chars().any(|c| c.is_control() || c.is_whitespace())
+            || self
+                .host
+                .chars()
+                .any(|c| c.is_control() || c.is_whitespace())
         {
             return Err("Hôte SMTP invalide");
         }
@@ -179,7 +182,10 @@ impl SmtpConfig {
         if self.from_address.trim().is_empty()
             || self.from_address.len() > 254
             || !self.from_address.contains('@')
-            || self.from_address.chars().any(|c| c.is_control() || c.is_whitespace())
+            || self
+                .from_address
+                .chars()
+                .any(|c| c.is_control() || c.is_whitespace())
         {
             return Err("Adresse d'expéditeur SMTP invalide");
         }
@@ -225,7 +231,10 @@ impl Transport for SmtpTransport {
                 retryable: false,
             });
         }
-        if message.recipient.chars().any(|c| c.is_control() || c.is_whitespace())
+        if message
+            .recipient
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace())
             || message.subject.chars().any(char::is_control)
         {
             return Err(DeliveryError {
@@ -261,7 +270,12 @@ impl Transport for SmtpTransport {
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
 
-        match tokio::time::timeout(std::time::Duration::from_secs(5), reader.read_line(&mut line)).await {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            reader.read_line(&mut line),
+        )
+        .await
+        {
             Ok(Ok(n)) if n > 0 && line.starts_with("220") => {}
             _ => {
                 return Err(DeliveryError {
@@ -271,7 +285,9 @@ impl Transport for SmtpTransport {
             }
         }
 
-        if writer.write_all(b"EHLO rustforge.local\r\n").await.is_err() || writer.flush().await.is_err() {
+        if writer.write_all(b"EHLO rustforge.local\r\n").await.is_err()
+            || writer.flush().await.is_err()
+        {
             return Err(DeliveryError {
                 code: "smtp_connection_lost",
                 retryable: true,
@@ -280,7 +296,12 @@ impl Transport for SmtpTransport {
 
         line.clear();
         loop {
-            match tokio::time::timeout(std::time::Duration::from_secs(5), reader.read_line(&mut line)).await {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                reader.read_line(&mut line),
+            )
+            .await
+            {
                 Ok(Ok(n)) if n > 0 => {
                     if line.starts_with("250 ") {
                         break;
@@ -314,16 +335,28 @@ impl Transport for SmtpTransport {
             });
         }
         line.clear();
-        if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(5), reader.read_line(&mut line)).await {
+        if let Ok(Ok(n)) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            reader.read_line(&mut line),
+        )
+        .await
+        {
             if n == 0 || !line.starts_with("250") {
                 let retryable = line.starts_with('4');
                 return Err(DeliveryError {
-                    code: if retryable { "smtp_transient_error" } else { "smtp_permanent_error" },
+                    code: if retryable {
+                        "smtp_transient_error"
+                    } else {
+                        "smtp_permanent_error"
+                    },
                     retryable,
                 });
             }
         } else {
-            return Err(DeliveryError { code: "smtp_timeout", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_timeout",
+                retryable: true,
+            });
         }
 
         let rcpt_to = format!("RCPT TO:<{}>\r\n", message.recipient);
@@ -334,32 +367,59 @@ impl Transport for SmtpTransport {
             });
         }
         line.clear();
-        if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(5), reader.read_line(&mut line)).await {
+        if let Ok(Ok(n)) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            reader.read_line(&mut line),
+        )
+        .await
+        {
             if n == 0 || !line.starts_with("250") {
                 let retryable = line.starts_with('4');
                 return Err(DeliveryError {
-                    code: if retryable { "smtp_transient_error" } else { "smtp_permanent_error" },
+                    code: if retryable {
+                        "smtp_transient_error"
+                    } else {
+                        "smtp_permanent_error"
+                    },
                     retryable,
                 });
             }
         } else {
-            return Err(DeliveryError { code: "smtp_timeout", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_timeout",
+                retryable: true,
+            });
         }
 
         if writer.write_all(b"DATA\r\n").await.is_err() || writer.flush().await.is_err() {
-            return Err(DeliveryError { code: "smtp_connection_lost", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_connection_lost",
+                retryable: true,
+            });
         }
         line.clear();
-        if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(5), reader.read_line(&mut line)).await {
+        if let Ok(Ok(n)) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            reader.read_line(&mut line),
+        )
+        .await
+        {
             if n == 0 || !line.starts_with("354") {
                 let retryable = line.starts_with('4');
                 return Err(DeliveryError {
-                    code: if retryable { "smtp_transient_error" } else { "smtp_permanent_error" },
+                    code: if retryable {
+                        "smtp_transient_error"
+                    } else {
+                        "smtp_permanent_error"
+                    },
                     retryable,
                 });
             }
         } else {
-            return Err(DeliveryError { code: "smtp_timeout", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_timeout",
+                retryable: true,
+            });
         }
 
         let from_header = match &self.config.from_name {
@@ -369,7 +429,9 @@ impl Transport for SmtpTransport {
         let to_header = format!("To: <{}>\r\n", message.recipient);
         let subject_header = format!("Subject: {}\r\n", message.subject);
         let id_header = format!("Message-ID: <{idempotency_key}@rustforge.local>\r\n");
-        let mut payload = format!("{from_header}{to_header}{subject_header}{id_header}Content-Type: text/plain; charset=utf-8\r\n\r\n");
+        let mut payload = format!(
+            "{from_header}{to_header}{subject_header}{id_header}Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        );
 
         for line_str in message.text.lines() {
             if line_str.starts_with('.') {
@@ -381,19 +443,34 @@ impl Transport for SmtpTransport {
         payload.push_str(".\r\n");
 
         if writer.write_all(payload.as_bytes()).await.is_err() || writer.flush().await.is_err() {
-            return Err(DeliveryError { code: "smtp_connection_lost", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_connection_lost",
+                retryable: true,
+            });
         }
         line.clear();
-        if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(10), reader.read_line(&mut line)).await {
+        if let Ok(Ok(n)) = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            reader.read_line(&mut line),
+        )
+        .await
+        {
             if n == 0 || !line.starts_with("250") {
                 let retryable = line.starts_with('4');
                 return Err(DeliveryError {
-                    code: if retryable { "smtp_transient_error" } else { "smtp_permanent_error" },
+                    code: if retryable {
+                        "smtp_transient_error"
+                    } else {
+                        "smtp_permanent_error"
+                    },
                     retryable,
                 });
             }
         } else {
-            return Err(DeliveryError { code: "smtp_timeout", retryable: true });
+            return Err(DeliveryError {
+                code: "smtp_timeout",
+                retryable: true,
+            });
         }
 
         let _ = writer.write_all(b"QUIT\r\n").await;
@@ -408,21 +485,24 @@ impl Transport for SmtpTransport {
 }
 
 pub async fn load_transport(db: &PgPool) -> (Box<dyn Transport>, &'static str) {
-    let mode: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.mode'")
-        .fetch_optional(db)
-        .await
-        .ok()
-        .flatten()
-        .map(|s| s.trim_matches('"').to_string());
+    let mode: Option<String> =
+        sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.mode'")
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string());
 
     match mode.as_deref() {
         Some("simulated") => {
-            let outcome: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.simulated_outcome'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string());
+            let outcome: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.simulated_outcome'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string());
             match outcome.as_deref() {
                 Some("transient_error") => (
                     Box::new(SimulatedTransport::new(SimulatedOutcome::TransientError)),
@@ -439,67 +519,90 @@ pub async fn load_transport(db: &PgPool) -> (Box<dyn Transport>, &'static str) {
             }
         }
         Some("smtp") => {
-            let host: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.smtp_host'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string());
-            let from_addr: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.from_address'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string());
+            let host: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.smtp_host'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string());
+            let from_addr: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.from_address'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string());
 
             let Some(host) = host else {
-                return (Box::new(UnconfiguredTransport::new("mail_not_configured")), "smtp_unconfigured");
+                return (
+                    Box::new(UnconfiguredTransport::new("mail_not_configured")),
+                    "smtp_unconfigured",
+                );
             };
             let Some(from_address) = from_addr else {
-                return (Box::new(UnconfiguredTransport::new("mail_not_configured")), "smtp_unconfigured");
+                return (
+                    Box::new(UnconfiguredTransport::new("mail_not_configured")),
+                    "smtp_unconfigured",
+                );
             };
             if host.trim().is_empty() || from_address.trim().is_empty() {
-                return (Box::new(UnconfiguredTransport::new("mail_not_configured")), "smtp_unconfigured");
+                return (
+                    Box::new(UnconfiguredTransport::new("mail_not_configured")),
+                    "smtp_unconfigured",
+                );
             }
 
-            let port: u16 = sqlx::query_scalar::<_, i32>("SELECT (value->>0)::int FROM settings WHERE key='mail.smtp_port'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .and_then(|p: i32| u16::try_from(p).ok())
-                .unwrap_or(587);
+            let port: u16 = sqlx::query_scalar::<_, i32>(
+                "SELECT (value->>0)::int FROM settings WHERE key='mail.smtp_port'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|p: i32| u16::try_from(p).ok())
+            .unwrap_or(587);
 
-            let from_name: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.from_name'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string())
-                .filter(|s| !s.is_empty());
+            let from_name: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.from_name'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string())
+            .filter(|s| !s.is_empty());
 
-            let username: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.smtp_username'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string())
-                .filter(|s| !s.is_empty());
+            let username: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.smtp_username'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string())
+            .filter(|s| !s.is_empty());
 
-            let password: Option<String> = sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.smtp_password'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|s| s.trim_matches('"').to_string())
-                .filter(|s| !s.is_empty());
+            let password: Option<String> = sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.smtp_password'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.trim_matches('"').to_string())
+            .filter(|s| !s.is_empty());
 
-            let encryption = match sqlx::query_scalar::<_, String>("SELECT value::text FROM settings WHERE key='mail.smtp_encryption'")
-                .fetch_optional(db)
-                .await
-                .ok()
-                .flatten()
-                .as_deref()
+            let encryption = match sqlx::query_scalar::<_, String>(
+                "SELECT value::text FROM settings WHERE key='mail.smtp_encryption'",
+            )
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .as_deref()
             {
                 Some("\"tls\"") | Some("tls") => SmtpEncryption::Tls,
                 Some("\"none\"") | Some("none") => SmtpEncryption::None,
@@ -517,7 +620,10 @@ pub async fn load_transport(db: &PgPool) -> (Box<dyn Transport>, &'static str) {
             };
 
             if config.validate().is_err() {
-                (Box::new(UnconfiguredTransport::new("mail_config_invalid")), "smtp_unconfigured")
+                (
+                    Box::new(UnconfiguredTransport::new("mail_config_invalid")),
+                    "smtp_unconfigured",
+                )
             } else {
                 (Box::new(SmtpTransport::new(config)), "smtp")
             }
@@ -546,18 +652,46 @@ pub async fn enqueue_in(
 
 /// Un lot explicite, sans boucle cachée. Le dispatch réseau reste hors de la transaction de claim.
 pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> CoreResult<usize> {
+    run_batch_kinds(
+        db,
+        transport,
+        limit,
+        &[
+            KIND.into(),
+            crate::comment_notifications::KIND.into(),
+            crate::form_notifications::KIND.into(),
+        ],
+    )
+    .await
+}
+/// Campaign and recipe jobs are always local captures, even if SMTP is configured.
+pub async fn run_campaign_captures(db: &PgPool, limit: usize) -> CoreResult<usize> {
+    {
+        let mut kinds = Vec::new();
+        if crate::settings::is_module_active(db, "mailing").await {
+            kinds.push(crate::workflows::CAPTURE_KIND.into());
+        }
+        if crate::settings::is_module_active(db, "automations").await {
+            kinds.push(crate::workflows::AUTOMATION_CAPTURE_KIND.into());
+        }
+        if kinds.is_empty() {
+            return Ok(0);
+        }
+        run_batch_kinds(db, &CaptureTransport, limit, &kinds).await
+    }
+}
+async fn run_batch_kinds(
+    db: &PgPool,
+    transport: &dyn Transport,
+    limit: usize,
+    kinds: &[String],
+) -> CoreResult<usize> {
     if !(1..=100).contains(&limit) {
         return Err(CoreError::validation("Lot mail limité à 1..100 jobs"));
     }
     let mut handled = 0;
     for _ in 0..limit {
-        let Some(job) = jobs::claim(
-            db,
-            &[KIND.into(), crate::comment_notifications::KIND.into()],
-            60,
-        )
-        .await?
-        else {
+        let Some(job) = jobs::claim(db, kinds, 60).await? else {
             break;
         };
         let token = job
@@ -568,7 +702,29 @@ pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> 
             handled += 1;
             continue;
         }
-        let request: MailRequest = if job.kind == crate::comment_notifications::KIND {
+        let request: MailRequest = if job.kind == crate::form_notifications::KIND {
+            let event = match serde_json::from_value(job.payload.clone()) {
+                Ok(event) => event,
+                Err(_) => {
+                    jobs::fail(db, job.id, token, "invalid_form_notice", false).await?;
+                    handled += 1;
+                    continue;
+                }
+            };
+            match crate::form_notifications::resolve(db, &event).await {
+                Ok(Some(request)) => request,
+                Ok(None) => {
+                    jobs::skip(db, job.id, token, "form_notice_obsolete").await?;
+                    handled += 1;
+                    continue;
+                }
+                Err(_) => {
+                    jobs::fail(db, job.id, token, "form_notice_lookup_failed", true).await?;
+                    handled += 1;
+                    continue;
+                }
+            }
+        } else if job.kind == crate::comment_notifications::KIND {
             let event = match serde_json::from_value(job.payload.clone()) {
                 Ok(event) => event,
                 Err(_) => {
@@ -639,9 +795,15 @@ pub async fn run_batch(db: &PgPool, transport: &dyn Transport, limit: usize) -> 
             subject: request.subject,
             text: request.text,
         };
+        // Form notices are an explicitly local first version, regardless of SMTP settings.
+        let delivery: &dyn Transport = if job.kind == crate::form_notifications::KIND {
+            &CaptureTransport
+        } else {
+            transport
+        };
         match tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            transport.deliver(message, job.id),
+            delivery.deliver(message, job.id),
         )
         .await
         {
@@ -762,15 +924,16 @@ mod tests {
         assert!(receipt.capture.is_none());
 
         // Erreur temporaire (rejouable)
-        let transient_transport =
-            SimulatedTransport::new(SimulatedOutcome::TransientError);
-        let err = transient_transport.deliver(msg.clone(), key).await.unwrap_err();
+        let transient_transport = SimulatedTransport::new(SimulatedOutcome::TransientError);
+        let err = transient_transport
+            .deliver(msg.clone(), key)
+            .await
+            .unwrap_err();
         assert_eq!(err.code, "simulated_transient_error");
         assert!(err.retryable);
 
         // Erreur permanente (non rejouable)
-        let permanent_transport =
-            SimulatedTransport::new(SimulatedOutcome::PermanentError);
+        let permanent_transport = SimulatedTransport::new(SimulatedOutcome::PermanentError);
         let err = permanent_transport.deliver(msg, key).await.unwrap_err();
         assert_eq!(err.code, "simulated_permanent_error");
         assert!(!err.retryable);
@@ -845,7 +1008,10 @@ mod tests {
             subject: "Sujet".into(),
             text: "Texte".into(),
         };
-        let err = transport.deliver(injected, Uuid::new_v4()).await.unwrap_err();
+        let err = transport
+            .deliver(injected, Uuid::new_v4())
+            .await
+            .unwrap_err();
         assert_eq!(err.code, "header_injection_rejected");
         assert!(!err.retryable);
     }

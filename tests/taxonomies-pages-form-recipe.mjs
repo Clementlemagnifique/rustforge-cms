@@ -1,0 +1,47 @@
+// All writes are restricted to the identified isolated Mac fixture and fake records.
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+const runtime=JSON.parse(readFileSync('scratch/wasm-auth-recipe/runtime.json','utf8'));
+assert.match(runtime.database,/^rf_wasm_browser_[a-f0-9]{32}$/);assert.equal(runtime.port,55499);assert.equal(runtime.closed,false);
+const base='http://127.0.0.1:55499';let checks=0;
+async function api(path,token,method='GET',body,status=200){const r=await fetch(base+'/api/v1'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();let data;try{data=raw?JSON.parse(raw):null}catch{throw new Error(`${path}: ${r.status} ${raw.slice(0,200)}`)}assert.equal(r.status,status,`${method} ${path}: ${JSON.stringify(data)}`);checks++;return data;}
+assert.equal((await api('/public/settings')).title,'Recette WASM isolee');
+const tokens={};for(const role of ['admin','author','subscriber'])tokens[role]=(await api('/auth/login',null,'POST',{login:'wasm-'+role,password:'Recipe-only-password-2026!'})).token;
+const a=tokens.admin;const tag='Recette classement '+Date.now();
+const parentTerm=await api('/terms',a,'POST',{taxonomy:'category',name:tag+' parent',slug:'parent-'+Date.now()});
+const childTerm=await api('/terms',a,'POST',{taxonomy:'category',name:tag+' enfant',parent_id:parentTerm.id});
+await api('/terms/'+parentTerm.id,a,'PUT',{name:parentTerm.name,parent_id:childTerm.id},422);
+const label=await api('/terms',a,'POST',{taxonomy:'tag',name:tag+' étiquette'});
+await api('/terms',tokens.subscriber,'POST',{taxonomy:'tag',name:'Interdit'},403);
+const parent=await api('/entries?content_type=page',a,'POST',{title:tag+' page parente',status:'draft'});
+let child=await api('/entries?content_type=page',a,'POST',{title:tag+' page enfant',parent_id:parent.id,term_ids:[childTerm.id,label.id],status:'draft',fields:{_legacy_vault:{fixture:true}},blocks:{rf_schema:'rf.document/1',rf_blocks:[{rf_id:'page-p',rf_type:'paragraph',rf_text:'Page classée'}]}});
+assert.equal(child.parent_id,parent.id);assert.equal(child.terms.length,2);
+await api('/entries/'+parent.id,a,'PUT',{title:parent.title,parent_id:child.id,expected_updated_at:parent.updated_at},422);
+const foreignType=await api('/entries?content_type=post',a,'POST',{title:tag+' article'});
+await api('/entries/'+child.id,a,'PUT',{title:child.title,parent_id:foreignType.id,expected_updated_at:child.updated_at},422);
+child=await api('/entries/'+child.id,a,'PUT',{title:child.title+' modifiée',expected_updated_at:child.updated_at});assert.equal(child.parent_id,parent.id);assert.equal(child.terms.length,2);assert.equal(child.fields._legacy_vault.fixture,true);
+await api('/terms/'+childTerm.id,a,'PUT',{name:tag+' catégorie modifiée',parent_id:parentTerm.id,description:'Description conservée'});
+await api('/terms/'+childTerm.id+'?reassign_to='+parentTerm.id,a,'DELETE');
+child=await api('/entries/'+child.id,a);assert.ok(child.terms.some(term=>term.id===parentTerm.id));assert.ok(!child.terms.some(term=>term.id===childTerm.id));
+child=await api('/entries/'+child.id,a,'PUT',{title:child.title,parent_id:null,term_ids:[],expected_updated_at:child.updated_at});assert.equal(child.parent_id,null);assert.equal(child.terms.length,0);assert.equal(child.blocks.rf_blocks[0].rf_text,'Page classée');
+await api('/admin/modules',a,'PUT',{forms:true});
+const form=await api('/forms',a,'POST',{name:tag+' formulaire <script>',is_active:true,fields:{type:'object',properties:{nom:{type:'string',title:'Votre nom',minLength:2}},required:['nom'],additionalProperties:false}});
+const doc={rf_schema:'rf.document/1',rf_blocks:[{rf_id:'intro',rf_type:'paragraph',rf_text:'Avant le formulaire.'},{rf_id:'contact',rf_type:'form_embed',rf_ref:form.id},{rf_id:'contact-copy',rf_type:'form_embed',rf_ref:form.id}]};
+await api('/entries?content_type=page',tokens.author,'POST',{title:tag+' interdit',blocks:doc},403);
+const page=await api('/entries?content_type=page',a,'POST',{title:tag+' formulaire intégré',status:'published',published_at:new Date(Date.now()-2000).toISOString(),blocks:doc});
+const publicUrl=base+'/fr/page/'+page.slug;
+async function publicPage(){const r=await fetch(publicUrl);assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'no-store');checks++;return r.text();}
+let html=await publicPage();assert.equal((html.match(/name="_rf_token"/g)||[]).length,2);assert.ok(html.includes('formulaire &lt;script&gt;'));assert.ok(html.includes('id="rf-form-1-nom"'));assert.ok(html.includes('id="rf-form-2-nom"'));assert.ok(!html.includes('data-rf-form='));
+const token=html.match(/name="_rf_token" value="([^"]+)"/)?.[1];assert.ok(token);
+const invalid=await fetch(base+'/forms/'+form.id,{method:'POST',body:new URLSearchParams({_rf_token:token,nom:'A'})});assert.equal(invalid.status,422);assert.ok((await invalid.text()).includes('value="A"'));checks++;
+const submitted=await fetch(base+'/forms/'+form.id,{method:'POST',body:new URLSearchParams({_rf_token:token,nom:'Recette publique'})});assert.equal(submitted.status,200);assert.ok((await submitted.text()).includes('Votre formulaire a été transmis'));checks++;
+assert.equal((await api('/forms/'+form.id+'/submissions',a)).items.length,1);
+await api('/forms/'+form.id,a,'PUT',{name:tag+' formulaire renommé',fields:form.fields,is_active:false});html=await publicPage();assert.ok(!html.includes('name="_rf_token"'));assert.ok(html.includes('Formulaire indisponible'));
+await api('/forms/'+form.id,a,'PUT',{name:tag+' formulaire renommé',fields:form.fields,is_active:true});html=await publicPage();assert.ok(html.includes('formulaire renommé'));assert.ok(html.includes('name="_rf_token"'));
+const publicData=await api('/public/entries/page/'+page.slug);assert.ok(publicData.body_html.includes('name="_rf_token"'));assert.ok(!('fields' in publicData));
+await api('/admin/modules',a,'PUT',{forms:false});html=await publicPage();assert.ok(!html.includes('name="_rf_token"'));
+await api('/entries?content_type=post',a,'POST',{title:tag+' module fermé',blocks:doc},400);
+const untouched=await api('/entries/'+page.id,a,'PUT',{title:page.title,expected_updated_at:page.updated_at});assert.deepEqual(untouched.blocks,doc);
+await api('/admin/modules',a,'PUT',{forms:true});
+writeFileSync('docs/validations/taxonomies-pages-formulaire-2026-10-31/fixture.json',JSON.stringify({parent_id:parent.id,page_id:child.id,published_id:page.id,public_url:publicUrl,form_id:form.id,term_id:parentTerm.id,label_id:label.id},null,2)+'\n');
+console.log(`PASS ${checks} contrôles : termes, cycles, hiérarchie, réaffectation, conservation/effacement explicite, bloc formulaire, soumission publique, disponibilité après cache et droits par rôle.`);

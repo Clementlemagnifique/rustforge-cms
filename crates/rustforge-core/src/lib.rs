@@ -7,10 +7,11 @@
 //! - [`markdown`], [`fields`] : rendu et validation du contenu
 
 pub mod ai;
+pub mod analytics;
 pub mod archive;
 pub mod blocks;
-pub mod comments;
 pub mod comment_notifications;
+pub mod comments;
 pub mod content_types;
 pub mod converter;
 pub mod date_utils;
@@ -19,15 +20,17 @@ pub mod ecommerce;
 pub mod entries;
 pub mod error;
 pub mod fields;
+pub mod form_notifications;
 pub mod form_validation;
 pub mod forms;
 pub mod galleries;
 pub mod hooks;
+pub mod i18n;
 pub mod jobs;
 pub mod llm;
 pub mod lms;
-pub mod markdown;
 pub mod mail;
+pub mod markdown;
 pub mod media;
 pub mod media_processor;
 pub mod migration;
@@ -86,3 +89,7 @@ mod tests {
         assert_eq!(slugify("???"), "sans-titre");
     }
 }
+
+pub mod workflows;
+
+pub mod module_catalog;

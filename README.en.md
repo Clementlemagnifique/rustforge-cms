@@ -2,9 +2,11 @@
 
 > 🌍 **Langues / Languages :** [Français](README.md) · **English**
 
-RustForge CMS is a sovereign, high-performance content management system built in Rust featuring native server-side rendering (MiniJinja 3), a visual block Studio (React/Vite), and sandboxed extensibility (Wasmtime). Declared version: **`1.0.0-alpha.1`**. The core engine is fully functional; visual block editing, GDPR-compliant discussion engine, hierarchical 3-level navigation, and WXR migration are actively expanding.
+RustForge CMS is a Rust CMS with server-side HTML rendering, optional modules and an administration being migrated to Rust/WASM Leptos. Declared version: **`1.0.0-alpha.1`**. Rustemberg is the shared article, page and landing-page builder, progressively following Gutenberg/WordPress conventions. It is not yet a complete Gutenberg equivalent.
 
-**Roadmap & Steering: [Global Action Plan](docs/PLAN_ACTION_GLOBAL.md).** The [Component Inventory](docs/pilotage/07_ETAT_EXISTANT.md) catalogs 38 native components. The three qualification matrices for [Core/Admin](docs/pilotage/01_COEUR_ADMIN.md), [Theme](docs/pilotage/02_THEME.md), and [Modules](docs/pilotage/03_MODULES.md) track architectural parity and verification proofs. The [Documentation Index](docs/README.md) centralizes active specifications and historical audits.
+**Resume from the [latest journal entry](docs/pilotage/08_JOURNAL_REPRISE.md), [native administration plan](docs/pilotage/13_PLAN_ADMIN_RUST.md) and [documentation index](docs/README.md).** The migration preserves the Rust services, PostgreSQL, MiniJinja and shared document contract. React/TypeScript sources remain available during the validated transition; they are not the target architecture.
+
+The macOS consolidation branch is `codex/reprise-macos-leptos-rustemberg`. `main` remains unchanged until a later review and merge of the cleaned, validated project. See the [macOS guide](docs/DEVELOPPEMENT_MACOS.md) for the toolchain and isolated recipe instance.
 
 ## Trying the Alpha
 
@@ -22,7 +24,7 @@ cargo build --locked --bin rustforge
 .\target\debug\rustforge.exe serve --port 8080
 ```
 
-The server binds to `127.0.0.1:8080` by default and serves the visual Studio at `/admin/`. Prerequisites: Rust 1.85+, PostgreSQL, and Node.js 22+ (to build the Studio frontend). SQLite is intentionally not implemented.
+The server binds to `127.0.0.1:8080` by default. The native Leptos Studio is served at `/admin/rust/`, with the transition UI at `/admin/`. Development uses Rust 1.97 and PostgreSQL; Trunk builds the native Studio, while Node.js 24 is retained for transition tooling. SQLite is not implemented.
 
 ## Preserved Architecture
 
@@ -32,7 +34,9 @@ The server binds to `127.0.0.1:8080` by default and serves the visual Studio at 
 | `rustforge-api` | Axum HTTP engine, JWT auth, MiniJinja SSR, and cache layer with database revision tracking. |
 | `rustforge-plugins` | Wasmtime runtime, lifecycle hooks, and WASM extension contract reusing sovereign Rust services. |
 | `rustforge` | Unified CLI binary, server bootstrap, and maintenance utilities. |
-| `admin` | React/TypeScript Studio; native block editor (`rf.document/1`), live server-side preview, and appearance management. |
+| `rustforge-document` | Shared document contract, blocks, compositions and sanitized rendering. |
+| `rustforge-studio` | Native Rust/WASM Leptos administration and the partial Rustemberg builder. |
+| `admin` | Retained React/TypeScript transition UI and native asset publication; removal requires verified parity. |
 | `themes/default` | Default HTML theme, baseline implementation of the `rf-base` contract. |
 
 Cross-cutting contracts ([Transverse Contracts](docs/pilotage/04_CONTRATS_TRANSVERSES.md)) govern data structures, permissions, caching, modules, and AI endpoints. All reserved attributes use the `rf_` prefix; compatibility aliases for WordPress imports remain supported.
@@ -47,6 +51,12 @@ rustforge unpack-capsule --file backup.rfcapsule --new-site-url https://target.e
 ```
 
 Full WXR → RFIR → PostgreSQL parsing with pre-import validation is operational. Sovereign `.rfcapsule` v2 packages encompass 32 database tables, media assets, and theme/plugin bundles with deterministic path checking.
+
+## Current builder and delivery scope
+
+The initial native library includes compositions, block duplication/navigation and standard, wide and landing layouts. Direct visual editing, the full contextual inspector, nested blocks and advanced styling remain open. See the [targeted validation report](docs/validations/constructeur-landings-rust-2026-10-31/bilan.txt). Module capabilities intended for content editing are exposed through their Rustemberg blocks.
+
+The delivery target is a lightweight installable ZIP with optional modules and optional AI. Model weights are not bundled. Clean installation and retirement of the transition UI remain prerequisites for the future main-branch release.
 
 ## Validation and Contribution
 

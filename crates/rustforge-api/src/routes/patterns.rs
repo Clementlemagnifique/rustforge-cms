@@ -24,10 +24,20 @@ pub async fn list(
     Query(query): Query<PatternQuery>,
 ) -> ApiResult<Json<Vec<SyncedPattern>>> {
     let mut patterns = patterns::list(&state.db).await?;
-    if let Some(category) = query.category.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(category) = query
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         patterns.retain(|p| p.category.eq_ignore_ascii_case(category));
     }
-    if let Some(slug) = query.slug.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(slug) = query
+        .slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         patterns.retain(|p| p.slug.eq_ignore_ascii_case(slug));
     }
     Ok(Json(patterns))

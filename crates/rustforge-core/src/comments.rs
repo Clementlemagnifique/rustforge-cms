@@ -70,47 +70,79 @@ pub struct DiscussionPolicy {
 
 impl DiscussionPolicy {
     pub fn from_settings(values: &std::collections::BTreeMap<String, serde_json::Value>) -> Self {
-        let flag = |key: &str, default| values.get(key).and_then(|v| v.as_bool()
-            .or_else(|| v.as_str().map(|s| s == "open"))).unwrap_or(default);
-        let number = |key: &str, default| values.get(key).and_then(|v| v.as_i64()).unwrap_or(default);
+        let flag = |key: &str, default| {
+            values
+                .get(key)
+                .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "open")))
+                .unwrap_or(default)
+        };
+        let number =
+            |key: &str, default| values.get(key).and_then(|v| v.as_i64()).unwrap_or(default);
         Self {
             open: flag("discussion.default_comment_status", true),
             require_identity: flag("discussion.require_name_email", true),
             require_registration: flag("discussion.comment_registration", false),
             threaded: flag("discussion.thread_comments", true),
             depth: number("discussion.thread_comments_depth", 3).clamp(1, 5) as usize,
-            newest_first: values.get("discussion.comment_order").and_then(|v| v.as_str()) == Some("desc"),
+            newest_first: values
+                .get("discussion.comment_order")
+                .and_then(|v| v.as_str())
+                == Some("desc"),
             show_avatars: flag("discussion.show_avatars", true),
-            avatar_default: values.get("discussion.avatar_default").and_then(|v| v.as_str()).unwrap_or("mystery").into(),
+            avatar_default: values
+                .get("discussion.avatar_default")
+                .and_then(|v| v.as_str())
+                .unwrap_or("mystery")
+                .into(),
             remember_identity: flag("discussion.show_comments_cookies_opt_in", false),
             close_old: flag("discussion.close_comments_for_old_posts", false),
             close_days: number("discussion.close_comments_days", 14).max(0),
             paginated: flag("discussion.page_comments", false),
             per_page: number("discussion.comments_per_page", 50).clamp(1, 100),
-            default_last: values.get("discussion.default_comments_page").and_then(|v| v.as_str()) == Some("newest"),
+            default_last: values
+                .get("discussion.default_comments_page")
+                .and_then(|v| v.as_str())
+                == Some("newest"),
         }
     }
+    /// Le choix local remplace seulement l’ouverture par défaut ; les autres protections restent actives.
+    pub fn with_entry_fields(mut self, fields: &serde_json::Value) -> Self {
+        match fields.get("_rf_comment_status").and_then(|v| v.as_str()) {
+            Some("open") => self.open = true,
+            Some("closed") => self.open = false,
+            _ => {}
+        }
+        self
+    }
+
     pub fn can_submit(&self, published_at: Option<DateTime<Utc>>) -> bool {
-        self.open && !(self.close_old && published_at.is_some_and(|date|
-            Utc::now() >= date + chrono::Duration::days(self.close_days.min(365000))))
+        self.open
+            && !(self.close_old
+                && published_at.is_some_and(|date| {
+                    Utc::now() >= date + chrono::Duration::days(self.close_days.min(365000))
+                }))
     }
 }
 
 /// SVG local dérivé uniquement de l'UUID public du commentaire, jamais de l'e-mail.
 pub fn avatar_svg(style: &str, id: Uuid) -> String {
-    if style == "blank" { return String::new(); }
+    if style == "blank" {
+        return String::new();
+    }
     let bytes = id.as_bytes();
     let hue = u32::from(bytes[0]) * 360 / 256;
     let color = format!("hsl({hue},55%,45%)");
-    let mut svg = String::from("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"32\" height=\"32\" aria-hidden=\"true\">");
+    let mut svg = String::from(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"32\" height=\"32\" aria-hidden=\"true\">",
+    );
     svg.push_str("<rect width=\"16\" height=\"16\" rx=\"2\" fill=\"#e2e8f0\"/>");
     if matches!(style, "identicon" | "retro") {
         let size = if style == "retro" { 8 } else { 5 };
         let cell = 14.0 / f64::from(size);
         for y in 0..size {
             for x in 0..size {
-                let mirror_x = x.min(size-1-x);
-                let seed = (y*4+mirror_x) as usize;
+                let mirror_x = x.min(size - 1 - x);
+                let seed = (y * 4 + mirror_x) as usize;
                 if bytes[seed % 16] & (1 << (seed % 8)) != 0 {
                     svg.push_str(&format!("<rect x=\"{}\" y=\"{}\" width=\"{cell}\" height=\"{cell}\" fill=\"{color}\"/>",1.0+f64::from(x)*cell,1.0+f64::from(y)*cell));
                 }
@@ -131,10 +163,12 @@ fn validated_author_url(raw: Option<&str>) -> CoreResult<Option<String>> {
     if raw.len() > 2048 || raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err(CoreError::validation("URL auteur invalide"));
     }
-    let url = reqwest::Url::parse(raw)
-        .map_err(|_| CoreError::validation("URL auteur invalide"))?;
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none()
-        || !url.username().is_empty() || url.password().is_some() {
+    let url = reqwest::Url::parse(raw).map_err(|_| CoreError::validation("URL auteur invalide"))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
         return Err(CoreError::validation("URL auteur non autorisée"));
     }
     Ok(Some(url.to_string()))
@@ -172,11 +206,7 @@ pub fn format_comment_html(raw: &str) -> String {
         }
     }
 
-    if out.is_empty() {
-        escaped
-    } else {
-        out
-    }
+    if out.is_empty() { escaped } else { out }
 }
 
 /// Compte le nombre de liens web dans le contenu (détection d'URLs pour antispam).
@@ -184,9 +214,10 @@ pub fn count_links(content: &str) -> usize {
     let lower = content.to_ascii_lowercase();
     let http_count = lower.matches("http://").count();
     let https_count = lower.matches("https://").count();
-    let www_count = lower.matches("www.").count().saturating_sub(
-        lower.matches("http://www").count() + lower.matches("https://www").count(),
-    );
+    let www_count = lower
+        .matches("www.")
+        .count()
+        .saturating_sub(lower.matches("http://www").count() + lower.matches("https://www").count());
     http_count + https_count + www_count
 }
 
@@ -267,7 +298,9 @@ pub async fn evaluate_comment_status(
 
     // 5. Approbation si commentaire précédent approuvé
     if require_previously_approved {
-        if author_email.is_empty() { return Ok(CommentStatus::Pending); }
+        if author_email.is_empty() {
+            return Ok(CommentStatus::Pending);
+        }
         let has_approved: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM comments WHERE author_email = $1 AND status = 'approved')",
         )
@@ -287,7 +320,9 @@ pub async fn evaluate_comment_status(
 /// Crée un nouveau commentaire avec validation et formatage.
 pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreResult<Comment> {
     let author_url = validated_author_url(params.author_url.as_deref())?;
-    let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?);
+    let entry = crate::entries::get_published_by_id(db, params.entry_id).await?;
+    let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?)
+        .with_entry_fields(&entry.fields);
     let name = params.author_name.trim();
     let email = params.author_email.trim();
     let content = params.content.trim();
@@ -297,7 +332,10 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
             "Le nom de l'auteur est requis (max 100 caractères).",
         ));
     }
-    if (policy.require_identity && email.is_empty()) || email.chars().count() > 254 || (!email.is_empty() && !email.contains('@')) {
+    if (policy.require_identity && email.is_empty())
+        || email.chars().count() > 254
+        || (!email.is_empty() && !email.contains('@'))
+    {
         return Err(CoreError::validation("L'adresse e-mail est invalide."));
     }
     if content.is_empty() {
@@ -312,18 +350,21 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
     }
 
     // Même visibilité que les pages et API publiques (dates comprises).
-    let entry = crate::entries::get_published_by_id(db, params.entry_id).await?;
     let published_at = entry.published_at;
 
     if !policy.can_submit(published_at) {
-        return Err(CoreError::validation("Les commentaires sont fermés pour cette publication."));
+        return Err(CoreError::validation(
+            "Les commentaires sont fermés pour cette publication.",
+        ));
     }
     if policy.require_registration && params.author_id.is_none() {
         return Err(CoreError::Forbidden);
     }
     let name = if name.is_empty() { "Visiteur" } else { name };
     if params.parent_id.is_some() && !policy.threaded {
-        return Err(CoreError::validation("Les réponses imbriquées sont désactivées."));
+        return Err(CoreError::validation(
+            "Les réponses imbriquées sont désactivées.",
+        ));
     }
 
     // Vérifier le parent_id s'il est spécifié
@@ -335,10 +376,16 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
                 UNION ALL
                 SELECT c.id, c.parent_id, a.depth+1 FROM comments c
                 JOIN ancestors a ON c.id=a.parent_id WHERE a.depth < 6
-            ) SELECT max(depth) FROM ancestors")
-            .bind(pid).bind(params.entry_id).fetch_one(db).await?;
+            ) SELECT max(depth) FROM ancestors",
+        )
+        .bind(pid)
+        .bind(params.entry_id)
+        .fetch_one(db)
+        .await?;
         if depth.is_none_or(|depth| depth as usize >= policy.depth) {
-            return Err(CoreError::validation("Parent inaccessible ou profondeur maximale atteinte."));
+            return Err(CoreError::validation(
+                "Parent inaccessible ou profondeur maximale atteinte.",
+            ));
         }
     }
 
@@ -354,7 +401,7 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
 
     let content_html = format_comment_html(content);
 
-    let mut tx=db.begin().await?;
+    let mut tx = db.begin().await?;
     let comment: Comment = sqlx::query_as(
         r#"
         INSERT INTO comments (
@@ -375,15 +422,27 @@ pub async fn create_comment(db: &PgPool, params: CreateCommentParams) -> CoreRes
     .bind(name)
     .bind(email)
     .bind(author_url.as_deref())
-    .bind(params.author_ip.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(params.author_user_agent.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        params
+            .author_ip
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        params
+            .author_user_agent
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(content)
     .bind(content_html)
     .bind(status.as_str())
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::comment_notifications::enqueue_in(&mut tx,&comment,params.author_id).await?;
+    crate::comment_notifications::enqueue_in(&mut tx, &comment, params.author_id).await?;
     tx.commit().await?;
 
     Ok(comment)
@@ -410,10 +469,7 @@ pub async fn get_comment(db: &PgPool, id: Uuid) -> CoreResult<Comment> {
 }
 
 /// Liste les commentaires avec filtres et pagination.
-pub async fn list_comments(
-    db: &PgPool,
-    filter: CommentFilter,
-) -> CoreResult<(Vec<Comment>, i64)> {
+pub async fn list_comments(db: &PgPool, filter: CommentFilter) -> CoreResult<(Vec<Comment>, i64)> {
     let limit = filter.limit.unwrap_or(20).clamp(1, 100);
     let offset = filter.offset.unwrap_or(0).max(0);
 
@@ -464,44 +520,90 @@ pub async fn list_comments(
 }
 
 /// Met à jour le statut d'un commentaire (modération unitaire).
-pub async fn update_comment_status(db: &PgPool,id: Uuid,new_status: CommentStatus) -> CoreResult<Comment> {
-    update_comment_status_as(db,id,new_status,None).await
+pub async fn update_comment_status(
+    db: &PgPool,
+    id: Uuid,
+    new_status: CommentStatus,
+) -> CoreResult<Comment> {
+    update_comment_status_as(db, id, new_status, None).await
 }
 
-pub async fn update_comment_status_as(db: &PgPool,id: Uuid,new_status: CommentStatus,actor: Option<Uuid>) -> CoreResult<Comment> {
-    let mut tx=db.begin().await?;
-    let result=change_status_in(&mut tx,id,new_status.as_str(),actor).await?
+pub async fn update_comment_status_as(
+    db: &PgPool,
+    id: Uuid,
+    new_status: CommentStatus,
+    actor: Option<Uuid>,
+) -> CoreResult<Comment> {
+    let mut tx = db.begin().await?;
+    let result = change_status_in(&mut tx, id, new_status.as_str(), actor)
+        .await?
         .ok_or(CoreError::NotFound)?;
     tx.commit().await?;
     Ok(result.0)
 }
 
-async fn change_status_in(connection: &mut sqlx::PgConnection,id:Uuid,status:&str,actor:Option<Uuid>) -> CoreResult<Option<(Comment,usize,bool)>> {
-    let old:Option<Comment>=sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
-        .bind(id).fetch_optional(&mut *connection).await?;
-    let Some(old)=old else {return Ok(None);};
-    if old.status==status {return Ok(Some((old,0,false)));}
-    let comment:Comment=sqlx::query_as("UPDATE comments SET status=$2,updated_at=clock_timestamp() WHERE id=$1 RETURNING *")
-        .bind(id).bind(status).fetch_one(&mut *connection).await?;
-    let count=crate::comment_notifications::enqueue_in(connection,&comment,actor).await?;
-    Ok(Some((comment,count,true)))
+async fn change_status_in(
+    connection: &mut sqlx::PgConnection,
+    id: Uuid,
+    status: &str,
+    actor: Option<Uuid>,
+) -> CoreResult<Option<(Comment, usize, bool)>> {
+    let old: Option<Comment> = sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *connection)
+        .await?;
+    let Some(old) = old else {
+        return Ok(None);
+    };
+    if old.status == status {
+        return Ok(Some((old, 0, false)));
+    }
+    let comment: Comment = sqlx::query_as(
+        "UPDATE comments SET status=$2,updated_at=clock_timestamp() WHERE id=$1 RETURNING *",
+    )
+    .bind(id)
+    .bind(status)
+    .fetch_one(&mut *connection)
+    .await?;
+    let count = crate::comment_notifications::enqueue_in(connection, &comment, actor).await?;
+    Ok(Some((comment, count, true)))
 }
 
 /// Modération atomique bornée ; ordre stable des verrous pour éviter les interblocages.
-pub async fn batch_update_status(db: &PgPool,ids:&[Uuid],new_status:CommentStatus) -> CoreResult<u64> {
-    batch_update_status_as(db,ids,new_status,None).await
+pub async fn batch_update_status(
+    db: &PgPool,
+    ids: &[Uuid],
+    new_status: CommentStatus,
+) -> CoreResult<u64> {
+    batch_update_status_as(db, ids, new_status, None).await
 }
 
-pub async fn batch_update_status_as(db: &PgPool,ids:&[Uuid],new_status:CommentStatus,actor:Option<Uuid>) -> CoreResult<u64> {
-    if ids.len()>100 {return Err(CoreError::validation("Lot de modération limité à 100 commentaires"));}
-    let mut ids=ids.to_vec();ids.sort_unstable();ids.dedup();
-    let mut tx=db.begin().await?;
-    let mut changed=0;let mut notifications=0;
+pub async fn batch_update_status_as(
+    db: &PgPool,
+    ids: &[Uuid],
+    new_status: CommentStatus,
+    actor: Option<Uuid>,
+) -> CoreResult<u64> {
+    if ids.len() > 100 {
+        return Err(CoreError::validation(
+            "Lot de modération limité à 100 commentaires",
+        ));
+    }
+    let mut ids = ids.to_vec();
+    ids.sort_unstable();
+    ids.dedup();
+    let mut tx = db.begin().await?;
+    let mut changed = 0;
+    let mut notifications = 0;
     for id in ids {
-        if let Some((_,count,did_change))=change_status_in(&mut tx,id,new_status.as_str(),actor).await? {
-            notifications+=count;
-            if notifications>1000 {return Err(CoreError::validation("Lot limité à 1000 notifications"));}
-            changed+=u64::from(did_change);
+        if let Some((_, count, did_change)) =
+            change_status_in(&mut tx, id, new_status.as_str(), actor).await?
+        {
+            notifications += count;
+            if notifications > 1000 {
+                return Err(CoreError::validation("Lot limité à 1000 notifications"));
+            }
+            changed += u64::from(did_change);
         }
     }
     tx.commit().await?;
@@ -517,7 +619,7 @@ pub async fn update_comment_content(
     author_email: Option<&str>,
     author_url: Option<&str>,
 ) -> CoreResult<Comment> {
-    update_comment_content_as(db,id,content,author_name,author_email,author_url,None).await
+    update_comment_content_as(db, id, content, author_name, author_email, author_url, None).await
 }
 
 pub async fn update_comment_content_as(
@@ -536,14 +638,25 @@ pub async fn update_comment_content_as(
     }
     let content_html = format_comment_html(trimmed_content);
 
-    let mut tx=db.begin().await?;
-    let previous:Option<Comment>=sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
-        .bind(id).fetch_optional(&mut *tx).await?;
-    let previous=previous.ok_or(CoreError::NotFound)?;
-    let next_name=author_name.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&previous.author_name);
-    let next_email=author_email.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&previous.author_email);
-    if previous.content==trimmed_content && previous.author_name==next_name
-        && previous.author_email==next_email && previous.author_url==author_url {
+    let mut tx = db.begin().await?;
+    let previous: Option<Comment> = sqlx::query_as("SELECT * FROM comments WHERE id=$1 FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let previous = previous.ok_or(CoreError::NotFound)?;
+    let next_name = author_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&previous.author_name);
+    let next_email = author_email
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&previous.author_email);
+    if previous.content == trimmed_content
+        && previous.author_name == next_name
+        && previous.author_email == next_email
+        && previous.author_url == author_url
+    {
         return Ok(previous);
     }
 
@@ -574,7 +687,7 @@ pub async fn update_comment_content_as(
     .await?
     .ok_or(CoreError::NotFound)?;
 
-    crate::comment_notifications::enqueue_in(&mut tx,&comment,actor).await?;
+    crate::comment_notifications::enqueue_in(&mut tx, &comment, actor).await?;
     tx.commit().await?;
 
     Ok(comment)
@@ -592,7 +705,7 @@ pub async fn reply_to_comment(
     let parent = get_comment(db, parent_id).await?;
     let content_html = format_comment_html(content);
 
-    let mut tx=db.begin().await?;
+    let mut tx = db.begin().await?;
     let reply: Comment = sqlx::query_as(
         r#"
         INSERT INTO comments (
@@ -617,7 +730,7 @@ pub async fn reply_to_comment(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::comment_notifications::enqueue_in(&mut tx,&reply,Some(author_id)).await?;
+    crate::comment_notifications::enqueue_in(&mut tx, &reply, Some(author_id)).await?;
     tx.commit().await?;
 
     Ok(reply)
@@ -678,10 +791,14 @@ pub async fn get_entry_comment_page(
     crate::entries::get_published_by_id(db, entry_id).await?;
     let policy = DiscussionPolicy::from_settings(&crate::settings::all(db).await?);
     if requested_page.is_some_and(|p| !(1..=1_000_000).contains(&p)) {
-        return Err(CoreError::validation("Numéro de page de commentaires invalide"));
+        return Err(CoreError::validation(
+            "Numéro de page de commentaires invalide",
+        ));
     }
     let mut tx = db.begin().await?;
-    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY").execute(&mut *tx).await?;
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        .execute(&mut *tx)
+        .await?;
     // L'agrégat et la page partagent le même snapshot ; seuls les fils visibles sont comptés.
     let (root_total, total): (i64, i64) = sqlx::query_as(
         "WITH RECURSIVE visible AS (
@@ -690,14 +807,30 @@ pub async fn get_entry_comment_page(
             UNION ALL
             SELECT c.id, v.root_id FROM comments c JOIN visible v ON c.parent_id=v.id
             WHERE $2 AND c.entry_id=$1 AND c.status='approved'
-        ) SELECT count(*) FILTER(WHERE id=root_id), count(*) FROM visible")
-        .bind(entry_id).bind(policy.threaded).fetch_one(&mut *tx).await?;
-    let size = if policy.paginated { policy.per_page } else { 2000 };
-    let total_pages = if policy.paginated { ((root_total + size - 1) / size).max(1) } else { 1 };
+        ) SELECT count(*) FILTER(WHERE id=root_id), count(*) FROM visible",
+    )
+    .bind(entry_id)
+    .bind(policy.threaded)
+    .fetch_one(&mut *tx)
+    .await?;
+    let size = if policy.paginated {
+        policy.per_page
+    } else {
+        2000
+    };
+    let total_pages = if policy.paginated {
+        ((root_total + size - 1) / size).max(1)
+    } else {
+        1
+    };
     let page = requested_page.unwrap_or(if policy.default_last { total_pages } else { 1 });
-    if page > total_pages { return Err(CoreError::NotFound); }
+    if page > total_pages {
+        return Err(CoreError::NotFound);
+    }
     if !policy.paginated && root_total > 2000 {
-        return Err(CoreError::validation("Activez la pagination pour afficher ce volume de commentaires."));
+        return Err(CoreError::validation(
+            "Activez la pagination pour afficher ce volume de commentaires.",
+        ));
     }
     #[derive(sqlx::FromRow)]
     struct FlatCommentNode {
@@ -728,27 +861,41 @@ pub async fn get_entry_comment_page(
         .bind(policy.newest_first).fetch_all(&mut *tx).await?;
     tx.commit().await?;
     if nodes.len() > 2000 {
-        return Err(CoreError::validation("Le volume de ce fil dépasse la limite de rendu (2000 commentaires)."));
+        return Err(CoreError::validation(
+            "Le volume de ce fil dépasse la limite de rendu (2000 commentaires).",
+        ));
     }
-    if policy.newest_first { nodes.reverse(); }
+    if policy.newest_first {
+        nodes.reverse();
+    }
     let visible_depth = if policy.threaded { policy.depth } else { 1 };
-    let parents: std::collections::HashMap<_, _> = nodes.iter().map(|n| (n.id, n.parent_id)).collect();
+    let parents: std::collections::HashMap<_, _> =
+        nodes.iter().map(|n| (n.id, n.parent_id)).collect();
     for node in &mut nodes {
         let mut chain = Vec::new();
         let mut parent = node.parent_id;
         while let Some(id) = parent {
-            if chain.contains(&id) || chain.len() >= 64 { break; }
+            if chain.contains(&id) || chain.len() >= 64 {
+                break;
+            }
             chain.push(id);
             parent = parents.get(&id).copied().flatten();
         }
-        if visible_depth == 1 { node.parent_id = None; }
-        else if chain.len() >= visible_depth {
+        if visible_depth == 1 {
+            node.parent_id = None;
+        } else if chain.len() >= visible_depth {
             node.parent_id = Some(chain[chain.len() - visible_depth + 1]);
         }
     }
 
     if nodes.is_empty() {
-        return Ok(PublicCommentPage { items: Vec::new(), page, total_pages, total, root_total });
+        return Ok(PublicCommentPage {
+            items: Vec::new(),
+            page,
+            total_pages,
+            total,
+            root_total,
+        });
     }
 
     fn build_subtree(
@@ -768,7 +915,9 @@ pub async fn get_entry_comment_page(
                     id: node.id,
                     parent_id: node.parent_id,
                     author_name: node.author_name.clone(),
-                    author_url: validated_author_url(node.author_url.as_deref()).ok().flatten(),
+                    author_url: validated_author_url(node.author_url.as_deref())
+                        .ok()
+                        .flatten(),
                     content_html: node.content_html.clone(),
                     created_at: node.created_at,
                     children,
@@ -778,7 +927,13 @@ pub async fn get_entry_comment_page(
         result
     }
 
-    Ok(PublicCommentPage { items: build_subtree(None, &nodes, 1, visible_depth), page, total_pages, total, root_total })
+    Ok(PublicCommentPage {
+        items: build_subtree(None, &nodes, 1, visible_depth),
+        page,
+        total_pages,
+        total,
+        root_total,
+    })
 }
 
 #[cfg(test)]
@@ -812,13 +967,43 @@ mod tests {
     }
 
     #[test]
+    fn entry_discussion_override_keeps_other_protections_and_inheritance() {
+        let values = std::collections::BTreeMap::from([
+            (
+                "discussion.default_comment_status".into(),
+                serde_json::json!(false),
+            ),
+            (
+                "discussion.comment_registration".into(),
+                serde_json::json!(true),
+            ),
+            (
+                "discussion.close_comments_for_old_posts".into(),
+                serde_json::json!(true),
+            ),
+        ]);
+        let inherited = DiscussionPolicy::from_settings(&values)
+            .with_entry_fields(&serde_json::json!({"_rf_comment_status": null}));
+        assert!(!inherited.can_submit(Some(Utc::now())));
+        let opened = DiscussionPolicy::from_settings(&values)
+            .with_entry_fields(&serde_json::json!({"_rf_comment_status":"open"}));
+        assert!(opened.can_submit(Some(Utc::now())));
+        assert!(opened.require_registration);
+        assert!(!opened.can_submit(Some(Utc::now() - chrono::Duration::days(30))));
+        let closed = DiscussionPolicy::from_settings(&Default::default())
+            .with_entry_fields(&serde_json::json!({"_rf_comment_status":"closed"}));
+        assert!(!closed.can_submit(Some(Utc::now())));
+    }
+
+    #[test]
     fn discussion_policy_applies_switches_and_legacy_closed() {
         let values = serde_json::from_value(serde_json::json!({
             "discussion.default_comment_status":"closed",
             "discussion.require_name_email":false,
             "discussion.thread_comments_depth":999,
             "discussion.comment_order":"desc", "discussion.show_avatars":false
-        })).unwrap();
+        }))
+        .unwrap();
         let policy = DiscussionPolicy::from_settings(&values);
         assert!(!policy.can_submit(Some(Utc::now())));
         assert!(!policy.require_identity);
@@ -829,10 +1014,21 @@ mod tests {
 
     #[test]
     fn author_links_reject_unsafe_schemes() {
-        for raw in ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html,test", "https://ok.test/\npath", "https://user:pass@ok.test/"] {
+        for raw in [
+            "javascript:alert(1)",
+            "JaVaScRiPt:alert(1)",
+            "data:text/html,test",
+            "https://ok.test/\npath",
+            "https://user:pass@ok.test/",
+        ] {
             assert!(validated_author_url(Some(raw)).is_err(), "{raw}");
         }
-        assert_eq!(validated_author_url(Some("https://example.com/")).unwrap().as_deref(), Some("https://example.com/"));
+        assert_eq!(
+            validated_author_url(Some("https://example.com/"))
+                .unwrap()
+                .as_deref(),
+            Some("https://example.com/")
+        );
         assert!(validated_author_url(None).unwrap().is_none());
     }
 
@@ -843,10 +1039,7 @@ mod tests {
             count_links("Visitez https://example.com et http://rust-lang.org"),
             2
         );
-        assert_eq!(
-            count_links("Lien www.rustforge.org sans protocole"),
-            1
-        );
+        assert_eq!(count_links("Lien www.rustforge.org sans protocole"), 1);
     }
 
     #[test]

@@ -1,8 +1,22 @@
 # RustForge Studio
 
-Administration React/TypeScript de RustForge CMS, servie sous `/admin/`. Les écrans et limites figurent dans le [tableau de l’existant](../docs/pilotage/07_ETAT_EXISTANT.md). La navigation actuelle utilise le fragment d’URL.
+Ce dossier conserve l’administration React/TypeScript de transition sous `/admin/` et les
+emplacements de publication des assets natifs. L’administration cible est désormais
+**Rust/WASM Leptos**, sous `/admin/rust/`, dans [rustforge-studio](../crates/rustforge-studio/README.md).
+Le développement du constructeur commun articles/pages/landings se poursuit dans
+**Rustemberg**, selon les conventions Gutenberg/WordPress.
 
-Les nouveaux contenus utilisent un premier éditeur de six blocs texte avec `rf.document/1`; les anciens contenus restent en source Markdown. L’aperçu et la sauvegarde partagent la projection Rust et son assainissement. RichText, médias/liens natifs, conversion historique et autosauvegarde restent à livrer : [tâches WP-23 à WP-36](../docs/pilotage/01_COEUR_ADMIN.md), [plan global](../docs/PLAN_ACTION_GLOBAL.md). Les textes du nouvel éditeur sont isolés en français et les identifiants restent indépendants de la langue; les traductions sont reportées.
+Les anciens composants Gutenberg et leurs stores restent conservés pour comparaison et
+parcours non encore remplacés. Leur présence ne signifie pas un retour au développement
+TypeScript. Le moteur `rf.document/1`, les services, PostgreSQL et le SSR sont réutilisés.
+La [matrice de transition](../docs/pilotage/15_PARITE_TRANSITION.csv) et le
+[journal](../docs/pilotage/08_JOURNAL_REPRISE.md) définissent les écarts avant retrait.
+La reprise Mac est consolidée sur `codex/reprise-macos-leptos-rustemberg` ; la publication
+finale sur `main` sera une étape ultérieure, après nettoyage et validation.
+
+Les commandes ci-dessous servent à maintenir et vérifier la transition. Pour publier
+seulement le Studio natif : `bash scripts/build-rust-studio.sh --publish-preview` depuis
+la racine, avec archivage et empreintes des assets remplacés.
 
 Après préparation des dépendances, depuis `admin` :
 
@@ -18,7 +32,7 @@ npm run build
 npm run lint
 ```
 
-`build` exécute TypeScript et Vite. Le lint antérieur comporte des avertissements React documentés dans les preuves alpha; ne pas le décrire comme sans avertissement sans nouvelle vérification.
+`build` exécute TypeScript et Vite. Les résultats de lint/build sont datés dans les preuves ; ne pas déduire la parité fonctionnelle de leur seule réussite.
 
 Les nouvelles écritures de session utilisent `rustforge_token`; une ancienne clé reste lue provisoirement pour compatibilité, puis supprimée à la prochaine écriture/déconnexion. Les permissions s’appliquent côté serveur. Les écrans et outils IA utilisent les mêmes services métier et ne contournent pas la désactivation d’un module.
 

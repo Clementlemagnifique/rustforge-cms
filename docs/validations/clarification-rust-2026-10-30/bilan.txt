@@ -1,0 +1,28 @@
+Clarification Rust et rangement — 30 octobre 2026
+
+Demande : préparer les réalisations admin depuis le menu, confirmer Rust puis
+ouvrir une phase de clarification et ranger les anciens fichiers, avec liste des temporaires.
+
+Réalisé :
+- Phase active 14 : décisions, ordre de lecture, arbitrages et reprise.
+- Plan admin 13 : 17 lots R00–R16 et fiche R01-A à E.
+- Matrice 170 entrées/23 familles, tâches et composants reliés, dépendances sans cycle.
+- 438 tâches métier et 38 composants conservés ; aucun statut métier modifié.
+- 13 documents copiés avant révision ; 41 archives documentaires contrôlées au total.
+- 87 scripts/journaux ponctuels déplacés dans archives/2026-10-30-clarification ;
+  435 028 octets conservés, SHA-256 conformes, anciens chemins libres et manifeste complet.
+- 21 emplacements locaux inventoriés : caches, assets, données, outils et références distingués.
+- Documentation d'exécution clarifiée : nouveaux écrans Rust/WASM, React de transition,
+  modèle rustforge-document, menu public/admin distinct, anciennes consignes historiques.
+- Texte des futurs exports de sources orienté vers les documents actuels ; aucun ZIP créé.
+
+Vérification : matrice, pilotage, menu, liens/archives et intégrité locale réussis.
+Syntaxe Python et aide de l'outil d'export de sources vérifiées.
+Aucun nouveau test produit ou build exécuté : pas de modification du runtime.
+Aucune suppression, migration SQL, modification de secret, arrêt de serveur, commit ou push.
+
+À compléter : références et options, premier contrat de compteur/activité par statut/rôle,
+réserves de session/menu, puis tableau de bord et tables en Rust. La phase de clarification
+reste ouverte pour ces arbitrages ; aucun nouvel écran métier commencé.
+Les bases Windows et la recette Mac restent à leur emplacement. Les outils Windows
+utiles sont conservés ; les anciennes traces ponctuelles sont archivées, pas détruites.

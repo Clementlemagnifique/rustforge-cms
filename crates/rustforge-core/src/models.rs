@@ -129,22 +129,47 @@ pub struct Entry {
     pub fields: Value,
     pub featured_media_id: Option<Uuid>,
     pub featured_media_url: Option<String>,
+    #[serde(default)]
+    pub featured_media_alt: Option<String>,
+    #[serde(default)]
+    pub featured_media_caption: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
     pub scheduled_unpublish_at: Option<DateTime<Utc>>,
+    #[serde(default = "default_locale")]
+    pub locale: String,
+    pub translation_group_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[sqlx(skip)]
     pub terms: Vec<TermRef>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TranslationSibling {
+    pub id: Uuid,
+    pub locale: String,
+    pub title: String,
+    pub slug: String,
+    pub status: EntryStatus,
+}
+
 impl Entry {
+    pub fn presentation_template(&self) -> &str {
+        match self.fields.get("_rf_template").and_then(Value::as_str) {
+            Some("landing") => "landing",
+            Some("wide") => "wide",
+            _ => "default",
+        }
+    }
     /// The public API never serializes raw bodies, archived metadata or private fields.
     pub fn public_view(self) -> Value {
         serde_json::json!({
+            "presentation_template": self.presentation_template(),
             "id": self.id, "content_type": self.content_type, "slug": self.slug,
             "title": self.title, "excerpt": self.excerpt, "body_html": self.body_html,
             "author_name": self.author_name, "published_at": self.published_at,
-            "featured_media_url": self.featured_media_url, "terms": self.terms,
+            "featured_media_url": self.featured_media_url, "featured_media_alt":self.featured_media_alt, "featured_media_caption":self.featured_media_caption, "terms": self.terms,
+            "locale": self.locale, "translation_group_id": self.translation_group_id,
             "updated_at": self.updated_at
         })
     }
@@ -180,6 +205,9 @@ pub struct EntryInput {
     pub published_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub scheduled_unpublish_at: Option<DateTime<Utc>>,
+    #[serde(default = "default_locale")]
+    pub locale: String,
+    pub translation_group_id: Option<Uuid>,
     #[serde(default)]
     pub term_ids: Option<Vec<Uuid>>,
 }
@@ -195,7 +223,8 @@ impl EntryInput {
             "design_tokens": entry.design_tokens, "status": entry.status, "fields": entry.fields,
             "parent_id": entry.parent_id, "featured_media_id": entry.featured_media_id,
             "published_at": entry.published_at, "scheduled_unpublish_at": entry.scheduled_unpublish_at,
-            "term_ids": entry.terms.iter().map(|t| t.id).collect::<Vec<_>>()
+            "term_ids": entry.terms.iter().map(|t| t.id).collect::<Vec<_>>(),
+            "locale": entry.locale, "translation_group_id": entry.translation_group_id
         });
         let patch = patch
             .as_object()
@@ -226,6 +255,10 @@ impl EntryInput {
 
 fn empty_array() -> Value {
     Value::Array(Vec::new())
+}
+
+fn default_locale() -> String {
+    "fr".to_string()
 }
 
 fn default_status() -> EntryStatus {
@@ -341,7 +374,9 @@ impl std::str::FromStr for CommentStatus {
             "approved" => Ok(CommentStatus::Approved),
             "spam" => Ok(CommentStatus::Spam),
             "trash" => Ok(CommentStatus::Trash),
-            _ => Err(crate::error::CoreError::validation("Statut de commentaire invalide")),
+            _ => Err(crate::error::CoreError::validation(
+                "Statut de commentaire invalide",
+            )),
         }
     }
 }

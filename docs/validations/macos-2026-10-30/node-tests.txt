@@ -1,0 +1,29 @@
+✔ le document natif se recharge sans traduire les données ni modifier les identifiants (7.054875ms)
+✔ déplacer et insérer des blocs conserve textes et identifiants; les déplacements hors limites ne changent rien (0.177042ms)
+✔ l’historique local undo/redo restaure les états successifs et réinitialise le futur après nouvelle modification (0.164958ms)
+✔ l’autosauvegarde locale valide le brouillon et ignore les brouillons plus anciens que la version serveur (0.127542ms)
+✔ le parseur refuse formats futurs et champs inconnus au lieu de les tronquer (0.101375ms)
+✔ la route de liste sélectionne une seule entrée précise (1.111833ms)
+✔ rouvrir une page existante garde son contexte de navigation (0.222416ms)
+✔ le fil de navigation conserve les trois niveaux sans confondre les menus du site et du Studio (0.151875ms)
+✔ le registre conserve ordre demandé, sous-sections et routes de préparation (3.556542ms)
+✔ CSV neutralise les formules et conserve les délimiteurs (1.612625ms)
+✔ les préférences persistées sont validées avant affichage (0.769042ms)
+✔ connexion conserve le brouillon, efface le mot de passe et utilise textContent (7.342042ms)
+✔ identifiants refusés : erreur lisible, champ protégé, brouillon préservé (1.183167ms)
+✔ envoi authentifié limité au commentaire, sans cookies, puis déconnexion locale (0.663625ms)
+✔ expiration : reconnexion proposée sans perdre le commentaire (0.819875ms)
+✔ visiteur : aucun bearer, erreur réseau sans perte (4.520833ms)
+✔ page fermée : aucun formulaire, script inactif (0.67125ms)
+✔ identité enregistrée uniquement après choix explicite et envoi réussi (10.65125ms)
+✔ identité valide restaurée ; identité expirée ou désactivée oubliée (3.620459ms)
+✔ stockage bloqué et absence de consentement ne bloquent pas le commentaire (1.990292ms)
+✔ session authentifiée : aucune identité de compte persistée (1.540791ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 250.092375

@@ -1,0 +1,12 @@
+import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+import init, {inspect_document} from '../admin/public/wasm/rustforge_studio.js';
+const fixtures=JSON.parse(readFileSync(new URL('./document-wasm-fixtures.json',import.meta.url),'utf8'));
+const binary=process.env.RF_CONFORMANCE_BINARY || (process.platform === 'win32' ? './target/debug/examples/conformance.exe' : './target/debug/examples/conformance');
+const native=spawnSync(binary,[],{input:JSON.stringify(fixtures),encoding:'utf8'});
+assert.equal(native.status,0,native.stderr);
+const expected=JSON.parse(native.stdout);
+await init({module_or_path:readFileSync(new URL('../admin/public/wasm/rustforge_studio_bg.wasm',import.meta.url))});
+fixtures.forEach((f,i)=>assert.deepEqual(JSON.parse(inspect_document(f.body,JSON.stringify(f.blocks))),expected[i],`fixture ${i}`));
+console.log(`OK: ${fixtures.length} fixtures identiques entre Rust natif et WASM`);

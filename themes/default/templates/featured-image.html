@@ -1,0 +1,6 @@
+{% if entry.featured_media_url %}
+<figure class="rf-featured-image">
+    <img src="{{ entry.featured_media_url }}" alt="{{ entry.featured_media_alt or '' }}" decoding="async">
+    {% if entry.featured_media_caption %}<figcaption>{{ entry.featured_media_caption }}</figcaption>{% endif %}
+</figure>
+{% endif %}

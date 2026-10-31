@@ -1,0 +1,27 @@
+{
+  "ui_source": {
+    "id": "18a93582-3518-4d51-9959-e34fa0b216c5",
+    "taxonomy_id": "8073ead3-32b8-4d76-bf98-dd82f3ec9730",
+    "taxonomy": "category",
+    "parent_id": null,
+    "name": "Fusion visuelle source 1793433895958",
+    "slug": "fusion-visuelle-source-1793433895958",
+    "description": "",
+    "entry_count": 0,
+    "created_at": "2026-10-31T08:04:56.003735Z"
+  },
+  "ui_target": {
+    "id": "83a05cbe-59d8-4305-afa1-64212d9c3ba4",
+    "taxonomy_id": "8073ead3-32b8-4d76-bf98-dd82f3ec9730",
+    "taxonomy": "category",
+    "parent_id": null,
+    "name": "Fusion visuelle cible 1793433895958",
+    "slug": "fusion-visuelle-cible-1793433895958",
+    "description": "",
+    "entry_count": 0,
+    "created_at": "2026-10-31T08:04:56.005361Z"
+  },
+  "form_id": "941ab8c5-5c79-47f2-b28f-256a0bb9af06",
+  "ui_job": "6ffc9a39-e091-4c25-9036-91ab3a8f1beb",
+  "checks": 28
+}

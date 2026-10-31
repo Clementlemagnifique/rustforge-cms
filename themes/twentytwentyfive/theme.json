@@ -1,0 +1,15 @@
+{
+  "name": "Twenty Twenty-Five Sovereign",
+  "version": "1.0.0",
+  "author": "RustForge Studio",
+  "description": "Thème éditorial élégant inspiré du thème officiel Twenty Twenty-Five. Typographie serif raffinée, tons chauds et équilibre visuel parfait.",
+  "tokens": {
+    "primary_color": "#d97706",
+    "accent_color": "#f59e0b",
+    "radius": "16px",
+    "font_heading": "'Playfair Display', Georgia, serif",
+    "font_body": "'Merriweather', Georgia, serif",
+    "bg_color": "#1c1917",
+    "text_color": "#fafaf9"
+  }
+}

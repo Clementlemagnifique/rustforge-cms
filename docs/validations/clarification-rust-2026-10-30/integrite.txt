@@ -1,0 +1,2 @@
+87 fichiers archivés, 435028 octets conservés, 87 SHA-256 conformes ; chemins source libérés.
+Syntaxe des outils de planification et export de sources : OK.

@@ -1,0 +1,15 @@
+{
+  "name": "Astra Sovereign",
+  "version": "1.0.0",
+  "author": "RustForge Studio",
+  "description": "Thème moderne, sobre et ultra-performant inspiré d'Astra. Idéal pour sites vitrines d'entreprises, agences et portfolios professionnels.",
+  "tokens": {
+    "primary_color": "#0284c7",
+    "accent_color": "#38bdf8",
+    "radius": "8px",
+    "font_heading": "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    "font_body": "'Inter', system-ui, -apple-system, sans-serif",
+    "bg_color": "#0f172a",
+    "text_color": "#e2e8f0"
+  }
+}

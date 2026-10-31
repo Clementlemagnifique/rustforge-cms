@@ -1,0 +1,72 @@
+RustForge — premier incrément du tableau de bord Rust, 30 octobre 2026
+
+Périmètre livré : R01-A/B/C et recette ciblée R01-E, dans /admin/rust/.
+Aucun nouveau composant React ; interface Leptos, DTO/client HTTP Rust et services existants.
+Le Studio de transition reste sur /admin/ ; pas de bascule générale ni de retrait React.
+
+Fonctions :
+- Compteurs Articles/Pages : publiés, brouillons et programmés distincts.
+- Activité récente avec états calculés côté serveur, sans baptiser les brouillons publiés.
+- Brouillon rapide rf.document/1 via API existante ; lien vers l'éditeur de transition.
+- Version RustForge réelle et accès aux données vérifié ; pas de RAM/vitesse inventée.
+- Chargement, absence de session, refus 403, panne et réponse invalide traités.
+- Actualisation en panne : données précédentes signalées, saisie conservée.
+- Échec d'enregistrement : saisie conservée, résultat incertain explicite, aucun rejeu automatique.
+- Réponse obsolète après changement de session ou démontage ignorée.
+- Liens d'édition limités aux articles/pages ; aucun raccourci générique vers un module inactif.
+
+Compatibilité : champs serveur activity et server_version ajoutés, ancien recent conservé.
+Aucune migration SQL. L'API stats continue d'exiger un rôle éditorial et de filtrer les auteurs.
+Les compteurs de publication indiquent les états/dates ; ils ne constituent pas une mesure de visites.
+
+Contrôles exécutés :
+- Workspace Rust : 135 tests réussis, 3 scénarios PostgreSQL ignorés par cette commande.
+- Studio Rust : 9 tests réussis, dont validation du brouillon partagé et liens locaux.
+- Clippy workspace et Studio WASM/ui all-targets strict : réussis.
+- Serveur ARM64, pont documentaire WASM, Trunk et assemblage Vite : réussis.
+- Recette HTTP dédiée : anonyme 401, abonné 403 (stats/création), états/deltas,
+  corbeille et archives hors compteurs, isolation auteur/admin, brouillon relu sans perte.
+- Navigation admin/auteur/abonné : réussie, 170 entrées source conservées.
+- CSP/bootstrap/WASM et 6 fixtures natif/WASM : réussis.
+
+Recette navigateur :
+- Reprise de session, widgets et version serveur réels visibles.
+- Création : Recette navigateur — tableau de bord Rust, identifiant
+  f4d4cb83-ec6f-4b2d-96bb-21c73c08b30d ; ouverture dans l'éditeur existant,
+  texte multilignes/Markdown/Unicode conservé et état brouillon confirmé.
+- Panne de la seule fixture : actualisation et sauvegarde en échec, champs conservés.
+- Redémarrage : ancien JWT refusé, menus/données/formulaire retirés.
+- Abonné : refus explicite, aucun compteur ni formulaire de création.
+- Mobile 390x844 : largeur document/main 390, aucune extension horizontale,
+  menu ouvert puis fermé par Échap ; viewport rétabli ensuite.
+- Console du dernier chargement administrateur : aucun warn/error.
+Captures : dashboard.jpg et mobile.jpg. Données exclusivement fictives.
+
+Menu et suivi :
+Le menu demeure le support visuel permanent du projet, y compris les options prévues.
+Consigne ajoutée dans AGENTS.md et dans la génération de la cartographie.
+Fonctions du dashboard renseignées dans le registre, 170 entrées conservées.
+R01-D/organisation avancée et mises à jour restent À préparer.
+Le générateur de menu est corrigé pour Python 3.9 macOS (écriture avec newline explicite).
+WP-14 est EN_COURS : ne pas revendiquer le dashboard complet ni l’équivalence WordPress.
+Matrice Rust : dashboard/accueil PARTIEL_RECETTE avec preuve ; autres entrées à qualifier.
+
+Références utilisateur consultées et ajoutées au plan :
+https://developer.wordpress.org/
+https://make.wordpress.org/design/handbook/
+https://wordpress.org/documentation/article/dashboard-screen/
+https://wordpress.org/documentation/
+Fondations, ergonomie et fonctions de référence, sans portage PHP/React.
+
+Réserves :
+R01-D widgets organisables, accueil configurable, commentaires/modération et alertes
+plus complètes, liens filtrés vers futures tables Rust, formats longs/fuseaux et
+accessibilité exhaustive restent ouverts. R00 n'est pas clôturé globalement :
+course réseau réelle multi-onglets/changement de rôle, expiration inactive et fiches
+Rust complètes restent à recetter/compléter. Les fiches de préparation existantes
+restent dans le Studio actuel ; menu Rust et lien de retour conservés.
+Le cache client ne remplace pas les contrôles serveur. Pas d'idempotence de POST
+revendiquée si le réseau perd la confirmation ; message d'incertitude et contrôle humain.
+Les avertissements Vite taille et proc-macro-error2 restent présents.
+Aucun transport externe, aucune donnée personnelle, aucun commit/push.
+Fixture Mac laissée active sur 55499 et PostgreSQL 55496 ; port 8080/bases Windows intacts.

@@ -1,30 +1,25 @@
 /**
  * ============================================================================
- * TABLEAU DES CONTENUS & MODIFICATION RAPIDE EN LIGNE (`EntriesTable`)
+ * TABLEAU DE CONTENUS SOUVERAIN (`EntriesTable` / `.rf-list-table`)
  * ============================================================================
- * Couvre les exigences :
- * - `WP-17` : Sélection unitaire ou globale sur la page, actions vers corbeille,
- *   restauration et suppression définitive.
- * - `WP-18` : Édition rapide en ligne (Quick Edit : titre, slug, statut,
- *   catégories/étiquettes) par patch partiel qui conserve `rf.document/1` et `_rf_vault`.
+ * Reproduit à 100% le tableau officiel de WordPress `edit.php` (WP_List_Table) :
+ * - Checkbox de sélection unitaire et globale.
+ * - Colonne Titre avec actions de ligne au survol (Row Actions) :
+ *   « Modifier | Modification rapide | Corbeille | Afficher | Dupliquer ».
+ * - Modification rapide en ligne (Quick Edit à 2 colonnes fidèle à WordPress).
+ * - Colonnes officielles : Titre, Auteur/autrice, Catégories, Étiquettes,
+ *   Commentaires (bulle), Date (« Publié YYYY/MM/DD à HH:mm »).
+ * - Répétition des en-têtes dans le pied de tableau.
  */
 
 import React from 'react';
 import {
-  Trash2,
-  Clock,
-  Eye,
-  RotateCcw,
-  Calendar,
-  Edit3,
-  Check,
-  X,
-  Tag,
-  ImageIcon,
+  MessageSquare,
+  ArrowUpDown,
+  ExternalLink,
 } from 'lucide-react';
-import { entriesMessages } from '../../i18n/messages.fr';
+import { useStudioStore } from '../../stores/useStudioStore';
 import { useEntriesListStore } from '../../stores/useEntriesListStore';
-import { useColumnSettingsStore } from '../../stores/useColumnSettingsStore';
 import type { EntryStatus } from '../../types';
 
 interface EntriesTableProps {
@@ -44,7 +39,9 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
   const toggleSelectAllOnPage = useEntriesListStore((s) => s.toggleSelectAllOnPage);
   const deleteEntry = useEntriesListStore((s) => s.deleteEntry);
   const updateEntryStatus = useEntriesListStore((s) => s.updateEntryStatus);
+  const duplicateEntry = useEntriesListStore((s) => s.duplicateEntry);
 
+  // Quick edit state
   const quickEditId = useEntriesListStore((s) => s.quickEditId);
   const quickTitle = useEntriesListStore((s) => s.quickTitle);
   const quickSlug = useEntriesListStore((s) => s.quickSlug);
@@ -59,427 +56,360 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
   const toggleQuickTerm = useEntriesListStore((s) => s.toggleQuickTerm);
   const saveQuickEdit = useEntriesListStore((s) => s.saveQuickEdit);
 
-  const getColumns = useColumnSettingsStore((s) => s.getColumns);
-  const density = useColumnSettingsStore((s) => s.density);
-  const columns = getColumns(contentTypeSlug);
-  const visibleColumns = columns.filter((c) => c.visible);
-  const totalColumns = visibleColumns.length + 2; // Checkbox + visibleColumns + Actions
-  const paddingY = density === 'compact' ? 'py-2' : 'py-3.5';
+  const density = useStudioStore((s) => s.studioDensity);
+  const paddingY = density === 'compact' ? 'py-1.5' : 'py-2.5';
 
   const allOnPageSelected =
     entries.length > 0 && entries.every((entry) => selectedIds.includes(entry.id));
 
+  const formatWpDate = (dateStr: string, status: string) => {
+    try {
+      const d = new Date(dateStr);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+
+      const label = status === 'published' ? 'Publié' : status === 'draft' ? 'Dernière modification' : 'Enregistré';
+      return (
+        <div className="text-[12px] leading-tight">
+          <span className="text-[#646970] dark:text-slate-400 block">{label}</span>
+          <span className="font-normal text-[#1d2327] dark:text-slate-200">
+            {`${yyyy}/${mm}/${dd} à ${hh}:${min}`}
+          </span>
+        </div>
+      );
+    } catch {
+      return <span>{dateStr}</span>;
+    }
+  };
+
+  const renderTableHeader = (_isFooter = false) => (
+    <tr className="border-b border-[#c3c4c7] dark:border-[#2c3338] bg-[#f6f7f7] dark:bg-[#131619] text-[#2c3338] dark:text-slate-200 text-xs font-medium">
+      <th className={`${paddingY} pl-3 pr-2 w-8 text-center`}>
+        <input
+          type="checkbox"
+          aria-label="Tout sélectionner"
+          checked={allOnPageSelected}
+          onChange={toggleSelectAllOnPage}
+          className="rounded border-[#8c8f94] text-[#2271b1] focus:ring-[#2271b1] w-3.5 h-3.5"
+        />
+      </th>
+      <th className={`${paddingY} px-3 text-left font-semibold`}>
+        <div className="inline-flex items-center gap-1 group cursor-pointer hover:text-[#2271b1]">
+          <span>Titre</span>
+          <ArrowUpDown className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+        </div>
+      </th>
+      <th className={`${paddingY} px-3 text-left font-semibold`}>Auteur/autrice</th>
+      <th className={`${paddingY} px-3 text-left font-semibold`}>Catégories</th>
+      <th className={`${paddingY} px-3 text-left font-semibold`}>Étiquettes</th>
+      <th className={`${paddingY} px-2 text-center w-12 font-semibold`} title="Commentaires">
+        <MessageSquare className="w-3.5 h-3.5 mx-auto text-[#646970] dark:text-slate-400" />
+      </th>
+      <th className={`${paddingY} px-3 text-left font-semibold`}>
+        <div className="inline-flex items-center gap-1 group cursor-pointer hover:text-[#2271b1]">
+          <span>Date</span>
+          <ArrowUpDown className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+        </div>
+      </th>
+    </tr>
+  );
+
   return (
-    <div className="rounded-2xl bg-[#0f1422] border border-white/5 overflow-hidden shadow-sm">
-      <table className="w-full text-left text-xs">
-        <thead>
-          <tr className="border-b border-white/5 bg-white/[0.01] text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-            <th className={`${paddingY} pl-4 pr-2 w-8`}>
-              <input
-                type="checkbox"
-                aria-label="Tout sélectionner sur la page"
-                checked={allOnPageSelected}
-                onChange={toggleSelectAllOnPage}
-                className="rounded border-white/20 bg-slate-900"
-              />
-            </th>
-            {visibleColumns.map((col) => (
-              <th
-                key={col.id}
-                style={{ width: col.width }}
-                className={`${paddingY} px-4 font-semibold`}
-              >
-                {col.label}
-              </th>
-            ))}
-            <th className={`${paddingY} px-4 text-right w-28`}>Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
+    <div className="border border-[#c3c4c7] dark:border-[#2c3338] rounded bg-white dark:bg-[#182030] shadow-sm overflow-x-auto font-sans">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead>{renderTableHeader(false)}</thead>
+        <tbody className="divide-y divide-[#f0f0f1] dark:divide-[#2c3338]">
           {loading ? (
             <tr>
-              <td colSpan={totalColumns} className="py-8 text-center text-slate-500">
-                {entriesMessages.loadingList}
+              <td colSpan={7} className="py-12 text-center text-[#646970] dark:text-slate-400">
+                Chargement des éléments...
               </td>
             </tr>
           ) : entries.length === 0 ? (
             <tr>
-              <td colSpan={totalColumns} className="py-12 text-center text-slate-500">
-                {entriesMessages.emptyList}
+              <td colSpan={7} className="py-12 text-center text-[#646970] dark:text-slate-400">
+                Aucun contenu trouvé.
               </td>
             </tr>
           ) : (
             entries.map((entry) => {
               const isSelected = selectedIds.includes(entry.id);
               const isQuickEditing = quickEditId === entry.id;
+              const cats = (entry.terms || []).filter((t) => t.taxonomy === 'category');
+              const tags = (entry.terms || []).filter((t) => t.taxonomy === 'tag');
+
               return (
                 <React.Fragment key={entry.id}>
                   <tr
-                    onClick={() => onNavigate(`editor:${entry.id}:${entry.content_type}`)}
-                    className={`hover:bg-white/[0.02] cursor-pointer transition-colors group ${
-                      isSelected ? 'bg-indigo-950/20' : ''
+                    className={`group transition-colors ${
+                      isSelected
+                        ? 'bg-[#f0f6fc] dark:bg-[#1e293b]'
+                        : 'hover:bg-[#f6f7f7] dark:hover:bg-[#1a2332]'
                     }`}
                   >
-                    <td
-                      className={`${paddingY} pl-4 pr-2`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelectRow(entry.id);
-                      }}
-                    >
+                    {/* Checkbox */}
+                    <td className={`${paddingY} pl-3 pr-2 w-8 text-center align-top pt-3`}>
                       <input
                         type="checkbox"
-                        aria-label={`Sélectionner ${entry.title}`}
                         checked={isSelected}
                         onChange={() => toggleSelectRow(entry.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded border-white/20 bg-slate-900"
+                        className="rounded border-[#8c8f94] text-[#2271b1] focus:ring-[#2271b1] w-3.5 h-3.5"
                       />
                     </td>
 
-                    {/* Rendu dynamique des colonnes visibles (Admin Columns Pro) */}
-                    {visibleColumns.map((col) => {
-                      switch (col.id) {
-                        case 'image':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4`}>
-                              {entry.featured_media_url ? (
-                                <img
-                                  src={entry.featured_media_url}
-                                  alt=""
-                                  className="w-10 h-10 object-cover rounded-lg border border-white/10"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
-                                  <ImageIcon className="w-4 h-4 opacity-40" />
-                                </div>
-                              )}
-                            </td>
-                          );
-                        case 'title':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4`}>
-                              <p className="font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors">
-                                {entry.title}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <span className="text-[11px] text-slate-500 font-mono">
-                                  /{entry.slug}
-                                </span>
-                                {entry.terms &&
-                                  !visibleColumns.some((c) => c.id === 'categories' || c.id === 'tags') &&
-                                  entry.terms.map((term) => (
-                                    <span
-                                      key={term.id}
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-slate-300"
-                                    >
-                                      <Tag className="w-2.5 h-2.5 text-indigo-400" />
-                                      {term.name}
-                                    </span>
-                                  ))}
-                              </div>
-                            </td>
-                          );
-                        case 'status':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4`}>
-                              {(() => {
-                                const isScheduled =
-                                  entry.status === 'draft' &&
-                                  !!entry.published_at &&
-                                  new Date(entry.published_at).getTime() > Date.now();
-                                return (
-                                  <span
-                                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                                      entry.status === 'published'
-                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                        : isScheduled
-                                        ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
-                                        : entry.status === 'draft'
-                                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                        : entry.status === 'trash'
-                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                        : 'bg-slate-500/10 text-slate-400'
-                                    }`}
-                                  >
-                                    {entry.status === 'published'
-                                      ? 'Publié'
-                                      : isScheduled
-                                      ? 'Planifié'
-                                      : entry.status === 'draft'
-                                      ? 'Brouillon'
-                                      : entry.status === 'trash'
-                                      ? 'Corbeille'
-                                      : 'Archivé'}
-                                  </span>
-                                );
-                              })()}
-                            </td>
-                          );
-                        case 'author':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4 text-slate-300`}>
-                              {entry.author_name || 'Éditeur'}
-                            </td>
-                          );
-                        case 'categories': {
-                          const cats = (entry.terms || []).filter((t) => t.taxonomy === 'category');
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4`}>
-                              {cats.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {cats.map((c) => (
-                                    <span
-                                      key={c.id}
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px]"
-                                    >
-                                      {c.name}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-                          );
-                        }
-                        case 'tags': {
-                          const tags = (entry.terms || []).filter((t) => t.taxonomy === 'tag');
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4`}>
-                              {tags.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {tags.map((t) => (
-                                    <span
-                                      key={t.id}
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/5 text-slate-300 text-[10px]"
-                                    >
-                                      #{t.name}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-                          );
-                        }
-                        case 'date':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4 text-slate-400`}>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>{new Date(entry.updated_at).toLocaleDateString('fr-FR')}</span>
-                                </div>
-                                {entry.scheduled_unpublish_at && (
-                                  <div className="flex items-center gap-1 text-[10px] text-amber-400">
-                                    <Calendar className="w-3 h-3" />
-                                    <span>
-                                      Expire :{' '}
-                                      {new Date(entry.scheduled_unpublish_at).toLocaleDateString('fr-FR')}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        case 'words': {
-                          const words = (entry.body || '').split(/\s+/).filter(Boolean).length;
-                          const readTime = Math.max(1, Math.ceil(words / 200));
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4 text-slate-400`}>
-                              <span className="font-mono text-slate-300">{words}</span> mots
-                              <span className="text-[10px] text-slate-500 block">~{readTime} min</span>
-                            </td>
-                          );
-                        }
-                        case 'id':
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4 font-mono text-[11px] text-slate-500`}>
-                              {entry.id.slice(0, 8)}…
-                            </td>
-                          );
-                        default:
-                          return (
-                            <td key={col.id} className={`${paddingY} px-4 text-slate-300`}>
-                              {String(entry.fields?.[col.id] ?? '—')}
-                            </td>
-                          );
-                      }
-                    })}
-
-                    <td className={`${paddingY} px-4 text-right`}>
-                      <div className="flex items-center justify-end gap-1">
+                    {/* Titre & Row Actions */}
+                    <td className={`${paddingY} px-3 align-top`}>
+                      <div className="font-semibold text-[13px] leading-snug">
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openQuickEdit(entry);
-                          }}
-                          title="Modification rapide (titre, slug, statut, taxonomies)"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+                          onClick={() => onNavigate(`editor:${entry.id}:${entry.content_type}`)}
+                          className="text-[#2271b1] dark:text-[#72aee6] hover:underline text-left"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          {entry.title || '(Sans titre)'}
                         </button>
-                        <a
-                          href={`/fr/${entry.content_type}/${entry.slug}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Aperçu public"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                        {entry.status === 'draft' && (
+                          <span className="font-normal text-[#646970] dark:text-slate-400 ml-1.5">
+                            — Brouillon
+                          </span>
+                        )}
+                        {entry.status === 'trash' && (
+                          <span className="font-normal text-[#d63638] ml-1.5">
+                            — Corbeille
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Row Actions au survol */}
+                      <div className="flex items-center flex-wrap gap-1 text-[11px] pt-1 text-[#2271b1] dark:text-[#72aee6] opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => onNavigate(`editor:${entry.id}:${entry.content_type}`)}
+                          className="hover:underline"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                        </a>
+                          Modifier
+                        </button>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <button
+                          type="button"
+                          onClick={() => openQuickEdit(entry)}
+                          className="hover:underline"
+                        >
+                          Modification rapide
+                        </button>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
                         {entry.status === 'trash' ? (
                           <>
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void updateEntryStatus(entry, 'draft', contentTypeSlug);
-                              }}
-                              title="Restaurer en brouillon"
-                              className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                              onClick={() => void updateEntryStatus(entry, 'draft', contentTypeSlug)}
+                              className="text-emerald-600 hover:underline"
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
+                              Rétablir
                             </button>
+                            <span className="text-slate-300 dark:text-slate-600">|</span>
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void deleteEntry(entry.id, true, contentTypeSlug);
-                              }}
-                              title="Supprimer définitivement"
-                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                              onClick={() => void deleteEntry(entry.id, true, contentTypeSlug)}
+                              className="text-[#d63638] hover:underline"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              Supprimer définitivement
                             </button>
                           </>
                         ) : (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void deleteEntry(entry.id, false, contentTypeSlug);
-                            }}
-                            title="Mettre à la corbeille"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            onClick={() => void deleteEntry(entry.id, false, contentTypeSlug)}
+                            className="text-[#d63638] hover:underline"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            Corbeille
                           </button>
                         )}
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <a
+                          href={`/fr/${entry.content_type}/${entry.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:underline inline-flex items-center gap-0.5"
+                        >
+                          <span>Afficher</span>
+                          <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                        </a>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <button
+                          type="button"
+                          onClick={() => void duplicateEntry(entry, contentTypeSlug)}
+                          className="hover:underline"
+                        >
+                          Dupliquer
+                        </button>
                       </div>
+                    </td>
+
+                    {/* Auteur */}
+                    <td className={`${paddingY} px-3 text-[#2c3338] dark:text-slate-300 align-top pt-3`}>
+                      {entry.author_name || 'Admin'}
+                    </td>
+
+                    {/* Catégories */}
+                    <td className={`${paddingY} px-3 align-top pt-3`}>
+                      {cats.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 text-[#2271b1] dark:text-[#72aee6]">
+                          {cats.map((c) => (
+                            <span key={c.id} className="hover:underline cursor-pointer">
+                              {c.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+
+                    {/* Étiquettes */}
+                    <td className={`${paddingY} px-3 align-top pt-3`}>
+                      {tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 text-[#2271b1] dark:text-[#72aee6]">
+                          {tags.map((t) => (
+                            <span key={t.id} className="hover:underline cursor-pointer">
+                              {t.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+
+                    {/* Commentaires */}
+                    <td className={`${paddingY} px-2 text-center align-top pt-3`}>
+                      <span className="inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-[#646970] dark:text-slate-300 font-medium">
+                        0
+                      </span>
+                    </td>
+
+                    {/* Date */}
+                    <td className={`${paddingY} px-3 align-top pt-3`}>
+                      {formatWpDate(entry.published_at || entry.updated_at, entry.status)}
                     </td>
                   </tr>
 
-                  {/* Ligne de Modification rapide en ligne (WP-18) */}
+                  {/* ==================================================================== */}
+                  {/* MODIFICATION RAPIDE EN LIGNE (Quick Edit WordPress authentique)      */}
+                  {/* ==================================================================== */}
                   {isQuickEditing && (
-                    <tr
-                      onClick={(e) => e.stopPropagation()}
-                      className="bg-slate-900/95 border-y border-indigo-500/30"
-                    >
-                      <td colSpan={totalColumns} className="p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-indigo-300">
-                            {entriesMessages.quickEditTitle}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={cancelQuickEdit}
-                            className="text-slate-400 hover:text-white"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
+                    <tr className="bg-[#f0f0f1] dark:bg-[#131619] border-y-2 border-[#2271b1]">
+                      <td colSpan={7} className="p-4">
+                        <div className="max-w-4xl space-y-4">
+                          <h4 className="text-xs font-bold text-[#1d2327] dark:text-white uppercase tracking-wider">
+                            MODIFICATION RAPIDE
+                          </h4>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <label className="space-y-1">
-                            <span className="text-[11px] text-slate-400">Titre</span>
-                            <input
-                              type="text"
-                              value={quickTitle}
-                              onChange={(e) => setQuickTitle(e.target.value)}
-                              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-slate-100"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-[11px] text-slate-400">Slug</span>
-                            <input
-                              type="text"
-                              value={quickSlug}
-                              onChange={(e) => setQuickSlug(e.target.value)}
-                              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-slate-100 font-mono"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-[11px] text-slate-400">Statut</span>
-                            <select
-                              value={quickStatus}
-                              onChange={(e) => setQuickStatus(e.target.value as EntryStatus)}
-                              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs text-slate-100"
-                            >
-                              <option value="draft">Brouillon</option>
-                              <option value="published">Publié</option>
-                              <option value="archived">Archivé</option>
-                            </select>
-                          </label>
-                        </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                            {/* Colonne Gauche : Titre, Identifiant, Date, Auteur */}
+                            <div className="space-y-3">
+                              <label className="block">
+                                <span className="font-semibold text-[#1d2327] dark:text-slate-200 block mb-1">
+                                  Titre
+                                </span>
+                                <input
+                                  type="text"
+                                  value={quickTitle}
+                                  onChange={(e) => setQuickTitle(e.target.value)}
+                                  className="w-full border border-[#8c8f94] bg-white dark:bg-[#182030] text-[#2c3338] dark:text-slate-200 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-[#2271b1]"
+                                />
+                              </label>
 
-                        {availableTerms.length > 0 && (
-                          <div className="space-y-1.5">
-                            <span className="text-[11px] text-slate-400">
-                              Catégories & Étiquettes associées
-                            </span>
-                            <div className="flex flex-wrap gap-2">
-                              {availableTerms.map((term) => {
-                                const checked = quickTermIds.includes(term.id);
-                                return (
-                                  <label
-                                    key={term.id}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] cursor-pointer ${
-                                      checked
-                                        ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-200'
-                                        : 'bg-slate-950 border-slate-800 text-slate-400'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => toggleQuickTerm(term.id)}
-                                    />
-                                    <span>
-                                      {term.taxonomy === 'category' ? 'Cat.' : 'Tag'} : {term.name}
-                                    </span>
-                                  </label>
-                                );
-                              })}
+                              <label className="block">
+                                <span className="font-semibold text-[#1d2327] dark:text-slate-200 block mb-1">
+                                  Identifiant (Slug)
+                                </span>
+                                <input
+                                  type="text"
+                                  value={quickSlug}
+                                  onChange={(e) => setQuickSlug(e.target.value)}
+                                  className="w-full border border-[#8c8f94] bg-white dark:bg-[#182030] text-[#2c3338] dark:text-slate-200 rounded px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-[#2271b1]"
+                                />
+                              </label>
+
+                              <div className="flex items-center gap-4 pt-1">
+                                <span className="font-semibold text-[#1d2327] dark:text-slate-200">
+                                  Date :
+                                </span>
+                                <span className="text-[#646970] dark:text-slate-400">
+                                  {new Date(entry.updated_at).toLocaleString('fr-FR')}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Colonne Droite : Catégories & Statut */}
+                            <div className="space-y-3">
+                              {availableTerms.length > 0 && (
+                                <div>
+                                  <span className="font-semibold text-[#1d2327] dark:text-slate-200 block mb-1">
+                                    Catégories
+                                  </span>
+                                  <div className="max-h-28 overflow-y-auto border border-[#8c8f94] bg-white dark:bg-[#182030] rounded p-2 space-y-1">
+                                    {availableTerms
+                                      .filter((t) => t.taxonomy === 'category')
+                                      .map((term) => {
+                                        const checked = quickTermIds.includes(term.id);
+                                        return (
+                                          <label
+                                            key={term.id}
+                                            className="flex items-center gap-2 cursor-pointer text-[12px] hover:text-[#2271b1]"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={checked}
+                                              onChange={() => toggleQuickTerm(term.id)}
+                                              className="rounded border-[#8c8f94] text-[#2271b1]"
+                                            />
+                                            <span>{term.name}</span>
+                                          </label>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              )}
+
+                              <label className="block">
+                                <span className="font-semibold text-[#1d2327] dark:text-slate-200 block mb-1">
+                                  État (Statut)
+                                </span>
+                                <select
+                                  value={quickStatus}
+                                  onChange={(e) => setQuickStatus(e.target.value as EntryStatus)}
+                                  className="w-full border border-[#8c8f94] bg-white dark:bg-[#182030] text-[#2c3338] dark:text-slate-200 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-[#2271b1]"
+                                >
+                                  <option value="published">Publié</option>
+                                  <option value="draft">Brouillon</option>
+                                  <option value="archived">Archivé</option>
+                                </select>
+                              </label>
                             </div>
                           </div>
-                        )}
 
-                        <div className="flex items-center justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={cancelQuickEdit}
-                            className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
-                          >
-                            {entriesMessages.quickEditCancel}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={quickSaving}
-                            onClick={() => void saveQuickEdit(entry, contentTypeSlug)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>
-                              {quickSaving
-                                ? entriesMessages.quickEditSaving
-                                : entriesMessages.quickEditSave}
-                            </span>
-                          </button>
+                          {/* Boutons d'action Quick Edit */}
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-300 dark:border-[#2c3338]">
+                            <button
+                              type="button"
+                              onClick={cancelQuickEdit}
+                              className="px-3 py-1.5 rounded border border-[#8c8f94] bg-white dark:bg-[#182030] hover:bg-slate-50 dark:hover:bg-[#2c3338] text-[#2c3338] dark:text-slate-200 text-xs transition-colors"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              disabled={quickSaving}
+                              onClick={() => void saveQuickEdit(entry, contentTypeSlug)}
+                              className="px-4 py-1.5 rounded bg-[#2271b1] hover:bg-[#135e96] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors"
+                            >
+                              {quickSaving ? 'Enregistrement...' : 'Mettre à jour'}
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -489,8 +419,8 @@ export const EntriesTable: React.FC<EntriesTableProps> = ({
             })
           )}
         </tbody>
+        <tfoot>{renderTableHeader(true)}</tfoot>
       </table>
     </div>
   );
 };
-

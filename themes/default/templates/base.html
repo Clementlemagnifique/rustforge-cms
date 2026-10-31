@@ -392,13 +392,19 @@
 
         {% endif %}
 
-    </style>
+    .rf-featured-image {margin: 0 0 2rem;}
+        .rf-featured-image img {display:block;width:100%;height:auto;border-radius:var(--tp-radius,4px);}
+        .rf-featured-image figcaption {font-size:.9rem;line-height:1.5;margin-top:.5rem;color:var(--tp-text);overflow-wrap:anywhere;}
+        .rf-entry-card .rf-featured-image img {aspect-ratio:16/9;object-fit:cover;}
+        .rf-entry-card .rf-featured-image {margin-bottom:1rem;}
+        </style>
 
 </head>
 
 <body class="antialiased">
 
     <!-- En-tête Navigation -->
+    {% if entry_template != "landing" %}
     <header class="glass-nav">
         <div class="container rf-header-layout">
             <div class="rf-site-brand">
@@ -470,6 +476,7 @@
             </nav>
         </div>
     </header>
+    {% endif %}
 
     <!-- Contenu Principal -->
     <main>
@@ -477,6 +484,7 @@
     </main>
 
     <!-- Pied de page (Emplacement footer WP-46) -->
+    {% if entry_template != "landing" %}
     <footer style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 5rem; padding: 3rem 0; text-align: center; color: #64748b; font-size: 0.9rem;">
         <div class="container">
             {% if menus and menus.footer and menus.footer | length > 0 %}
@@ -493,6 +501,7 @@
             <p style="font-size: 0.8rem; margin-top: 0.5rem;">Créé avec RustForge CMS · Votre contenu, simplement.</p>
         </div>
     </footer>
+    {% endif %}
 
     <script>
         (function() {

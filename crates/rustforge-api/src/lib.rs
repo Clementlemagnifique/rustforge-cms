@@ -17,50 +17,32 @@ pub mod ssr;
 pub mod state;
 
 use axum::{
-
     Router,
-
     extract::DefaultBodyLimit,
-
     http::{Method, header},
-
     middleware,
-
     routing::{delete, get, post, put},
-
 };
 
 use tower_http::{
-
     cors::{Any, CorsLayer},
-
     services::ServeDir,
-
     set_header::SetResponseHeaderLayer,
-
     trace::TraceLayer,
-
 };
 
 pub use state::AppState;
 
 /// Construit le routeur HTTP complet pour RustForge.
 pub fn build_router(state: AppState) -> Router {
-
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([
-
             Method::GET,
-
             Method::POST,
-
             Method::PUT,
-
             Method::DELETE,
-
             Method::OPTIONS,
-
         ])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT]);
 
@@ -73,91 +55,66 @@ pub fn build_router(state: AppState) -> Router {
         .route("/preview", post(routes::entries::preview))
         .route("/convert-blocks", post(routes::entries::convert_blocks))
         .route(
-
             "/",
-
             get(routes::entries::list).post(routes::entries::create),
-
         )
         .route(
-
             "/{id}",
-
             get(routes::entries::get)
                 .put(routes::entries::update)
                 .delete(routes::entries::delete),
-
         )
         .route("/{id}/revisions", get(routes::entries::list_revisions))
         .route(
-
             "/{id}/revisions/{rev_id}/restore",
-
             post(routes::entries::restore_revision),
-
         );
 
     let content_types_routes = Router::new()
         .route(
-
             "/",
-
             get(routes::content_types::list).post(routes::content_types::create),
-
         )
         .route(
-
             "/{id}",
-
             get(routes::content_types::get)
                 .put(routes::content_types::update)
                 .delete(routes::content_types::delete),
-
         );
 
     let taxonomies_routes = Router::new()
         .route(
-
             "/",
-
             get(routes::taxonomies::list_taxonomies).post(routes::taxonomies::create_taxonomy),
-
         )
-        .route("/{id}", delete(routes::taxonomies::delete_taxonomy));
+        .route(
+            "/{id}",
+            delete(routes::taxonomies::delete_taxonomy).put(routes::taxonomies::rename_taxonomy),
+        );
 
     let terms_routes = Router::new()
         .route(
-
             "/",
-
             get(routes::taxonomies::list_terms).post(routes::taxonomies::create_term),
-
         )
         .route(
-
             "/{id}",
-
             put(routes::taxonomies::update_term).delete(routes::taxonomies::delete_term),
-
         )
         .route("/{id}/merge", post(routes::taxonomies::merge_term));
 
     let media_routes = Router::new()
         .route("/", get(routes::media::list).post(routes::media::upload))
         .route(
-
             "/folders",
-
             get(routes::media::list_folders).post(routes::media::create_folder),
-
         )
         .route("/folders/{id}", delete(routes::media::delete_folder))
         .route(
-
             "/{id}",
-
-            put(routes::media::update).delete(routes::media::delete),
-
+            get(routes::media::get)
+                .put(routes::media::update)
+                .delete(routes::media::delete),
         )
         .route("/{id}/rotate", post(routes::media::rotate))
         .route("/{id}/restore", post(routes::media::restore))
@@ -166,190 +123,126 @@ pub fn build_router(state: AppState) -> Router {
     let forms_routes = Router::new()
         .route("/", get(routes::forms::list).post(routes::forms::create))
         .route(
-
             "/{id}",
-
             get(routes::forms::get)
                 .put(routes::forms::update)
                 .delete(routes::forms::delete),
-
         )
         .route("/{id}/submissions", get(routes::forms::list_submissions))
-        .route("/submissions/{sub_id}/read", post(routes::forms::mark_read));
+        .route(
+            "/{id}/submissions/batch",
+            post(routes::forms::batch_submissions),
+        )
+        .route("/submissions/{sub_id}/read", post(routes::forms::mark_read))
+        .route(
+            "/submissions/{sub_id}",
+            put(routes::forms::change_submission),
+        )
+        .layer(middleware::map_response(routes::jobs::no_store));
 
     let galleries_routes = Router::new()
         .route(
-
             "/",
-
             get(routes::galleries::list).post(routes::galleries::create),
-
         )
         .route(
-
             "/{id}",
-
-            get(routes::galleries::get).delete(routes::galleries::delete),
-
+            get(routes::galleries::get)
+                .put(routes::galleries::update)
+                .delete(routes::galleries::delete),
         )
         .route("/{id}/items", post(routes::galleries::add_item))
         .route(
-
             "/{gallery_id}/items/{item_id}",
-
             delete(routes::galleries::delete_item),
-
         );
 
     let ecommerce_routes = Router::new()
         .route(
-
             "/products",
-
             get(routes::ecommerce::list_products).post(routes::ecommerce::create_product),
-
         )
         .route(
-
             "/products/{id}",
-
             get(routes::ecommerce::get_product)
                 .put(routes::ecommerce::update_product)
                 .delete(routes::ecommerce::delete_product),
-
         )
         .route(
-
             "/discounts",
-
             get(routes::ecommerce::list_discounts).post(routes::ecommerce::create_discount),
-
         )
         .route(
-
             "/discounts/{id}",
-
             delete(routes::ecommerce::delete_discount),
-
         )
         .route("/orders", get(routes::ecommerce::list_orders))
         .route("/orders/{id}", get(routes::ecommerce::get_order))
         .route(
-
             "/orders/{id}/complete",
-
             post(routes::ecommerce::complete_order),
-
         )
+        .route("/orders/{id}/refund", post(routes::ecommerce::refund_order))
+        .route("/orders/{id}/cancel", post(routes::ecommerce::cancel_order))
         .route(
-
-            "/orders/{id}/refund",
-
-            post(routes::ecommerce::refund_order),
-
-        )
-        .route(
-
-            "/orders/{id}/cancel",
-
-            post(routes::ecommerce::cancel_order),
-
-        )
-        .route(
-
             "/settings",
-
             get(routes::ecommerce::get_settings).put(routes::ecommerce::update_settings),
-
         )
         .route(
-
             "/orders/items/{item_id}/token",
-
             post(routes::ecommerce::generate_download_link),
-
         );
 
     let lms_routes = Router::new()
         .route(
-
             "/courses",
-
             get(routes::lms::list_courses).post(routes::lms::create_course),
-
         )
         .route(
-
             "/courses/{id}",
-
             get(routes::lms::get_course)
                 .put(routes::lms::update_course)
                 .delete(routes::lms::delete_course),
-
         )
         .route(
-
             "/courses/{id}/modules",
-
             get(routes::lms::list_modules).post(routes::lms::create_module),
-
         )
         .route(
-
             "/courses/{id}/lessons",
-
             get(routes::lms::list_lessons).post(routes::lms::create_lesson),
-
         )
         .route(
-
             "/courses/{course_id}/modules/{module_id}",
-
             delete(routes::lms::delete_module),
-
         )
         .route(
-
             "/courses/{course_id}/lessons/{lesson_id}",
-
             put(routes::lms::update_lesson).delete(routes::lms::delete_lesson),
-
         )
         .route(
-
             "/courses/{id}/enrollments",
-
             get(routes::lms::list_course_enrollments).post(routes::lms::admin_enroll_user),
-
         )
-        .route(
-
-            "/enrollments",
-
-            get(routes::lms::list_all_enrollments),
-
-        )
+        .route("/enrollments", get(routes::lms::list_all_enrollments))
+        .route("/my-enrollments", get(routes::lms::my_enrollments))
         .route("/my-courses", get(routes::lms::my_courses))
         .route("/courses/{id}/progress", post(routes::lms::update_progress));
 
     let users_routes = Router::new()
         .route("/", get(routes::users::list).post(routes::users::create))
         .route(
-
             "/{id}",
-
-            put(routes::users::update).delete(routes::users::delete),
-
+            get(routes::users::get)
+                .put(routes::users::update)
+                .delete(routes::users::delete),
         )
         .route(
-
             "/{id}/sessions",
-
             get(routes::users::list_sessions).delete(routes::users::revoke_sessions),
-
         );
 
-        let settings_routes = Router::new()
+    let settings_routes = Router::new()
         .route(
             "/",
             get(routes::settings::get_all).put(routes::settings::update),
@@ -358,6 +251,10 @@ pub fn build_router(state: AppState) -> Router {
             "/site-icon",
             post(routes::settings::upload_site_icon).delete(routes::settings::delete_site_icon),
         );
+
+    let themes_routes = Router::new()
+        .route("/", get(routes::settings::list_themes))
+        .route("/{slug}/activate", post(routes::settings::activate_theme));
 
     let comments_routes = Router::new()
         .route("/", get(routes::comments::list))
@@ -381,8 +278,60 @@ pub fn build_router(state: AppState) -> Router {
 
     let stats_routes = Router::new().route("/dashboard", get(routes::stats::get_dashboard));
 
+    let analytics_routes = Router::new()
+        .route("/summary", get(routes::analytics::get_summary))
+        .route(
+            "/settings",
+            get(routes::analytics::get_settings).put(routes::analytics::update_settings),
+        )
+        .route("/purge", post(routes::analytics::purge))
+        .route("/data", delete(routes::analytics::clear_data))
+        .route("/export", get(routes::analytics::export_csv));
+
+    let translations_routes = Router::new()
+        .route(
+            "/languages",
+            get(routes::translations::get_languages).put(routes::translations::update_languages),
+        )
+        .route("/matrix", get(routes::translations::get_translation_matrix))
+        .route(
+            "/entries/{id}/siblings",
+            get(routes::translations::get_entry_siblings),
+        )
+        .route(
+            "/entries/{id}/translate",
+            post(routes::translations::create_translation_entry),
+        )
+        .route(
+            "/entries/{id}/link",
+            post(routes::translations::link_translations_action),
+        )
+        .route(
+            "/entries/{id}/unlink",
+            post(routes::translations::unlink_translation_action),
+        )
+        .route(
+            "/catalogs/{locale}",
+            get(routes::translations::get_catalog).put(routes::translations::update_catalog),
+        )
+        .route(
+            "/catalogs/{locale}/export",
+            get(routes::translations::export_catalog_po),
+        )
+        .route(
+            "/catalogs/{locale}/import",
+            post(routes::translations::import_catalog),
+        )
+        .route(
+            "/catalogs/{locale}/sync",
+            post(routes::translations::sync_catalog_action),
+        );
+
     let patterns_routes = Router::new()
-        .route("/", get(routes::patterns::list).post(routes::patterns::create))
+        .route(
+            "/",
+            get(routes::patterns::list).post(routes::patterns::create),
+        )
         .route(
             "/{id}",
             get(routes::patterns::get)
@@ -407,52 +356,35 @@ pub fn build_router(state: AppState) -> Router {
         .route("/terms", get(routes::public::list_terms))
         .route("/forms/{id}/submit", post(routes::forms::public_submit))
         .route(
-
             "/galleries/{slug}",
-
             get(routes::galleries::public_get_by_slug),
-
         )
         .route(
-
             "/ecommerce/products",
-
             get(routes::ecommerce::public_list_products),
-
         )
         .route(
-
             "/ecommerce/products/{slug}",
-
             get(routes::ecommerce::public_get_product_by_slug),
-
         )
         .route(
-
             "/ecommerce/checkout",
-
             post(routes::ecommerce::public_checkout),
-
         )
         .route(
-
             "/ecommerce/download/{token}",
-
             get(routes::ecommerce::public_download),
-
         )
         .route("/lms/courses", get(routes::lms::public_list_courses))
         .route(
-
             "/lms/courses/{slug}",
-
             get(routes::lms::public_get_course_by_slug),
-
         )
         .route(
             "/entries/{id}/comments",
             get(routes::comments::public_list).post(routes::comments::public_submit),
-        );
+        )
+        .route("/analytics/hit", post(routes::analytics::public_hit));
 
     let converter_routes = Router::new()
         .route("/analyze", post(routes::converter::analyze))
@@ -483,7 +415,39 @@ pub fn build_router(state: AppState) -> Router {
 
     let api_v1 = Router::new()
         .nest("/jobs", jobs_routes)
+        .nest(
+            "/mailing",
+            Router::new()
+                .route(
+                    "/campaigns",
+                    get(routes::workflows::campaigns).post(routes::workflows::create_campaign),
+                )
+                .route("/campaigns/{id}", put(routes::workflows::update_campaign))
+                .route(
+                    "/campaigns/{id}/queue",
+                    post(routes::workflows::queue_campaign),
+                )
+                .route("/capture", post(routes::workflows::capture)),
+        )
+        .nest(
+            "/automations",
+            Router::new()
+                .route(
+                    "/recipes",
+                    get(routes::workflows::recipes).post(routes::workflows::create_recipe),
+                )
+                .route("/recipes/{id}", put(routes::workflows::update_recipe))
+                .route("/recipes/{id}/run", post(routes::workflows::run_recipe))
+                .route("/recipes/{id}/runs", get(routes::workflows::runs))
+                .route("/capture", post(routes::workflows::capture)),
+        )
+        .route(
+            "/admin/preferences",
+            get(routes::preferences::get).put(routes::preferences::update),
+        )
+        .route("/admin/module-catalog", get(routes::admin::module_catalog))
         .route("/admin/navigation", get(routes::admin::navigation))
+        .route("/admin/columns", get(routes::admin::columns))
         .route("/admin/modules", put(routes::admin::update_modules))
         .nest("/setup", setup_routes)
         .nest("/capsules", capsules_routes)
@@ -500,8 +464,11 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/users", users_routes)
         .nest("/comments", comments_routes)
         .nest("/settings", settings_routes)
+        .nest("/themes", themes_routes)
         .nest("/plugins", plugins_routes)
         .nest("/stats", stats_routes)
+        .nest("/analytics", analytics_routes)
+        .nest("/translations", translations_routes)
         .nest("/patterns", patterns_routes)
         .nest("/ai", ai_routes)
         .nest("/converter", converter_routes)
@@ -509,28 +476,22 @@ pub fn build_router(state: AppState) -> Router {
         .fallback(|| async { crate::error::ApiError::NotFound });
 
     let mut router = Router::new()
-
         // Routes publiques SSR (< 1ms via cache Moka L1)
         .route("/", get(routes::public::root_redirect))
         .route(
-
             "/public/reader.js",
-
             get(|| async {
-
                 (
-
                     [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
-
                     include_str!("../templates/reader.js"),
-
                 )
-
             }),
-
         )
-
         // SEO structurel : robots.txt et sitemap.xml (WP-81, WP-102)
+        .route(
+            "/forms/{slug}",
+            get(routes::public_forms::page).post(routes::public_forms::submit),
+        )
         .route("/robots.txt", get(routes::seo::robots_txt))
         .route("/sitemap.xml", get(routes::seo::sitemap_root))
         .route("/{locale}/sitemap.xml", get(routes::seo::sitemap_locale))
@@ -546,11 +507,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/{locale}", get(routes::public::ssr_home))
         .route("/{locale}/search", get(routes::public_lists::search))
         .route(
-
             "/{locale}/archive/{taxonomy}/{term}",
-
             get(routes::public_lists::archive),
-
         )
         .fallback(routes::public_lists::fallback)
         // Permaliens date et titre / mois et titre (WP-90)
@@ -567,49 +525,41 @@ pub fn build_router(state: AppState) -> Router {
             get(routes::public::ssr_single),
         )
         .route(
-
             "/{locale}/{content_type}/{slug}/zen",
-
             get(routes::public::ssr_zen),
-
         )
-
         // API REST v1
         .route(
-
             "/api/v1/themes/{slug}/preview",
-
             get(routes::public::preview_theme),
-
         )
         .nest("/api/v1", api_v1)
         .nest_service("/uploads", ServeDir::new(&state.uploads_dir))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(middleware::from_fn_with_state(
-
             state.clone(),
-
             guard::boundaries,
-
         ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
     if let Some(admin_dir) = &state.admin_dist_dir
-
         && admin_dir.exists()
-
     {
-
-        router = router.nest_service("/admin", ServeDir::new(admin_dir));
-
+        // WASM is executable code restricted to the same-origin Studio assets.
+        // Public pages retain the stricter default; inline JS and JS eval stay blocked.
+        let admin = tower::ServiceBuilder::new().layer(
+            SetResponseHeaderLayer::if_not_present(
+                header::CONTENT_SECURITY_POLICY,
+                axum::http::HeaderValue::from_static("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'"),
+            ),
+        ).service(ServeDir::new(admin_dir));
+        router = router.nest_service("/admin", admin);
     }
 
     router
         .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, axum::http::HeaderValue::from_static("nosniff")))
         .layer(SetResponseHeaderLayer::if_not_present(header::X_FRAME_OPTIONS, axum::http::HeaderValue::from_static("SAMEORIGIN")))
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, axum::http::HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'")))
-
 }
-

@@ -12,3 +12,9 @@ export function menuTrail(items: AdminMenuItem[], view: string): AdminMenuItem[]
   while (node && trail.length < 3) { trail.unshift(node); node = items.find(item => item.id === node?.parent); }
   return trail;
 }
+
+export interface MenuBranch { item: AdminMenuItem; children: MenuBranch[] }
+/** Server order and rights are authoritative; no second registry in the Studio. */
+export function menuTree(items: AdminMenuItem[], parent: string | null = null): MenuBranch[] {
+  return items.filter(item => item.parent === parent).map(item => ({item, children: menuTree(items, item.id)}));
+}

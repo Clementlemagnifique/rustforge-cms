@@ -11,12 +11,13 @@
  *   des composants courts et lisibles.
  */
 
-import React, { useCallback, useEffect } from 'react';
-import { StudioNavigationPanel } from './components/StudioNavigationPanel';
-import { StudioNavigation as Sidebar } from './components/StudioNavigation';
-import { MigrationView } from './components/MigrationView';
+import React, { useEffect } from 'react';
+import { RfAdminBar } from './components/RfAdminBar';
+import { RfAdminMenu } from './components/RfAdminMenu';
+import { RfScreenOptionsDrawer } from './components/RfScreenOptionsDrawer';
+import { RfContextualHelpDrawer } from './components/RfContextualHelpDrawer';
 import { AppearanceView } from './components/AppearanceView';
-import { StudioHeader as Header } from './components/StudioHeader';
+import { ToolsView } from './components/ToolsView';
 import { StartDashboard as DashboardView } from './components/StartDashboard';
 import { EntriesView } from './components/EntriesView';
 import { EntryEditorView } from './components/EntryEditorView';
@@ -39,9 +40,10 @@ import { FormsView } from './components/FormsView';
 import { EcommerceView } from './components/EcommerceView';
 import { LmsView } from './components/LmsView';
 import { ColumnSettingsView } from './components/ColumnSettingsView';
+import { AnalyticsView } from './components/AnalyticsView';
+import { TranslationsView } from './components/TranslationsView';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { studioMessages } from './i18n/messages.fr';
-import { currentMenu, menuTrail } from './navigation';
 import { useStudioStore } from './stores/useStudioStore';
 
 export const App: React.FC = () => {
@@ -50,7 +52,6 @@ export const App: React.FC = () => {
   const loading = useStudioStore((s) => s.loading);
   const connectionError = useStudioStore((s) => s.connectionError);
   const currentView = useStudioStore((s) => s.currentView);
-  const mobileNavigation = useStudioStore((s) => s.mobileNavigation);
   const navState = useStudioStore((s) => s.navState);
   const navigationError = useStudioStore((s) => s.navigationError);
   const contentTypes = useStudioStore((s) => s.contentTypes);
@@ -58,12 +59,20 @@ export const App: React.FC = () => {
   const isAiModalOpen = useStudioStore((s) => s.isAiModalOpen);
   const isCommandPaletteOpen = useStudioStore((s) => s.isCommandPaletteOpen);
   const zenMode = useStudioStore((s) => s.zenMode);
+  const mobileOpen = useStudioStore((s) => s.mobileNavigation);
+  const setMobileOpen = useStudioStore((s) => s.setMobileNavigation);
+  const isMenuCollapsed = useStudioStore((s) => s.isMenuCollapsed);
+  const toggleMenuCollapsed = useStudioStore((s) => s.toggleMenuCollapsed);
+  const isScreenOptionsOpen = useStudioStore((s) => s.isScreenOptionsOpen);
+  const toggleScreenOptions = useStudioStore((s) => s.toggleScreenOptions);
+  const isHelpOpen = useStudioStore((s) => s.isHelpOpen);
+  const toggleHelp = useStudioStore((s) => s.toggleHelp);
+  const darkMode = useStudioStore((s) => s.darkMode);
+  const toggleDarkMode = useStudioStore((s) => s.toggleDarkMode);
 
   const setUser = useStudioStore((s) => s.setUser);
   const setInstalledSession = useStudioStore((s) => s.setInstalledSession);
   const setUnsaved = useStudioStore((s) => s.setUnsaved);
-  const setMobileNavigation = useStudioStore((s) => s.setMobileNavigation);
-  const closeMobileNavigation = useCallback(() => setMobileNavigation(false), [setMobileNavigation]);
   const setAiModalOpen = useStudioStore((s) => s.setAiModalOpen);
   const setCommandPaletteOpen = useStudioStore((s) => s.setCommandPaletteOpen);
   const updateNavigationData = useStudioStore((s) => s.updateNavigationData);
@@ -89,6 +98,7 @@ export const App: React.FC = () => {
   // 3. Raccourcis clavier globaux (Ctrl+K / Cmd+K Palette universelle, Ctrl+I Assistant IA)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setMobileOpen(false); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
@@ -99,7 +109,12 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setCommandPaletteOpen, setAiModalOpen]);
+  }, [setCommandPaletteOpen, setAiModalOpen, setMobileOpen]);
+
+  // 4. Titre de document dynamique
+  useEffect(() => {
+    document.title = `${currentView} ‹ RustForge CMS`;
+  }, [currentView]);
 
   if (loading) {
     return (
@@ -163,66 +178,90 @@ export const App: React.FC = () => {
 
   const activeEntryId = isEditorView ? currentView.split(':')[1] : undefined;
   const menuItems = navigation?.items.filter((item) => item.roles.includes(user.role)) || [];
-  const selectedMenu = currentMenu(menuItems, currentView);
+  const outlineItems = navigation?.menu_items || menuItems;
+  const planNode = currentView.startsWith('plan:') ? outlineItems.find(item => item.id === currentView.slice(5) && item.route === currentView) : undefined;
   const canOpenView =
-    !!navigation &&
-    (!!menuItems.find((item) => item.route === currentView) ||
-      ((isEntriesView || isNewView || isEditorView) &&
-        user.role !== 'subscriber' &&
-        contentTypes.some((ct) => ct.slug === activeContentTypeSlug)));
-
-  const getPageTitle = () => {
-    if (selectedMenu) return selectedMenu.label;
-    if (currentView === 'dashboard') return 'Tableau de bord';
-    if (currentView === 'media') return 'Médiathèque';
-    if (currentView === 'plugins') return 'Plugins WebAssembly';
-    if (currentView === 'content-types') return 'Types de Contenu';
-    if (currentView === 'forms' || currentView === 'module:forms' || currentView.startsWith('forms')) return 'Formulaires & Messages';
-    if (currentView === 'jobs') return 'Tâches et diagnostic';
-    if (currentView === 'settings:columns' || currentView === 'rf_column_settings' || currentView === 'columns') return 'Colonnes & Vues de Données';
-    if (currentView === 'settings') return 'Réglages';
-    if (currentView === 'converter') return 'Conversion de thèmes · avancé';
-    if (currentView === 'migration') return 'Importer WordPress';
-    if (currentView === 'appearance') return 'Apparence';
-    if (currentView === 'capsules') return 'Sauvegardes';
-    if (currentView === 'ai-studio') return 'Studio IA & Pilote Vocal';
-    if (isEntriesView) {
-      const ct = contentTypes.find((c) => c.slug === activeContentTypeSlug);
-      return ct?.name || 'Contenus';
-    }
-    if (isNewView || isEditorView) return 'Éditeur de Contenu';
-    return 'Studio';
-  };
+    !!planNode ||
+    !navigation ||
+    !!menuItems.find((item) => item.route === currentView) ||
+    ((isEntriesView || isNewView || isEditorView) &&
+      user.role !== 'subscriber' &&
+      contentTypes.some((ct) => ct.slug === activeContentTypeSlug)) ||
+    currentView.startsWith('rf_') ||
+    currentView.startsWith('settings') ||
+    currentView.startsWith('users') ||
+    currentView.startsWith('comments') ||
+    currentView.startsWith('ecommerce') ||
+    currentView.startsWith('lms') ||
+    currentView.startsWith('analytics') ||
+    currentView.startsWith('translations') ||
+    currentView.startsWith('tools') ||
+    currentView.startsWith('appearance') ||
+    currentView === 'site-health' ||
+    currentView === 'site-editor' ||
+    currentView === 'menus' ||
+    currentView === 'migration' ||
+    currentView === 'capsules' ||
+    currentView === 'converter';
 
   return (
-    <div className="flex h-screen bg-[#0a0d14] text-slate-100 overflow-hidden font-sans">
-      {/* Navigation latérale responsive */}
+    <div
+      data-mobile-open={mobileOpen}
+      data-menu-collapsed={isMenuCollapsed}
+      data-zen={zenMode}
+      className={`rf-admin rf-admin-transition min-h-screen ${
+        darkMode ? 'dark bg-[#101520] text-[#f1f5f9]' : 'bg-[#f0f0f1] text-[#2c3338]'
+      } font-sans antialiased selection:bg-[#2271b1] selection:text-white flex flex-col`}
+    >
+      {/* 1. Barre supérieure souveraine (#rfadminbar) */}
+      <RfAdminBar
+        user={user}
+        mobileOpen={mobileOpen}
+        onToggleMobile={() => setMobileOpen((open) => !open)}
+        siteTitle="RustForge Site"
+        onNavigate={navigate}
+        onLogout={logout}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+        darkMode={darkMode}
+        onToggleDarkMode={toggleDarkMode}
+      />
+
+      {/* 3. Navigation latérale souveraine (#rfadminmenu) */}
       {!zenMode && (
-        <StudioNavigationPanel open={mobileNavigation} onClose={closeMobileNavigation}>
-          <Sidebar
-            key={user.id}
-            items={menuItems}
-            currentView={currentView}
-            onNavigate={navigate}
-            contentTypes={contentTypes}
-            user={user}
-            onLogout={logout}
-          />
-        </StudioNavigationPanel>
+        <RfAdminMenu
+          currentView={currentView}
+          onNavigate={navigate}
+          contentTypes={contentTypes}
+          items={outlineItems}
+          isCollapsed={isMenuCollapsed}
+          onToggleCollapsed={toggleMenuCollapsed}
+        />
       )}
 
-      {/* Zone de contenu principale */}
-      <div inert={mobileNavigation || undefined} className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <Header
-          title={getPageTitle()}
-          breadcrumbs={menuTrail(menuItems, currentView).map((item) => item.label)}
-          onToggleNavigation={() => setMobileNavigation((open) => !open)}
-          canWrite={user.role !== 'subscriber'}
-          onOpenAiModal={() => setAiModalOpen(true)}
-          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-        />
+      {/* 4. Corps de page (#rfbody-content) */}
+      <div
+        id="rfbody-content"
+        className={`min-h-screen pt-8 transition-all duration-150 ${
+          zenMode ? 'ml-0' : isMenuCollapsed ? 'ml-14' : 'ml-44 md:ml-48'
+        }`}
+      >
+        <div className="rf-screen-meta">
+          <button type="button" aria-expanded={isScreenOptionsOpen} aria-controls="rf-screen-options-wrap" onClick={toggleScreenOptions}>Options de l’écran <span aria-hidden="true">▾</span></button>
+          <button type="button" aria-expanded={isHelpOpen} aria-controls="rf-contextual-help-wrap" onClick={toggleHelp}>Aide <span aria-hidden="true">▾</span></button>
+        </div>
+      {/* 2. Tiroirs rétractables */}
+      <RfScreenOptionsDrawer
+        isOpen={isScreenOptionsOpen}
+        onClose={toggleScreenOptions}
+        currentView={currentView}
+      />
+      <RfContextualHelpDrawer
+        isOpen={isHelpOpen}
+        onClose={toggleHelp}
+        currentView={currentView}
+      />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="p-4 md:p-6 min-h-[calc(100vh-32px)]">
           {!navigation ? (
             <div className="space-y-3">
               <p role={navigationError ? 'alert' : 'status'}>
@@ -231,7 +270,7 @@ export const App: React.FC = () => {
               {navigationError && (
                 <button
                   onClick={() => void refreshData()}
-                  className="rounded-lg bg-indigo-600 px-4 py-2"
+                  className="rounded bg-[#2271b1] text-white px-3 py-1.5 text-xs font-medium"
                 >
                   {studioMessages.retry}
                 </button>
@@ -239,17 +278,18 @@ export const App: React.FC = () => {
             </div>
           ) : !canOpenView ? (
             <div className="space-y-3">
-              <h2 className="text-xl">{studioMessages.unavailableSectionTitle}</h2>
+              <h2 className="text-xl font-bold">{studioMessages.unavailableSectionTitle}</h2>
               <p className="text-slate-400">{studioMessages.unavailableSectionBody}</p>
               <button
                 onClick={() => navigate('dashboard')}
-                className="rounded-lg bg-indigo-600 px-4 py-2"
+                className="rounded bg-[#2271b1] text-white px-3 py-1.5 text-xs font-medium"
               >
                 {studioMessages.backToDashboard}
               </button>
             </div>
           ) : (
             <>
+              {planNode && <AdminPlanView navigation={navigation} nodeId={planNode.id} />}
               {currentView === 'modules' && (
                 <NativeModulesView
                   navigation={navigation}
@@ -257,7 +297,7 @@ export const App: React.FC = () => {
                 />
               )}
               {currentView === 'admin-map' && <AdminPlanView navigation={navigation} />}
-              {currentView.startsWith('module:') && (
+              {currentView.startsWith('module:') && !['module:lms','module:ecommerce','module:forms','module:analytics','module:translations'].includes(currentView) && (
                 <AdminPlanView
                   key={currentView}
                   navigation={navigation}
@@ -287,17 +327,39 @@ export const App: React.FC = () => {
               {currentView === 'settings:reading' && <SettingsView key="settings-reading" initialTab="reading" />}
               {currentView === 'settings:writing' && <SettingsView key="settings-writing" initialTab="writing" />}
               {currentView === 'settings:discussion' && <SettingsView key="settings-discussion" initialTab="discussion" />}
+              {currentView === 'settings:media' && <SettingsView key="settings-media" initialTab="media" />}
+              {currentView === 'settings:permalinks' && <SettingsView key="settings-permalinks" initialTab="permalinks" />}
               {(currentView === 'comments' || currentView === 'comments:list') && <CommentsView key="comments-view" />}
               {currentView === 'users' && <UsersView key="users-list" initialTab="list" />}
               {currentView === 'users:new' && <UsersView key="users-new" initialTab="new" />}
               {currentView === 'profile' && <UsersView key="users-profile" initialTab="profile" />}
+              {(currentView === 'tools' || currentView === 'tools:available') && (
+                <ToolsView key="tools-available" initialTab="available" stats={stats} onNavigate={navigate} />
+              )}
+              {currentView === 'tools:import' && (
+                <ToolsView key="tools-import" initialTab="import" stats={stats} onNavigate={navigate} />
+              )}
+              {currentView === 'tools:export' && (
+                <ToolsView key="tools-export" initialTab="export" stats={stats} onNavigate={navigate} />
+              )}
+              {(currentView === 'tools:health' || currentView === 'site-health') && (
+                <ToolsView key="tools-health" initialTab="site-health" stats={stats} onNavigate={navigate} />
+              )}
               {currentView === 'converter' && (
-                <ConverterView onOpenMigration={() => navigate('migration')} />
+                <ConverterView onOpenMigration={() => navigate('tools:import')} />
               )}
               {currentView === 'migration' && (
-                <MigrationView onNavigate={navigate} onImported={refreshData} />
+                <ToolsView key="tools-migration" initialTab="import" stats={stats} onNavigate={navigate} />
               )}
-              {currentView === 'appearance' && <AppearanceView key="appearance" initialTab="styles" />}
+              {(currentView === 'appearance' || currentView === 'themes') && (
+                <AppearanceView key="appearance-themes" initialTab="themes" />
+              )}
+              {currentView === 'appearance:styles' && (
+                <AppearanceView key="appearance-styles" initialTab="styles" />
+              )}
+              {currentView === 'site-editor' && (
+                <AppearanceView key="site-editor" initialTab="site-editor" />
+              )}
               {currentView === 'menus' && <AppearanceView key="menus" initialTab="menus" />}
               {currentView === 'capsules' && <CapsulesView stats={stats} />}
               {(currentView === 'forms' ||
@@ -350,6 +412,44 @@ export const App: React.FC = () => {
                       ? 'settings'
                       : 'courses'
                   }
+                />
+              )}
+
+              {(currentView === 'analytics' ||
+                currentView === 'module:analytics' ||
+                currentView.startsWith('analytics') ||
+                currentView === 'rf_analytics' ||
+                currentView === 'rf_traffic' ||
+                currentView === 'rf_analytics_settings') && (
+                <AnalyticsView
+                  key={currentView}
+                  initialTab={
+                    currentView === 'analytics:settings' || currentView === 'rf_analytics_settings'
+                      ? 'settings'
+                      : 'dashboard'
+                  }
+                />
+              )}
+
+              {(currentView === 'translations' ||
+                currentView === 'module:translations' ||
+                currentView.startsWith('translations') ||
+                currentView === 'rf_translations' ||
+                currentView === 'rf_catalogs' ||
+                currentView === 'rf_localization' ||
+                currentView === 'rf_language_settings') && (
+                <TranslationsView
+                  key={currentView}
+                  initialTab={
+                    currentView === 'translations:settings' || currentView === 'rf_language_settings'
+                      ? 'settings'
+                      : currentView === 'translations:catalogs' || currentView === 'rf_catalogs' || currentView === 'rf_localization'
+                      ? 'catalogs'
+                      : 'matrix'
+                  }
+                  onEditEntry={(id) => {
+                    navigate(`editor:${id}`);
+                  }}
                 />
               )}
 

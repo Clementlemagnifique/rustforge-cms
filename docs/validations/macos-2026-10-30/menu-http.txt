@@ -1,0 +1,3 @@
+PASS admin: authorized navigation and planning separation
+PASS author: authorized navigation and planning separation
+PASS subscriber: authorized navigation and planning separation

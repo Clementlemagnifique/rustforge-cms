@@ -82,13 +82,19 @@ pub async fn dump(pool: &PgPool) -> CoreResult<NativeSnapshot> {
 impl NativeSnapshot {
     pub fn validate(&self) -> CoreResult<()> {
         let legacy = self.format == "rustforge-native-2";
-        let expected: Vec<_> = TABLES.iter().copied().filter(|t| !legacy || (*t != "rf_jobs" && *t != "synced_patterns")).collect();
+        let expected: Vec<_> = TABLES
+            .iter()
+            .copied()
+            .filter(|t| !legacy || (*t != "rf_jobs" && *t != "synced_patterns"))
+            .collect();
         if (!legacy && self.format != "rustforge-native-3")
             || self.tables.len() != expected.len()
             || expected.iter().any(|t| !self.tables.contains_key(*t))
             || (legacy && self.migrations.iter().any(|v| *v >= 20261029000007))
         {
-            return Err(CoreError::validation("Sauvegarde native incomplète ou version incompatible"));
+            return Err(CoreError::validation(
+                "Sauvegarde native incomplète ou version incompatible",
+            ));
         }
         if !self.tables["users"].iter().any(|r| {
             r["role"] == "admin" && r["password_hash"].as_str().is_some_and(|s| !s.is_empty())
@@ -125,12 +131,28 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
         sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success ORDER BY version")
             .fetch_all(&mut *tx)
             .await?;
+    // The inbox migration only adds a nullable column; previous snapshots remain restorable.
+    let mut previous_versions = versions.clone();
+    if previous_versions.last() == Some(&20261031000011) {
+        previous_versions.pop();
+    }
+    let compatible_inbox =
+        snapshot.format == "rustforge-native-3" && snapshot.migrations == previous_versions;
     let compatible_legacy = snapshot.format == "rustforge-native-2" && {
         let mut upgraded = snapshot.migrations.clone();
         upgraded.push(20261029000007);
-        upgraded == versions
+        upgraded == versions || upgraded == previous_versions
     };
-    if versions != snapshot.migrations && !compatible_legacy {
+    let compatible_workflows = snapshot.format == "rustforge-native-3" && {
+        let mut upgraded = snapshot.migrations.clone();
+        upgraded.push(20261030000010);
+        upgraded == versions || upgraded == previous_versions
+    };
+    if versions != snapshot.migrations
+        && !compatible_legacy
+        && !compatible_workflows
+        && !compatible_inbox
+    {
         return Err(CoreError::validation(
             "Les migrations de la sauvegarde et de la cible diffèrent",
         ));
@@ -182,6 +204,7 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
         .execute(&mut *tx)
         .await?;
     let deferred = [
+        ("automation_logs", "job_id"),
         ("media_folders", "parent_id"),
         ("terms", "parent_id"),
         ("entries", "parent_id"),
@@ -199,6 +222,40 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
             .join(",");
         for original in snapshot.tables.get(*table).into_iter().flatten() {
             let mut row = original.clone();
+            if let Some(object) = row.as_object_mut() {
+                let additions: Vec<(&str, Value)> = match *table {
+                    "email_campaigns" => vec![
+                        ("name", Value::String(String::new())),
+                        ("body_text", Value::String(String::new())),
+                        ("recipient_ids", serde_json::json!([])),
+                        ("version", serde_json::json!(1)),
+                        ("delivery_mode", serde_json::json!("legacy")),
+                        ("created_by", Value::Null),
+                        (
+                            "updated_at",
+                            object
+                                .get("created_at")
+                                .cloned()
+                                .unwrap_or_else(|| serde_json::json!(chrono::Utc::now())),
+                        ),
+                    ],
+                    "automation_recipes" => vec![
+                        ("subject", serde_json::json!("")),
+                        ("body_text", serde_json::json!("")),
+                        ("recipient_id", Value::Null),
+                        ("delay_seconds", serde_json::json!(0)),
+                        ("version", serde_json::json!(1)),
+                        ("created_by", Value::Null),
+                    ],
+                    "automation_logs" => {
+                        vec![("invocation_id", Value::Null), ("job_id", Value::Null)]
+                    }
+                    _ => vec![],
+                };
+                for (key, value) in additions {
+                    object.entry(key).or_insert(value);
+                }
+            }
             for (t, c) in deferred {
                 if t == *table {
                     row[c] = Value::Null;
@@ -221,9 +278,17 @@ pub async fn restore(tx: &mut sqlx::PgConnection, snapshot: &NativeSnapshot) -> 
         }
     }
     // Aucun job actif importé ne doit envoyer un message ou rejouer un effet tout seul.
-    sqlx::query("UPDATE rf_jobs SET state='paused_restore',lease_token=NULL,lease_until=NULL,
+    sqlx::query(
+        "UPDATE rf_jobs SET state='paused_restore',lease_token=NULL,lease_until=NULL,
         error_code='restore_requires_review',updated_at=now(),finished_at=NULL
-        WHERE state IN ('queued','retry','running')").execute(&mut *tx).await?;
+        WHERE state IN ('queued','retry','running')",
+    )
+    .execute(&mut *tx)
+    .await?;
+    // A restored retention policy must be reviewed before any destructive maintenance resumes.
+    sqlx::query("DELETE FROM settings WHERE key='forms.retention'")
+        .execute(&mut *tx)
+        .await?;
     // Refresh tokens from another machine must not create valid sessions on the target.
     sqlx::query("UPDATE refresh_tokens SET revoked_at=now() WHERE revoked_at IS NULL")
         .execute(&mut *tx)

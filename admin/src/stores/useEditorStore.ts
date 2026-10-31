@@ -1,3 +1,4 @@
+import { validateNativeBeforeSave } from '../editor/wasmKernel';
 /**
  * ============================================================================
  * STORE ZUSTAND : ÉDITEUR D'ARTICLE / PAGE & BLOCS NATIFS (`useEditorStore`)
@@ -91,6 +92,25 @@ export interface EditorStoreState {
   loadError: string;
   revisions: RevisionSummary[] | null;
   historyError: string;
+
+  // --- Interface Gutenberg souveraine ---
+  selectedBlockId: string | null;
+  isInserterOpen: boolean;
+  isInspectorOpen: boolean;
+  inspectorTab: 'document' | 'block';
+  editorMode: 'visual' | 'code';
+  fullscreenMode: boolean;
+  previewDevice: 'desktop' | 'tablet' | 'mobile';
+
+  setSelectedBlockId: (id: string | null) => void;
+  setInserterOpen: (open: boolean) => void;
+  toggleInserter: () => void;
+  setInspectorOpen: (open: boolean) => void;
+  toggleInspector: () => void;
+  setInspectorTab: (tab: 'document' | 'block') => void;
+  setEditorMode: (mode: 'visual' | 'code') => void;
+  toggleFullscreenMode: () => void;
+  setPreviewDevice: (device: 'desktop' | 'tablet' | 'mobile') => void;
 
   // --- Mutateurs atomiques (marquent automatiquement `isDirty` lorsque pertinent) ---
   setActiveTab: (tab: EditorTab) => void;
@@ -196,6 +216,25 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   loadError: '',
   revisions: null,
   historyError: '',
+
+  selectedBlockId: null,
+  isInserterOpen: false,
+  isInspectorOpen: true,
+  inspectorTab: 'document',
+  editorMode: 'visual',
+  fullscreenMode: false,
+  previewDevice: 'desktop',
+
+  setSelectedBlockId: (id) =>
+    set({ selectedBlockId: id, inspectorTab: id ? 'block' : 'document' }),
+  setInserterOpen: (open) => set({ isInserterOpen: open }),
+  toggleInserter: () => set((s) => ({ isInserterOpen: !s.isInserterOpen })),
+  setInspectorOpen: (open) => set({ isInspectorOpen: open }),
+  toggleInspector: () => set((s) => ({ isInspectorOpen: !s.isInspectorOpen })),
+  setInspectorTab: (inspectorTab) => set({ inspectorTab }),
+  setEditorMode: (editorMode) => set({ editorMode }),
+  toggleFullscreenMode: () => set((s) => ({ fullscreenMode: !s.fullscreenMode })),
+  setPreviewDevice: (previewDevice) => set({ previewDevice }),
 
   setActiveTab: (activeTab) => set({ activeTab }),
   markDirty: () => set({ isDirty: true }),
@@ -572,6 +611,7 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
     };
 
     try {
+      if (document) await validateNativeBeforeSave(state.body, document);
       if (!state.entryId) {
         await api.entries.create(state.effectiveType, payload);
       } else {

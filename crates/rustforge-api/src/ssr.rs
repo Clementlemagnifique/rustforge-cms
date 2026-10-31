@@ -48,6 +48,7 @@ fn theme_loader(
         Ok(match name {
             "comments.js" => Some(include_str!("../templates/comments.js").into()),
             "listing.html" => Some(include_str!("../templates/listing.html").into()),
+            "featured-image.html" => Some(include_str!("../templates/featured-image.html").into()),
             "pagination.html" => Some(include_str!("../templates/pagination.html").into()),
             "404.html" => Some(include_str!("../templates/404.html").into()),
             _ => None,
@@ -74,6 +75,10 @@ impl SsrEngine {
             for (name, source) in [
                 ("comments.js", include_str!("../templates/comments.js")),
                 ("listing.html", include_str!("../templates/listing.html")),
+                (
+                    "featured-image.html",
+                    include_str!("../templates/featured-image.html"),
+                ),
                 (
                     "pagination.html",
                     include_str!("../templates/pagination.html"),
@@ -206,5 +211,87 @@ impl SsrEngine {
     /// Invalide tout le cache (ex: changement de thème ou tokens globaux).
     pub async fn invalidate_all(&self) {
         self.cache.invalidate_all();
+    }
+}
+
+#[cfg(test)]
+mod featured_tests {
+    use super::*;
+    #[tokio::test]
+    async fn landing_and_wide_templates_preserve_content_and_isolate_presentation() {
+        for (root, theme) in [
+            (
+                std::env::temp_dir().join(uuid::Uuid::new_v4().to_string()),
+                "missing",
+            ),
+            (
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes"),
+                "default",
+            ),
+            (
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes"),
+                "astra",
+            ),
+            (
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes"),
+                "generatepress",
+            ),
+            (
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes"),
+                "twentytwentyfive",
+            ),
+        ] {
+            let engine = SsrEngine::new(root, theme.into());
+            let env = engine.env.read().unwrap();
+            let template = env.get_template("single.html").unwrap();
+            let mut context = serde_json::json!({"entry_template":"landing","entry":{"title":"Offre été","body_html":"<p>Contenu conservé</p>"},"locale":"fr","design_tokens":{},"comments_count":0,"comments_open":false});
+            let landing = template.render(&context).unwrap();
+            assert!(landing.contains("rf-entry-layout-landing"));
+            assert!(landing.contains("Contenu conservé"));
+            assert!(!landing.contains("<header class=\"glass-nav\""));
+            assert!(!landing.contains("id=\"comments\""));
+            context["entry_template"] = serde_json::json!("wide");
+            let wide = template.render(&context).unwrap();
+            assert!(wide.contains("rf-entry-layout-wide"));
+            assert!(wide.contains("<header class=\"glass-nav\""));
+            assert!(wide.contains("Contenu conservé"));
+            // Existing comments must never disappear merely because a landing template is selected.
+            context["entry_template"] = serde_json::json!("landing");
+            context["comments_count"] = serde_json::json!(1);
+            assert!(
+                template
+                    .render(&context)
+                    .unwrap()
+                    .contains("id=\"comments\"")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn disk_and_embedded_featured_image_escape_metadata_and_clear_the_figure() {
+        for (root, theme) in [
+            (
+                std::env::temp_dir().join(uuid::Uuid::new_v4().to_string()),
+                "missing",
+            ),
+            (
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes"),
+                "default",
+            ),
+        ] {
+            let engine = SsrEngine::new(root, theme.into());
+            let env = engine.env.read().unwrap();
+            let template = env.get_template("featured-image.html").unwrap();
+            let html=template.render(serde_json::json!({"entry":{"featured_media_url":"/uploads/banner.svg","featured_media_alt":"\"<img>","featured_media_caption":"<script>alert(1)</script>"}})).unwrap();
+            assert!(html.contains("&lt;script&gt;"));
+            assert!(!html.contains("<script>"));
+            assert!(html.contains("&lt;img&gt;"));
+            assert!(
+                !template
+                    .render(serde_json::json!({"entry":{"featured_media_url":null}}))
+                    .unwrap()
+                    .contains("<figure")
+            );
+        }
     }
 }

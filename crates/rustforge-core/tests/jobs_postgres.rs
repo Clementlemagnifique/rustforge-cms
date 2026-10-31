@@ -301,7 +301,10 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .unwrap();
     outbox.commit().await.unwrap();
     let transient_transport = mail::SimulatedTransport::new(mail::SimulatedOutcome::TransientError);
-    assert_eq!(mail::run_batch(&db, &transient_transport, 1).await.unwrap(), 1);
+    assert_eq!(
+        mail::run_batch(&db, &transient_transport, 1).await.unwrap(),
+        1
+    );
     let transient_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
         .bind(sim_transient_job.id)
         .fetch_one(&db)
@@ -315,7 +318,10 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .unwrap();
     outbox.commit().await.unwrap();
     let permanent_transport = mail::SimulatedTransport::new(mail::SimulatedOutcome::PermanentError);
-    assert_eq!(mail::run_batch(&db, &permanent_transport, 1).await.unwrap(), 1);
+    assert_eq!(
+        mail::run_batch(&db, &permanent_transport, 1).await.unwrap(),
+        1
+    );
     let perm_state: String = sqlx::query_scalar("SELECT state FROM rf_jobs WHERE id=$1")
         .bind(sim_perm_job.id)
         .fetch_one(&db)
@@ -352,13 +358,19 @@ async fn durable_jobs_transactions_leases_and_restore() {
 
     // Résolution dynamique du transport selon les réglages
     let (t_default, mode_default) = mail::load_transport(&db).await;
-    assert_eq!(mode_default, "capture_only");
+    assert_eq!(mode_default, "capture");
     let _ = t_default;
 
-    rustforge_core::settings::update(&db, serde_json::from_value(json!({
-        "mail.mode": "simulated",
-        "mail.simulated_outcome": "success",
-    })).unwrap()).await.unwrap();
+    rustforge_core::settings::update(
+        &db,
+        serde_json::from_value(json!({
+            "mail.mode": "simulated",
+            "mail.simulated_outcome": "success",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
     let (t_sim, mode_sim) = mail::load_transport(&db).await;
     assert_eq!(mode_sim, "simulated_success");
     let mut outbox = db.begin().await.unwrap();
@@ -379,17 +391,27 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .await
         .unwrap();
     assert_eq!(ok_output["transport"], "simulated");
-    assert!(ok_output.get("capture").is_none());
+    assert!(
+        ok_output
+            .get("capture")
+            .is_none_or(serde_json::Value::is_null)
+    );
 
     // Protection des secrets : mot de passe SMTP exclu des sauvegardes et effacé à la restauration
-    rustforge_core::settings::update(&db, serde_json::from_value(json!({
-        "mail.mode": "smtp",
-        "mail.smtp_host": "smtp.example.test",
-        "mail.smtp_port": 587,
-        "mail.from_address": "robot@example.test",
-        "mail.smtp_username": "robot_user",
-        "mail.smtp_password": "super_secret_smtp_password_never_leak",
-    })).unwrap()).await.unwrap();
+    rustforge_core::settings::update(
+        &db,
+        serde_json::from_value(json!({
+            "mail.mode": "smtp",
+            "mail.smtp_host": "smtp.example.test",
+            "mail.smtp_port": 587,
+            "mail.from_address": "robot@example.test",
+            "mail.smtp_username": "robot_user",
+            "mail.smtp_password": "super_secret_smtp_password_never_leak",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
 
     let snapshot = native_backup::dump(&db).await.unwrap();
     assert_eq!(snapshot.format, "rustforge-native-3");
@@ -403,7 +425,8 @@ async fn durable_jobs_transactions_leases_and_restore() {
     legacy.tables.remove("synced_patterns");
     legacy.migrations.retain(|v| *v < 20261029000007);
     let mut restore = target.begin().await.unwrap();
-    native_backup::restore(&mut restore, &legacy).await.unwrap();
+    // La cible possède désormais les migrations 008/009 : seul l’ancien upgrade vers 007 est supporté.
+    assert!(native_backup::restore(&mut restore, &legacy).await.is_err());
     let old_count: i64 = sqlx::query_scalar("SELECT count(*) FROM rf_jobs")
         .fetch_one(&mut *restore)
         .await
@@ -415,10 +438,11 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .await
         .unwrap();
     restore.commit().await.unwrap();
-    let target_pw: Option<String> = sqlx::query_scalar("SELECT value::text FROM settings WHERE key='mail.smtp_password'")
-        .fetch_optional(&target)
-        .await
-        .unwrap();
+    let target_pw: Option<String> =
+        sqlx::query_scalar("SELECT value::text FROM settings WHERE key='mail.smtp_password'")
+            .fetch_optional(&target)
+            .await
+            .unwrap();
     assert!(target_pw.is_none());
     assert!(jobs::claim(&target, &kinds, 60).await.unwrap().is_none());
     let paused = jobs::list(&target, 100).await.unwrap();
@@ -439,7 +463,9 @@ async fn durable_jobs_transactions_leases_and_restore() {
         .unwrap();
 
     // M1-F Qualification : Panne après acceptation distante, réémission at-least-once avec clé d'idempotence
-    let crash_job = jobs::enqueue(&target, &spec("crash:post_accept")).await.unwrap();
+    let crash_job = jobs::enqueue(&target, &spec("crash:post_accept"))
+        .await
+        .unwrap();
     let worker1 = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
     assert_eq!(worker1.id, crash_job.id);
     assert_eq!(worker1.attempts, 1);
@@ -450,18 +476,30 @@ async fn durable_jobs_transactions_leases_and_restore() {
     expire(&target, crash_job.id).await;
 
     // Isolation du worker zombie : worker 1 tente tardivement de compléter avec son ancien jeton expiré
-    assert!(jobs::complete(&target, crash_job.id, worker1_token).await.is_err());
-    assert!(jobs::heartbeat(&target, crash_job.id, worker1_token, 60).await.is_err());
+    assert!(
+        jobs::complete(&target, crash_job.id, worker1_token)
+            .await
+            .is_err()
+    );
+    assert!(
+        jobs::heartbeat(&target, crash_job.id, worker1_token, 60)
+            .await
+            .is_err()
+    );
 
     // Worker 2 prend le relais : le job est réémis (at-least-once) avec la même clé d'idempotence
     let worker2 = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
     assert_eq!(worker2.id, crash_job.id);
     assert_eq!(worker2.attempts, 2);
     assert_ne!(worker2.lease_token.unwrap(), worker1_token);
-    jobs::complete(&target, worker2.id, worker2.lease_token.unwrap()).await.unwrap();
+    jobs::complete(&target, worker2.id, worker2.lease_token.unwrap())
+        .await
+        .unwrap();
 
     // M1-F Qualification : Répétition des pannes et bascule vers lease_exhausted
-    let loop_job = jobs::enqueue(&target, &spec("crash:exhaust_loop")).await.unwrap();
+    let loop_job = jobs::enqueue(&target, &spec("crash:exhaust_loop"))
+        .await
+        .unwrap();
     for expected_attempt in 1..=3 {
         let w = jobs::claim(&target, &kinds, 60).await.unwrap().unwrap();
         assert_eq!(w.id, loop_job.id);
@@ -470,11 +508,12 @@ async fn durable_jobs_transactions_leases_and_restore() {
     }
     // Au prochain claim, la maintenance détecte que attempts >= max_attempts et bascule en failed
     assert!(jobs::claim(&target, &kinds, 60).await.unwrap().is_none());
-    let loop_state: (String, Option<String>) = sqlx::query_as("SELECT state, error_code FROM rf_jobs WHERE id=$1")
-        .bind(loop_job.id)
-        .fetch_one(&target)
-        .await
-        .unwrap();
+    let loop_state: (String, Option<String>) =
+        sqlx::query_as("SELECT state, error_code FROM rf_jobs WHERE id=$1")
+            .bind(loop_job.id)
+            .fetch_one(&target)
+            .await
+            .unwrap();
     assert_eq!(loop_state.0, "failed");
     assert_eq!(loop_state.1.as_deref(), Some("lease_exhausted"));
 
@@ -493,19 +532,32 @@ async fn durable_jobs_transactions_leases_and_restore() {
     assert!(scrubbed_output["capture"].is_null());
 
     // M1-F Qualification : Invalidation multi-instance du cache SSR par trigger SQL sur les commentaires
-    let rev_before: i64 = sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
-        .fetch_one(&target)
-        .await
-        .unwrap();
+    let actor = notification_user(&target, "cache_test", rustforge_core::models::Role::Admin).await;
+    rustforge_core::entries::create(
+        &target,
+        &rustforge_core::NoopHooks,
+        "post",
+        actor.id,
+        serde_json::from_value(json!({"title":"Cache fixture","body":"Test","status":"published"}))
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let rev_before: i64 =
+        sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
+            .fetch_one(&target)
+            .await
+            .unwrap();
     sqlx::query("INSERT INTO comments(id, entry_id, author_name, author_email, content, content_html, status) VALUES($1, (SELECT id FROM entries LIMIT 1), 'MultiInstance', 'multi@example.test', 'Test invalidation', '<p>Test</p>', 'approved')")
         .bind(Uuid::new_v4())
         .execute(&target)
         .await
         .unwrap();
-    let rev_after: i64 = sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
-        .fetch_one(&target)
-        .await
-        .unwrap();
+    let rev_after: i64 =
+        sqlx::query_scalar("SELECT revision FROM runtime_revision WHERE singleton")
+            .fetch_one(&target)
+            .await
+            .unwrap();
     assert_eq!(rev_after, rev_before + 1);
 
     db.close().await;

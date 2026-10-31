@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod ai;
+pub mod analytics;
 pub mod auth;
 pub mod capsules;
 pub mod comments;
@@ -20,10 +21,17 @@ pub mod stats;
 pub mod taxonomies;
 pub mod users;
 
-pub mod public_lists;
 pub mod feeds;
-pub mod seo;
-pub mod permalinks;
 pub mod patterns;
+pub mod permalinks;
+pub mod public_lists;
+pub mod seo;
 
 pub mod jobs;
+pub mod translations;
+
+pub mod preferences;
+
+pub mod workflows;
+
+pub mod public_forms;

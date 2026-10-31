@@ -29,8 +29,9 @@
 
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2rem;">
             {% for entry in entries %}
-            <article style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--tp-radius); padding: 1.8rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s;">
+            <article class="rf-entry-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--tp-radius); padding: 1.8rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s;">
                 <div>
+                    {% include "featured-image.html" %}
                     <span style="font-size: 0.8rem; color: var(--tp-accent); font-weight: 600; text-transform: uppercase;">
                         {{ entry.content_type }}
                     </span>

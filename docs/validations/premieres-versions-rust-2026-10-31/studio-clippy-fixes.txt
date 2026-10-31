@@ -1,0 +1,81 @@
+    Checking rustforge-document v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-document)
+    Checking rustforge-studio v1.0.0-alpha.1 (/Users/admin/Desktop/CMS Rust/crates/rustforge-studio)
+       Fixed crates/rustforge-studio/src/learning_ui.rs (1 fix)
+       Fixed crates/rustforge-studio/src/dashboard/layout.rs (2 fixes)
+       Fixed crates/rustforge-studio/src/forms/ui.rs (2 fixes)
+       Fixed crates/rustforge-studio/src/http.rs (1 fix)
+       Fixed crates/rustforge-studio/src/editor/ui.rs (5 fixes)
+       Fixed crates/rustforge-studio/src/appearance_ui.rs (2 fixes)
+warning: this looks like you are trying to use `.. != ..`, but you really are doing `.. = (! ..)`
+   --> crates/rustforge-studio/src/screens/ui.rs:111:185
+    |
+111 | ...s.get().to_string() on:click=move |_|options.update(|open|*open=!*open)>{text("list.columns")}</button>
+    |                                                                   ^^
+    |
+    = note: to remove this lint, use either `!=` or `= !`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#suspicious_assignment_formatting
+    = note: `-D clippy::suspicious-assignment-formatting` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::suspicious_assignment_formatting)]`
+    = note: the `clippy::suspicious_assignment_formatting` lint ignores `-D warnings`
+
+warning: this looks like you are trying to use `.. != ..`, but you really are doing `.. = (! ..)`
+   --> crates/rustforge-studio/src/screens/ui.rs:281:371
+    |
+281 | ...|{if dirty.get_untracked(){return;}editing.update(|value|*value=!*value);}>{text("list.quick_edit")}</button><Show when=move ||c...
+    |                                                                   ^^
+    |
+    = note: to remove this lint, use either `!=` or `= !`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#suspicious_assignment_formatting
+
+warning: this looks like you are trying to use `.. != ..`, but you really are doing `.. = (! ..)`
+   --> crates/rustforge-studio/src/editor/ui.rs:285:734
+    |
+285 | ...class="rf-button" on:click=move |_|preview.update(|value|*value=!*value)>{text("editor.preview")}</button><button class="rf-butt...
+    |                                                                   ^^
+    |
+    = note: to remove this lint, use either `!=` or `= !`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#suspicious_assignment_formatting
+
+warning: this looks like you are trying to use `.. != ..`, but you really are doing `.. = (! ..)`
+   --> crates/rustforge-studio/src/media_ui.rs:131:78
+    |
+131 |     view! {<button class="rf-button" on:click=move |_|open.update(|open|*open=!*open) aria-expanded=move ||open.get().to_string()>{...
+    |                                                                              ^^
+    |
+    = note: to remove this lint, use either `!=` or `= !`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#suspicious_assignment_formatting
+
+warning: this looks like an `else if` but the `else` is missing
+   --> crates/rustforge-studio/src/appearance_ui.rs:192:182
+    |
+192 | ...date(|menus|{if !menus[&key].is_array(){menus[&key]=json!([]);}if let Some(items)=menus[&key].as_array_mut()&& items.len()<64{it...
+    |                                                                   ^
+    |
+    = note: to remove this lint, add the missing `else` or add a new line before the second `if`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#possible_missing_else
+    = note: `-D clippy::possible-missing-else` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::possible_missing_else)]`
+    = note: the `clippy::possible_missing_else` lint ignores `-D warnings`
+
+warning: this looks like an `else if` but the `else` is missing
+   --> crates/rustforge-studio/src/modules/ui.rs:341:1944
+    |
+341 | ...perties"].as_object_mut(){properties.remove(&key.get_value());}if let Some(required)=value["fields"]["required"].as_array_mut(){...
+    |                                                                   ^
+    |
+    = note: to remove this lint, add the missing `else` or add a new line before the second `if`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#possible_missing_else
+
+warning: this looks like an `else if` but the `else` is missing
+   --> crates/rustforge-studio/src/modules/ui.rs:342:446
+    |
+342 | ...perties"].is_object(){value["fields"]["properties"]=json!({});}if value["fields"]["properties"].get(&key).is_none(){value["field...
+    |                                                                   ^
+    |
+    = note: to remove this lint, add the missing `else` or add a new line before the second `if`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#possible_missing_else
+
+warning: `rustforge-studio` (lib) generated 7 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.73s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

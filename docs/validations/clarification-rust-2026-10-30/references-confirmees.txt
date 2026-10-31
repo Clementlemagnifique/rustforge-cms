@@ -1,0 +1,20 @@
+Confirmation des références — 30 octobre 2026
+
+Source utilisateur : passation, menu admin développé, WordPress, trois thèmes,
+extensions locales et lien Figma 0CuiuOBCdVZoiZNOeZwNOT, nœud 2799:26256.
+Inspection locale ciblée : WordPress déclare 7.1.3, trois thèmes, 22 dossiers plugins.
+Inventaire enregistré : 18 kind=module et 4 kind=plugin ; pas de scan global rejoué.
+Figma : métadonnées Cover puis liste des pages lues ; fondations, composants,
+DataViews/DataForm et éditeurs observés. Pas de tokens complètement extraits,
+pas d'import/copie d'actifs, pas de nouveau fichier Figma créé.
+
+Contrat des extensions métier à compléter sur les modules natifs existants.
+WIT actuel : manifeste, hooks, stockage ; plusieurs capacités métier réservées.
+Six modules actuellement acceptés par l'API d'activation native.
+
+Premier incrément préparé : R01-A/B/C/E après les réserves R00 de session ;
+organisation avancée des widgets R01-D ensuite. Aucun écran implémenté dans ce lot.
+
+Contrôles réussis : 170 entrées, 23 familles, 17 lots ; 438 tâches, 38 composants ;
+menu cohérent ; documentation avec 41 archives et aucun lien invalide.
+Aucune nouvelle recette de fonctionnement, migration, publication, commit ou push.
